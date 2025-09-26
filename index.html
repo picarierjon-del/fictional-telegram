@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Pizzeria – Gestione completa</title>
+
+<!-- Icone + Chart + PDF -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root{
+  --primary:#ff7b00; --primary-600:#ff9333;
+  --green:#34c759; --red:#ff3b30;
+  --bg:#0b0c10; --surface:#12141a;
+  --text:#e8ebf1; --muted:#a8adbb;
+  --radius:20px; --shadow:0 8px 24px rgba(0,0,0,.35);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);line-height:1.5}
+
+/* App-bar */
+.app-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;background:#0f1218cc;backdrop-filter:blur(12px);border-bottom:1px solid #1a1f29}
+.app-bar h1{font-size:18px;font-weight:700}
+.icon-btn{background:none;border:none;cursor:pointer;font-family:'Material Symbols Outlined';font-size:28px;color:var(--text)}
+
+/* Drawer */
+.drawer{position:fixed;top:0;left:-300px;width:300px;height:100%;transition:left .25s ease;z-index:60;}
+.drawer.open{left:0;}
+.drawer .panel{position:relative;height:100%;background:#12141a;padding-top:80px}
+.drawer a, .drawer .btn-like{display:block;padding:14px 20px;color:var(--text);text-decoration:none;border-bottom:1px solid #1a1f29;cursor:pointer;background:none;border:none;text-align:left;width:100%}
+.drawer a:hover,.drawer .btn-like:hover{background:#1a1f29}
+
+/* Layout */
+main{max-width:1080px;margin:auto;padding:16px 14px 120px}
+
+/* Cards */
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin:16px 0}
+.card h2{font-size:16px;font-weight:700;color:var(--primary-600);margin-bottom:10px}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:#0f1218;border:1px solid #1a1f29;border-radius:16px;padding:14px;text-align:center}
+.kpi h3{font-size:12px;color:var(--muted);margin-bottom:6px}
+.money{font-size:20px;font-weight:800}
+.ok{color:var(--green)}.bad{color:var(--red)}
+.muted{font-size:13px;color:var(--muted)}
+
+/* Inputs & Buttons */
+input,select,button,textarea{width:100%;padding:10px 12px;margin-top:6px;border:1px solid #2a2f3a;
+  border-radius:12px;background:#0f1218;color:var(--text);font-size:14px}
+textarea{min-height:40px;resize:vertical}
+button.btn{background:var(--primary);color:#111;font-weight:700;cursor:pointer;border:none;border-radius:12px}
+button.btn:hover{background:var(--primary-600)}
+.row{display:flex;flex-wrap:wrap;gap:12px}
+.col{flex:1 1 220px}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px;border-bottom:1px solid #1a1f29;text-align:left;vertical-align:top}
+th{color:var(--primary-600);font-weight:700}
+.badge{display:inline-block;background:#1c2230;border:1px solid #2a3346;padding:4px 8px;border-radius:999px;font-size:12px;color:#cbd2e2}
+
+/* Bottom nav */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:space-around;
+  background:#0f1218cc;backdrop-filter:blur(12px);border-top:1px solid #1a1f29;padding:8px 0;z-index:50}
+.bottom-nav a{text-decoration:none;color:#a8adbb;font-size:12px;text-align:center;flex:1}
+.bottom-nav a.active{color:var(--primary-600)}
+.bottom-nav .material-symbols-outlined{display:block;font-size:24px}
+
+/* FAB */
+.fab{position:fixed;right:18px;bottom:80px;background:linear-gradient(135deg,#ff7b00,#ff9f3d);color:#111;width:56px;height:56px;
+  border-radius:50%;display:grid;place-items:center;box-shadow:0 6px 20px rgba(255,123,0,.4);cursor:pointer;z-index:70}
+</style>
+</head>
+<body>
+
+<header class="app-bar">
+  <button class="icon-btn" id="btnMenu">menu</button>
+  <h1>Pizzeria Dashboard</h1>
+  <span id="ivaReminder" class="badge"></span>
+</header>
+
+<!-- Drawer -->
+<nav id="drawer" class="drawer" aria-hidden="true">
+  <div class="panel">
+    <a href="#" id="closeMenu">Chiudi ✕</a>
+    <a href="#home">🏠 Panoramica</a>
+    <a href="#nuovo">➕ Nuovo movimento</a>
+    <a href="#movimenti">📜 Lista movimenti</a>
+    <a href="#fornitori">🏷️ Fornitori</a>
+    <a href="#categorie">🗂️ Categorie</a>
+    <a href="#scadenze">⏰ Scadenze</a>
+    <a href="#riepilogo">📊 Riepilogo</a>
+    <button class="btn-like" id="btnReportPDF">🧾 Report PDF</button>
+    <button class="btn-like" id="btnExport">⬇️ Esporta dati (JSON)</button>
+    <button class="btn-like" id="btnExportCSV">⬇️ Esporta movimenti (CSV)</button>
+    <button class="btn-like" id="btnImport">⬆️ Importa dati (JSON)</button>
+    <input type="file" id="fileImport" accept="application/json" hidden>
+  </div>
+</nav>
+
+<main>
+  <!-- Panoramica -->
+  <section class="card" id="home">
+    <h2>Panoramica</h2>
+    <div class="row">
+      <div class="col"><p class="money">Saldo: €<span id="saldo">0</span></p></div>
+      <div class="col"><span class="badge" id="periodoAttivo">Periodo: Tutto</span></div>
+    </div>
+    <canvas id="chart" height="140" style="margin-top:10px"></canvas>
+  </section>
+
+  <!-- Riepilogo + Filtri + Torta -->
+  <section id="riepilogo" class="card">
+    <h2>Riepilogo</h2>
+    <div class="row" style="margin-bottom:12px">
+      <div class="col">
+        <label>Periodo
+          <select id="filtroPeriodo">
+            <option value="all">Tutto</option>
+            <option value="week">Ultima settimana</option>
+            <option value="month">Mese corrente</option>
+            <option value="year">Anno corrente</option>
+          </select>
+        </label>
+      </div>
+      <div class="col"><label>Dal <input type="date" id="dateFrom"></label></div>
+      <div class="col"><label>Al <input type="date" id="dateTo"></label></div>
+      <div class="col"><label>Fornitore
+        <select id="filtroFornitore"><option value="">Tutti</option></select>
+      </label></div>
+      <div class="col"><label>Tag (contiene)
+        <input type="text" id="filtroTag" placeholder="es. evento, catering">
+      </label></div>
+      <div class="col" style="align-self:flex-end"><button id="btnDateFilter" class="btn">Applica</button></div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi"><h3>Entrate</h3><div class="money ok" id="kEntrate">€0</div></div>
+      <div class="kpi"><h3>Uscite</h3><div class="money bad" id="kUscite">€0</div></div>
+      <div class="kpi"><h3>Δ Entrate − Uscite</h3><div class="money" id="kSaldo">€0</div></div>
+      <div class="kpi"><h3>IVA Debito</h3><div class="money" id="kDebito">€0</div></div>
+      <div class="kpi"><h3>IVA Credito</h3><div class="money" id="kCredito">€0</div></div>
+      <div class="kpi"><h3>Δ IVA</h3><div class="money" id="kDiffIVA">€0</div></div>
+    </div>
+
+    <div style="margin-top:16px">
+      <h3 class="muted" style="margin-bottom:6px">Ripartizione uscite per categoria</h3>
+      <canvas id="pieSpese" height="160"></canvas>
+    </div>
+  </section>
+
+  <!-- Nuovo Movimento -->
+  <section id="nuovo" class="card">
+    <h2 id="formTitle">Nuovo Movimento</h2>
+    <form id="movForm" autocomplete="off">
+      <input type="hidden" name="editId">
+      <div class="row">
+        <div class="col"><label>Data <input type="date" name="data" required></label></div>
+        <div class="col"><label>Tipo
+          <select name="tipo"><option value="entrata">Entrata</option><option value="uscita">Uscita</option></select>
+        </label></div>
+        <div class="col"><label>Metodo
+          <select name="metodo"><option>Contanti</option><option>Bancomat</option><option>Carta</option><option>Bonifico</option></select>
+        </label></div>
+        <div class="col"><label>Categoria
+          <select name="categoria" id="categoriaSelect"></select>
+        </label></div>
+        <div class="col"><label>Fornitore
+          <select name="fornitore" id="fornitoreSelect"><option value="">-- Nessuno --</option></select>
+        </label></div>
+        <div class="col"><label>Tag (virgola)
+          <input type="text" name="tags" placeholder="evento, catering">
+        </label></div>
+      </div>
+      <div class="row">
+        <div class="col"><label>Descrizione <input type="text" name="descrizione" placeholder="Note…"></label></div>
+        <div class="col"><label>Imponibile (€) <input type="number" name="imponibile" step="0.01" required></label></div>
+        <div class="col"><label>IVA % 
+          <select name="ivaPercent"><option>0</option><option>4</option><option>5</option><option>10</option><option selected>22</option></select>
+        </label></div>
+      </div>
+      <button type="submit" class="btn">Salva</button>
+    </form>
+  </section>
+
+  <!-- Lista movimenti -->
+  <section id="movimenti" class="card">
+    <h2>Movimenti</h2>
+    <table id="tabMov">
+      <thead>
+        <tr>
+          <th>Data</th><th>Tipo</th><th>Metodo</th><th>Categoria</th>
+          <th>Fornitore</th><th>Tag</th><th>Descrizione</th>
+          <th>Imponibile</th><th>IVA</th><th>Totale</th><th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Fornitori -->
+  <section id="fornitori" class="card">
+    <h2>Gestione Fornitori</h2>
+    <form id="fornForm" class="row">
+      <div class="col"><label>Nome Fornitore <input type="text" name="nome" required placeholder="Es. Molino Rossi"></label></div>
+      <div style="align-self:flex-end"><button type="submit" class="btn">Aggiungi</button></div>
+    </form>
+    <table id="tabForn">
+      <thead><tr><th>Fornitore</th><th>Azioni</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Categorie -->
+  <section id="categorie" class="card">
+    <h2>Categorie personalizzabili</h2>
+    <form id="catForm" class="row">
+      <div class="col"><label>Nuova Categoria <input type="text" name="nome" required placeholder="Es. Consegne, Manutenzioni"></label></div>
+      <div style="align-self:flex-end"><button type="submit" class="btn">Aggiungi</button></div>
+    </form>
+    <table id="tabCat">
+      <thead><tr><th>Categoria</th><th>Azioni</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Scadenze personalizzate -->
+  <section id="scadenze" class="card">
+    <h2>Scadenze</h2>
+    <form id="scadForm" class="row">
+      <div class="col"><label>Titolo <input type="text" name="titolo" required placeholder="INPS, IMU, F24…"></label></div>
+      <div class="col"><label>Data <input type="date" name="data" required></label></div>
+      <div style="align-self:flex-end"><button type="submit" class="btn">Aggiungi scadenza</button></div>
+    </form>
+    <table id="tabScad">
+      <thead><tr><th>Data</th><th>Titolo</th><th>Azioni</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="muted" style="margin-top:8px;">Avviso automatico quando mancano ≤ 3 giorni.</p>
+  </section>
+</main>
+
+<a class="fab" href="#nuovo"><span class="material-symbols-outlined">add</span></a>
+
+<nav class="bottom-nav">
+  <a href="#home" class="active"><span class="material-symbols-outlined">home</span>Home</a>
+  <a href="#movimenti"><span class="material-symbols-outlined">list</span>Mov</a>
+  <a href="#nuovo"><span class="material-symbols-outlined">add</span>Nuovo</a>
+  <a href="#fornitori"><span class="material-symbols-outlined">sell</span>Forn.</a>
+  <a href="#categorie"><span class="material-symbols-outlined">folder</span>Cat.</a>
+  <a href="#scadenze"><span class="material-symbols-outlined">event</span>Scad.</a>
+</nav>
+<script>
+/* ===== Helpers & Stato ===== */
+const cur=new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'});
+const $=s=>document.querySelector(s);
+const getLS=(k,d=[])=>JSON.parse(localStorage.getItem(k)||JSON.stringify(d));
+const setLS=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+
+let movimenti=getLS('movimenti');
+let fornitori=getLS('fornitori');
+let categorie=getLS('categorie');
+let scadenze=getLS('scadenze');
+
+if(!Array.isArray(movimenti)) movimenti=[];
+if(!Array.isArray(fornitori)) fornitori=[];
+if(!Array.isArray(categorie) || categorie.length===0) categorie=[
+  {id:1,nome:'Vendita prodotti'},{id:2,nome:'Servizi'},{id:3,nome:'Affitti'},
+  {id:4,nome:'Utenze'},{id:5,nome:'Marketing'},{id:6,nome:'Spesa'},{id:7,nome:'Altro'}
+];
+if(!Array.isArray(scadenze)) scadenze=[];
+
+let filtroDal=null,filtroAl=null,filtroPeriodo='all',filtroFornitore='',filtroTag='';
+
+/* ===== Init ===== */
+document.addEventListener('DOMContentLoaded',()=>{
+  // Data default
+  const di=$('#movForm input[name="data"]'); if(di) di.valueAsDate=new Date();
+
+  // Drawer
+  $('#btnMenu').onclick=()=>$('#drawer').classList.add('open');
+  $('#closeMenu').onclick=e=>{e.preventDefault();$('#drawer').classList.remove('open');};
+  document.querySelectorAll('#drawer a[href^="#"]').forEach(a=>a.onclick=()=>$('#drawer').classList.remove('open'));
+
+  // Forms
+  $('#movForm').onsubmit=e=>{e.preventDefault();saveMov();};
+  $('#fornForm').onsubmit=e=>{e.preventDefault();addFornitore();};
+  $('#catForm').onsubmit=e=>{e.preventDefault();addCategoria();};
+  $('#scadForm').onsubmit=e=>{e.preventDefault();addScadenza();};
+
+  // Filtri
+  $('#filtroPeriodo').onchange=e=>{filtroPeriodo=e.target.value;renderAll();};
+  $('#btnDateFilter').onclick=()=>{filtroDal=$('#dateFrom').value||null;filtroAl=$('#dateTo').value||null;filtroTag=($('#filtroTag').value||'').trim();renderAll();};
+  $('#filtroFornitore').onchange=e=>{filtroFornitore=e.target.value;renderAll();};
+  $('#filtroTag').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();filtroTag=e.target.value.trim();renderAll();}});
+
+  // Import / Export / Report
+  $('#btnExport').onclick=e=>{e.preventDefault();exportData();};
+  $('#btnExportCSV').onclick=e=>{e.preventDefault();exportCSV();};
+  $('#btnImport').onclick=e=>{e.preventDefault();$('#fileImport').click();};
+  $('#fileImport').onchange=importData;
+  $('#btnReportPDF').onclick=e=>{e.preventDefault();generaReportPDF();};
+
+  // Nav attiva
+  window.addEventListener('hashchange',highlightNav); highlightNav();
+
+  // Render iniziale
+  renderCategorie(); renderCategorieSelect();
+  renderFornitori(); renderFornitoriSelects();
+  renderScadenze();
+  renderAll();
+
+  // Reminders & backup
+  checkScadenze(); autoBackup();
+
+  // init field defaults
+  $('#periodoAttivo').textContent=etichettaPeriodo();
+});
+
+/* ===== Utils ===== */
+function highlightNav(){
+  const hash=location.hash||'#home';
+  document.querySelectorAll('.bottom-nav a').forEach(a=>a.classList.toggle('active',a.getAttribute('href')===hash));
+}
+function saveAll(){ setLS('movimenti',movimenti); setLS('fornitori',fornitori); setLS('categorie',categorie); setLS('scadenze',scadenze); }
+function periodStart(){
+  const now=new Date();
+  if(filtroPeriodo==='week') return new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  if(filtroPeriodo==='month')return new Date(now.getFullYear(),now.getMonth(),1);
+  if(filtroPeriodo==='year') return new Date(now.getFullYear(),0,1);
+  return new Date(0);
+}
+function etichettaPeriodo(){
+  if(filtroPeriodo==='week') return 'Periodo: Ultimi 7 giorni';
+  if(filtroPeriodo==='month') return 'Periodo: Mese corrente';
+  if(filtroPeriodo==='year') return 'Periodo: Anno corrente';
+  if(filtroDal||filtroAl) return `Periodo: ${filtroDal||'…'} → ${filtroAl||'…'}`;
+  return 'Periodo: Tutto';
+}
+function applyFilters(list){
+  const start=periodStart();
+  return list.filter(m=>{
+    const d=new Date(m.data);
+    if(d<start) return false;
+    if(filtroDal && d<new Date(filtroDal)) return false;
+    if(filtroAl && d>new Date(filtroAl)) return false;
+    if(filtroFornitore && (m.fornitore||'')!==filtroFornitore) return false;
+    if(filtroTag){
+      const tags=(m.tags||[]).map(t=>t.toLowerCase());
+      const want=filtroTag.toLowerCase();
+      if(!tags.some(t=>t.includes(want))) return false;
+    }
+    return true;
+  });
+}
+
+/* ===== Movimenti ===== */
+function saveMov(){
+  const f=new FormData($('#movForm'));
+  const imp=parseFloat(f.get('imponibile'))||0;
+  const iva=imp*(parseFloat(f.get('ivaPercent'))||0)/100;
+  const id=f.get('editId');
+  const tags = (f.get('tags')||'')
+    .split(',')
+    .map(s=>s.trim())
+    .filter(Boolean);
+
+  const mov={
+    id:id||Date.now(),
+    data:f.get('data'),
+    tipo:f.get('tipo'),
+    metodo:f.get('metodo'),
+    categoria:f.get('categoria'),
+    fornitore:f.get('fornitore'),
+    descrizione:f.get('descrizione'),
+    imponibile:imp,
+    iva:iva,
+    tags
+  };
+  if(id){
+    movimenti = movimenti.map(m=>m.id==id?mov:m);
+    $('#formTitle').textContent="Nuovo Movimento";
+  } else {
+    movimenti.push(mov);
+  }
+  saveAll();
+  $('#movForm').reset();
+  const di=$('#movForm input[name="data"]'); if(di) di.valueAsDate=new Date();
+  renderAll();
+}
+function editMov(id){
+  const m=movimenti.find(x=>x.id==id); if(!m) return;
+  const f=$('#movForm');
+  f.editId.value=m.id;
+  f.data.value=m.data;
+  f.tipo.value=m.tipo;
+  f.metodo.value=m.metodo||'Contanti';
+  f.categoria.value=m.categoria||categorie[0]?.nome||'Altro';
+  f.fornitore.value=m.fornitore||'';
+  f.descrizione.value=m.descrizione||'';
+  f.imponibile.value=m.imponibile||0;
+  f.ivaPercent.value=(m.imponibile? Math.round(m.iva/m.imponibile*100):0);
+  f.tags.value=(m.tags||[]).join(', ');
+  $('#formTitle').textContent="Modifica Movimento";
+  location.hash="#nuovo";
+}
+function delMov(id){
+  movimenti = movimenti.filter(m=>m.id!=id);
+  saveAll(); renderAll();
+}
+
+/* ===== Fornitori ===== */
+function addFornitore(){
+  const nome=$('#fornForm input[name="nome"]').value.trim();
+  if(!nome) return;
+  fornitori.push({id:Date.now(),nome});
+  saveAll();
+  $('#fornForm').reset();
+  renderFornitori(); renderFornitoriSelects(); renderAll();
+}
+function delFornitore(id){
+  fornitori = fornitori.filter(x=>x.id!=id);
+  saveAll();
+  renderFornitori(); renderFornitoriSelects(); renderAll();
+}
+function renderFornitori(){
+  const tb=$('#tabForn tbody'); if(!tb) return;
+  tb.innerHTML='';
+  fornitori.forEach(f=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${f.nome}</td><td><button class="btn" onclick="delFornitore(${f.id})">Elimina</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function renderFornitoriSelects(){
+  const s=$('#fornitoreSelect'), f=$('#filtroFornitore');
+  if(s) s.innerHTML='<option value="">-- Nessuno --</option>';
+  if(f) f.innerHTML='<option value="">Tutti</option>';
+  fornitori.forEach(o=>{
+    if(s) s.innerHTML+=`<option>${o.nome}</option>`;
+    if(f) f.innerHTML+=`<option>${o.nome}</option>`;
+  });
+}
+
+/* ===== Categorie ===== */
+function addCategoria(){
+  const nome=$('#catForm input[name="nome"]').value.trim();
+  if(!nome) return;
+  if(categorie.some(c=>c.nome.toLowerCase()===nome.toLowerCase())){ alert('Categoria già esistente'); return; }
+  categorie.push({id:Date.now(),nome});
+  saveAll();
+  $('#catForm').reset();
+  renderCategorie(); renderCategorieSelect(); renderAll();
+}
+function delCategoria(id){
+  const nome = (categorie.find(c=>c.id==id)||{}).nome;
+  categorie = categorie.filter(x=>x.id!=id);
+  // riassegna eventuali movimenti con quella categoria a "Altro"
+  movimenti = movimenti.map(m=> m.categoria===nome ? {...m, categoria:'Altro'} : m );
+  saveAll();
+  renderCategorie(); renderCategorieSelect(); renderAll();
+}
+function renderCategorie(){
+  const tb=$('#tabCat tbody'); if(!tb) return;
+  tb.innerHTML='';
+  categorie.forEach(c=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${c.nome}</td><td><button class="btn" onclick="delCategoria(${c.id})">Elimina</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function renderCategorieSelect(){
+  const s=$('#categoriaSelect'); if(!s) return;
+  s.innerHTML='';
+  categorie.forEach(c=>{ s.innerHTML+=`<option>${c.nome}</option>`; });
+}
+
+/* ===== Scadenze personalizzate ===== */
+function addScadenza(){
+  const t = $('#scadForm input[name="titolo"]').value.trim();
+  const d = $('#scadForm input[name="data"]').value;
+  if(!t || !d) return;
+  scadenze.push({id:Date.now(), titolo:t, data:d});
+  saveAll();
+  $('#scadForm').reset();
+  renderScadenze();
+}
+function delScadenza(id){
+  scadenze = scadenze.filter(s=>s.id!=id);
+  saveAll();
+  renderScadenze();
+}
+function renderScadenze(){
+  const tb=$('#tabScad tbody'); if(!tb) return;
+  tb.innerHTML='';
+  (scadenze||[]).sort((a,b)=>a.data.localeCompare(b.data)).forEach(s=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${s.data}</td><td>${s.titolo}</td>
+      <td><button class="btn" onclick="delScadenza(${s.id})">Elimina</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function checkScadenze(){
+  const oggi = new Date();
+  (scadenze||[]).forEach(s=>{
+    const diff = Math.ceil((new Date(s.data)-oggi)/(1000*60*60*24));
+    if(diff <= 3 && diff >= 0){
+      alert(`Promemoria: "${s.titolo}" scade il ${new Date(s.data).toLocaleDateString('it-IT')}`);
+    }
+  });
+}
+
+/* ===== IVA Reminder (Italia) ===== */
+function ivaReminder(){
+  const now=new Date();
+  const year=now.getFullYear();
+  const scad=[ new Date(year,4,16), new Date(year,7,20), new Date(year,10,16), new Date(year+1,2,16) ];
+  let next = scad.find(d=>d>now);
+  if(!next) next = scad[0];
+  const diff = Math.ceil((next - now)/(1000*60*60*24));
+  $('#ivaReminder').textContent = `Prossima IVA: ${next.toLocaleDateString('it-IT')} • ${diff}g`;
+}
+
+/* ===== Import / Export / Backup ===== */
+function exportData(filename){
+  const data={movimenti,fornitori,categorie,scadenze};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download= filename || 'pizzeria_backup.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(Array.isArray(data.movimenti)&&Array.isArray(data.fornitori)){
+        movimenti=data.movimenti;
+        fornitori=data.fornitori;
+        categorie = Array.isArray(data.categorie)&&data.categorie.length?data.categorie:categorie;
+        scadenze = Array.isArray(data.scadenze)?data.scadenze:[];
+        saveAll();
+        renderFornitori(); renderFornitoriSelects();
+        renderCategorie(); renderCategorieSelect();
+        renderScadenze(); renderAll();
+        alert('Importazione completata!');
+      }else{
+        alert('File JSON non valido.');
+      }
+    }catch(err){ alert('Errore nel parsing del file.'); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+function exportCSV(){
+  const rows=[['Data','Tipo','Metodo','Categoria','Fornitore','Tag','Descrizione','Imponibile','IVA','Totale']];
+  movimenti.forEach(m=>{
+    const tot=(m.imponibile||0)+(m.iva||0);
+    rows.push([m.data,m.tipo,m.metodo,m.categoria,m.fornitore,(m.tags||[]).join('|'),m.descrizione,(m.imponibile||0),(m.iva||0),tot]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='pizzeria_movimenti.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+// Backup automatico settimanale
+function autoBackup(){
+  const last=Number(localStorage.getItem('lastBackup')||0);
+  const now=Date.now();
+  const week=7*24*60*60*1000;
+  if(!last || (now-last)>week){
+    exportData('pizzeria_backup_'+new Date().toISOString().slice(0,10)+'.json');
+    localStorage.setItem('lastBackup', String(now));
+  }
+}
+
+/* ===== Render ===== */
+function renderAll(){
+  const list = applyFilters(movimenti).sort((a,b)=>b.data.localeCompare(a.data));
+
+  let entr=0, usc=0, deb=0, cred=0;
+  list.forEach(m=>{
+    const tot=(m.imponibile||0)+(m.iva||0);
+    if(m.tipo==='entrata'){entr+=tot;deb+=(m.iva||0);} else {usc+=tot;cred+=(m.iva||0);}
+  });
+  const saldo=entr-usc, diffIva=deb-cred;
+
+  $('#saldo').textContent=saldo.toFixed(2);
+  $('#kEntrate').textContent=cur.format(entr);
+  $('#kUscite').textContent=cur.format(usc);
+  $('#kSaldo').textContent=cur.format(saldo);
+  $('#kDebito').textContent=cur.format(deb);
+  $('#kCredito').textContent=cur.format(cred);
+  $('#kDiffIVA').textContent=cur.format(diffIva);
+  $('#periodoAttivo').textContent=etichettaPeriodo();
+
+  // Tabella movimenti
+  const tb=$('#tabMov tbody'); tb.innerHTML='';
+  list.forEach(m=>{
+    const tot=(m.imponibile||0)+(m.iva||0);
+    const tr=document.createElement('tr');
+    tr.innerHTML=
+      `<td>${m.data}</td>
+       <td>${m.tipo}</td>
+       <td>${m.metodo||''}</td>
+       <td>${m.categoria||''}</td>
+       <td>${m.fornitore||''}</td>
+       <td>${(m.tags||[]).map(t=>`<span class="badge" style="margin-right:4px">${t}</span>`).join('')}</td>
+       <td>${m.descrizione||''}</td>
+       <td>${cur.format(m.imponibile||0)}</td>
+       <td>${cur.format(m.iva||0)}</td>
+       <td>${cur.format(tot)}</td>
+       <td>
+         <button class="btn" onclick="editMov(${m.id})">Mod.</button>
+         <button class="btn" onclick="delMov(${m.id})">Canc.</button>
+       </td>`;
+    tb.appendChild(tr);
+  });
+
+  ivaReminder();
+  updateChartLinea(list);
+  updateChartTorta(list);
+}
+
+/* ===== Grafici ===== */
+function updateChartLinea(list){
+  const byMonth={};
+  list.forEach(m=>{
+    if(!m.data) return;
+    const [y,mo]=m.data.split('-'); const key=`${y}-${mo}`;
+    if(!byMonth[key]) byMonth[key]={entrate:0,uscite:0};
+    const tot=(m.imponibile||0)+(m.iva||0);
+    if(m.tipo==='entrata') byMonth[key].entrate+=tot; else byMonth[key].uscite+=tot;
+  });
+  const labels=Object.keys(byMonth).sort();
+  const entrate=labels.map(k=>byMonth[k].entrate);
+  const uscite =labels.map(k=>byMonth[k].uscite);
+
+  const canvas=document.getElementById('chart');
+  const ctx=canvas.getContext('2d');
+  const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  const gradG=ctx.createLinearGradient(0,0,0,canvas.height);
+  gradG.addColorStop(0,dark?'rgba(52,199,89,0.35)':'rgba(52,199,89,0.28)');
+  gradG.addColorStop(1,'rgba(52,199,89,0)');
+  const gradR=ctx.createLinearGradient(0,0,0,canvas.height);
+  gradR.addColorStop(0,dark?'rgba(255,59,48,0.35)':'rgba(255,59,48,0.28)');
+  gradR.addColorStop(1,'rgba(255,59,48,0)');
+
+  if(window._chart1) window._chart1.destroy();
+  window._chart1=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Entrate',data:entrate,borderColor:'#34c759',backgroundColor:gradG,fill:true,tension:.35,pointRadius:0,borderWidth:2},
+      {label:'Uscite', data:uscite, borderColor:'#ff3b30',backgroundColor:gradR,fill:true,tension:.35,pointRadius:0,borderWidth:2}
+    ]},
+    options:{
+      responsive:true,
+      plugins:{legend:{labels:{color: dark ? '#d6dae3' : '#475066', font:{weight:'600'}}}},
+      scales:{
+        x:{grid:{color: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'},ticks:{color: dark ? '#b6bccb' : '#55607a'}},
+        y:{grid:{color: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'},ticks:{color: dark ? '#b6bccb' : '#55607a'}}
+      }
+    }
+  });
+}
+function updateChartTorta(list){
+  // solo uscite per categoria
+  const map={};
+  list.filter(m=>m.tipo==='uscita').forEach(m=>{
+    const key=m.categoria||'Altro';
+    const tot=(m.imponibile||0)+(m.iva||0);
+    map[key]=(map[key]||0)+tot;
+  });
+  const labels=Object.keys(map);
+  const values=labels.map(k=>map[k]);
+
+  const ctx=document.getElementById('pieSpese').getContext('2d');
+  if(window._chart2) window._chart2.destroy();
+  window._chart2=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels,datasets:[{data:values}]},
+    options:{
+      responsive:true,
+      plugins:{legend:{position:'bottom',labels:{color:'#cfd6e6'}}}
+    }
+  });
+}
+
+/* ===== Report PDF ===== */
+async function generaReportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt',format:'a4'});
+
+  // Raccolta dati filtrati
+  const list = applyFilters(movimenti).sort((a,b)=>a.data.localeCompare(b.data));
+  let entr=0, usc=0, deb=0, cred=0;
+  list.forEach(m=>{const tot=(m.imponibile||0)+(m.iva||0);
+    if(m.tipo==='entrata'){entr+=tot;deb+=(m.iva||0);} else {usc+=tot;cred+=(m.iva||0);} });
+  const saldo=entr-usc, diffIva=deb-cred;
+
+  const titolo='Report Contabile — '+etichettaPeriodo();
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text(titolo, 40, 40);
+  doc.setFontSize(11); doc.setFont('helvetica','normal');
+  doc.text(`Generato: ${new Date().toLocaleString('it-IT')}`, 40, 60);
+
+  // KPI
+  doc.setFont('helvetica','bold'); doc.text('Riepilogo', 40, 90);
+  doc.setFont('helvetica','normal');
+  const righeRiepilogo=[
+    ['Entrate', cur.format(entr)],
+    ['Uscite', cur.format(usc)],
+    ['Δ Entrate−Uscite', cur.format(saldo)],
+    ['IVA Debito', cur.format(deb)],
+    ['IVA Credito', cur.format(cred)],
+    ['Δ IVA', cur.format(diffIva)]
+  ];
+  doc.autoTable({
+    startY: 100,
+    head:[['Voce','Valore']],
+    body:righeRiepilogo,
+    styles:{fontSize:10},
+    theme:'grid'
+  });
+
+  // Movimenti (tabella)
+  const rows=list.map(m=>[
+    m.data, m.tipo, m.metodo||'', m.categoria||'',
+    m.fornitore||'', (m.tags||[]).join('|'), m.descrizione||'',
+    (m.imponibile||0).toFixed(2), (m.iva||0).toFixed(2),
+    ((m.imponibile||0)+(m.iva||0)).toFixed(2)
+  ]);
+  doc.addPage();
+  doc.setFont('helvetica','bold'); doc.text('Dettaglio Movimenti', 40, 40);
+  doc.autoTable({
+    startY: 50,
+    head:[['Data','Tipo','Metodo','Categoria','Fornitore','Tag','Descrizione','Imponibile','IVA','Totale']],
+    body:rows,
+    styles:{fontSize:8,cellPadding:2},
+    headStyles:{fillColor:[255,123,0]},
+    theme:'striped'
+  });
+
+  // Salva
+  const nome='report_'+new Date().toISOString().slice(0,10)+'.pdf';
+  doc.save(nome);
+}
+
+/* ===== Fine: avvii ausiliari ===== */
+function refreshAfterChange(){
+  saveAll(); renderFornitoriSelects(); renderCategorieSelect(); renderAll();
+}
+</script>
+</body>
+</html>
