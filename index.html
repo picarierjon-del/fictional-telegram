@@ -323,7 +323,7 @@
         } catch(e) { console.error('Errore salvataggio stato globale', e); }
     }
 
-    // FUNZIONE CRITICA CORRETTA PER EVITARE BUG DI CARICAMENTO DATI FISCALI
+    // CORREZIONE CRITICA: Funzione loadData stabile
     function loadData() {
         loadGlobalState();
         const user = globalState.currentUser;
@@ -347,7 +347,7 @@
             appData.monthlySavingsTarget ||= 0;
             appData.categoryBudgets ||= {}; 
             
-            // CORREZIONE CRITICA: Garantisce che tutti i campi fiscali siano inizializzati
+            // Logica di fallback robusta per i campi fiscali
             appData.fiscalParams = { 
                 ...DEFAULT_FISCAL_PARAMS, 
                 ...appData.fiscalParams,
@@ -361,7 +361,6 @@
             document.getElementById('header-subtitle').textContent = `Profilo: ${user.name}`;
         } catch(e){ 
             console.error(e); 
-            // In caso di errore grave, prova a salvare i dati per il recupero
             saveData(); 
             showToast('Errore nel caricamento dati utente. Prova a ricaricare la pagina.','red'); 
         }
@@ -3218,7 +3217,7 @@
 
           <div class="bg-red-50 dark:bg-red-900/50 p-5 rounded-xl card space-y-4 border-l-4 border-red-600">
             <h3 class="text-xl font-medium text-red-600">Gestione Profilo Corrente</h3>
-            <p class="text-sm text-red-700 dark:text-red-300">ATTENZIONE: Questa azione eliminerà permanentemente l'intero profilo "${globalState.currentUser.name}" e i suoi dati dal dispositivo.</p>
+            <p class="text-sm text-red-700 dark:text-gray-300">ATTENZIONE: Questa azione eliminerà permanentemente l'intero profilo "${globalState.currentUser.name}" e i suoi dati dal dispositivo.</p>
             <button onclick="deleteCurrentUserProfile()" class="cta-button w-full bg-red-500 text-white p-3 rounded-lg font-bold hover:bg-red-600">Elimina Profilo "${globalState.currentUser.name}"</button>
           </div>
         </div>
