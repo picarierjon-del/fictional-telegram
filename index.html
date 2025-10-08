@@ -17,6 +17,7 @@
     .bar-container { height:20px; border-radius:9999px; overflow:hidden; display:flex; }
     .bar-income{background-color:#10b981}.bar-expense{background-color:#ef4444}
     .bar-addebito{background-color:#fb923c}.bar-credito{background-color:#3b82f6}
+    /* CORREZIONE QUICK ACTIONS (mobile only, visible via JS) */
     #quick-actions{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(to top,#fff, #fff8);padding:10px;box-shadow:0 -2px 10px rgba(0,0,0,.1);z-index:40;}
     /* Dark mode */
     .dark body, body.dark { background-color:#0f172a; color:#f1f5f9; }
@@ -89,7 +90,7 @@
 
     <div id="content-area" class="mt-4"></div>
 
-    <div id="quick-actions" class="hidden md:hidden">
+    <div id="quick-actions" class="md:hidden"> 
       <div class="flex space-x-3 max-w-lg mx-auto">
         <button onclick="quickRegister('true')"
           class="flex-1 bg-emerald-500 text-white p-3 rounded-xl font-bold hover:bg-emerald-600 shadow-xl transition transform hover:scale-[1.02] text-lg">
@@ -148,15 +149,14 @@
     const MAX_RECENT_TRANSACTIONS = 10;
     const DEFAULT_CATEGORIES = ['Affitto','Bollette','Spesa','Marketing','Servizi','Stipendi','Carburante','Ristoranti','Abbonamenti','Altro'];
     const FISCAL_REMINDER_TYPES = ['IVA Trimestrale','IVA Saldo/Acconto','IMU','TARI','Tasse/Acconto','Assicurazione','Bollo Auto','Altri Costi Personali','Altri Costi Attività'];
-    const MAX_FORFETTARIO_REVENUE = 85000; // Massimale Forfettario
+    const MAX_FORFETTARIO_REVENUE = 85000; // NUOVO: Massimale Forfettario
     
-    // Parametri fiscali di DEFAULT (Base Forfettario 40%) - AGGIUNTO REGIME E COSTI DEDUCIBILI
+    // Parametri fiscali di DEFAULT (Ristorazione/Commercio Forfettario 40%)
     const DEFAULT_FISCAL_PARAMS = {
-        regime: 'forfettario', 
+        regime: 'forfettario', // MODIFICA: Aggiunto il regime di default
         profitRate: 0.40, 
         taxRate: 0.15,    
-        inpsRate: 0.26,
-        costiDeducibiliAnnuali: 0 
+        inpsRate: 0.26    
     };
     
     // Mappa Icone per Categorie (Usabilità)
@@ -218,7 +218,7 @@
         categoryBudgets: {},
         fiscalParams: DEFAULT_FISCAL_PARAMS,
         currentBankBalance: 0, 
-        dashboardLayout: DASHBOARD_WIDGETS.filter(w => w.default).map(w => w.id) 
+        dashboardLayout: DASHBOARD_WIDGETS.filter(w => w.default).map(w => w.id) // NUOVO: Layout di default
     };
     let currentPage = 'activity';
     let reportFilters = { 
@@ -229,8 +229,7 @@
         tagFilter: 'all',
         sortKey: 'date',        
         sortDirection: 'desc',
-        searchQuery: '', 
-        groupBy: 'month' 
+        searchQuery: '' // NUOVO: Campo ricerca testuale
     };
 
     let simulationState = {
@@ -241,6 +240,81 @@
     };
 
     // --- UTILITY ---
+    
+    // UTILITY DI DEBOUNCE (CORREZIONE LENTEZZA SIMULATORE)
+    let simulationTimer = null;
+    const SIMULATION_DELAY = 500; 
+
+    function debounceSimulationUpdate() {
+        if (simulationTimer) {
+            clearTimeout(simulationTimer);
+        }
+        simulationTimer = setTimeout(() => {
+            updateFiscalSimulationUI();
+        }, SIMULATION_DELAY);
+    }
+    
+    function updateFiscalSimulationUI() {
+        if (currentPage !== 'activity') return;
+
+        const fiscalSim = calculateFiscalSimulation(new Date().getFullYear());
+        const symbol = getCurrencySymbol();
+        
+        const simCard = document.querySelector('.fiscal-simulation-card');
+        if (simCard) {
+            simCard.classList.remove('border-red-500', 'border-indigo-500');
+            simCard.classList.add(fiscalSim.projectionIsActive ? 'border-indigo-500' : 'border-red-500');
+            
+            const titleEl = simCard.querySelector('h3');
+            if (titleEl) {
+                const fiscalTypeLabel = fiscalSim.fiscalParamsUsed.regime === 'forfettario' ? 'Forfettario' : 'Ordinario';
+                titleEl.innerHTML = `Simulazione Fiscale (${fiscalTypeLabel} Proiezione ${new Date().getFullYear()}) ${fiscalSim.projectionIsActive ? '✨ WHAT-IF' : ''}`;
+                titleEl.classList.toggle('text-indigo-600', fiscalSim.projectionIsActive);
+                titleEl.classList.toggle('text-red-600', !fiscalSim.projectionIsActive);
+            }
+        }
+
+        // 2. Aggiorna i valori calcolati
+        const elementsToUpdate = {
+            'sim-ricavi': fiscalSim.totalRicavi.toFixed(2),
+            'sim-costi': fiscalSim.totalCosti.toFixed(2),
+            'sim-base-imponibile': fiscalSim.baseImponibile.toFixed(2),
+            'sim-imposta': fiscalSim.impostaSostitutiva.toFixed(2),
+            'sim-inps': fiscalSim.contributiINPS.toFixed(2),
+            'sim-totale-tasse': fiscalSim.totaleTasse.toFixed(2),
+            'sim-netta-rimanente': fiscalSim.nettaRimanente.toFixed(2),
+            'sim-note': fiscalSim.note
+        };
+
+        for (const [id, value] of Object.entries(elementsToUpdate)) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = value + (['sim-ricavi','sim-costi','sim-base-imponibile','sim-imposta','sim-inps','sim-totale-tasse','sim-netta-rimanente'].includes(id) ? ` ${symbol}` : '');
+            }
+        }
+        
+        // 3. Aggiorna i colori dinamici del saldo
+        const netRimanenteEl = document.getElementById('sim-netta-rimanente');
+        if (netRimanenteEl) {
+            netRimanenteEl.classList.toggle('text-emerald-600', fiscalSim.nettaRimanente >= 0);
+            netRimanenteEl.classList.toggle('text-red-600', fiscalSim.nettaRimanente < 0);
+        }
+
+        // 4. Aggiorna i testi delle note (gestisce i simboli valuta)
+        document.getElementById('sim-note').innerHTML = fiscalSim.note.replace(/€/g, symbol);
+        
+        // 5. Aggiorna i testi delle label dei tassi (Ordinario/Forfettario)
+        const currentFiscal = fiscalSim.fiscalParamsUsed;
+        const fiscalTaxLabel = currentFiscal.regime === 'forfettario' ? 'Aliquota Fiscale Simulato' : 'IRPEF Max Simulato (43%)';
+        const profitRateLabel = currentFiscal.regime === 'forfettario' ? 'Coeff. Redditività Simulato' : 'Imponibile Base (Ricavi - Costi)';
+        
+        document.querySelector('label[for="profit-rate-override"]').textContent = profitRateLabel;
+        document.querySelector('label[for="tax-rate-override"]').textContent = fiscalTaxLabel;
+        
+        const baseImponibileSpan = document.querySelector('.base-imponibile-label');
+        if (baseImponibileSpan) baseImponibileSpan.textContent = fiscalSim.regime === 'forfettario' ? `Base Imponibile (${(currentFiscal.profitRate * 100).toFixed(0)}%)` : `Base Imponibile Netta (IRPEF)`;
+    }
+    
     function getCurrencySymbol() {
         return appData.currencySymbol || '€';
     }
@@ -259,7 +333,6 @@
                 const loadedFilters = JSON.parse(saved);
                 reportFilters = { ...reportFilters, ...loadedFilters };
                 if (!loadedFilters.searchQuery) reportFilters.searchQuery = '';
-                if (!loadedFilters.groupBy) reportFilters.groupBy = 'month';
             }
         } catch(e) { console.error('Errore caricamento filtri report', e); }
     }
@@ -323,7 +396,6 @@
         } catch(e) { console.error('Errore salvataggio stato globale', e); }
     }
 
-    // CORREZIONE CRITICA: Funzione loadData stabile
     function loadData() {
         loadGlobalState();
         const user = globalState.currentUser;
@@ -347,22 +419,18 @@
             appData.monthlySavingsTarget ||= 0;
             appData.categoryBudgets ||= {}; 
             
-            // Logica di fallback robusta per i campi fiscali
-            appData.fiscalParams = { 
-                ...DEFAULT_FISCAL_PARAMS, 
-                ...appData.fiscalParams,
-                regime: appData.fiscalParams.regime || DEFAULT_FISCAL_PARAMS.regime,
-                costiDeducibiliAnnuali: appData.fiscalParams.costiDeducibiliAnnuali || DEFAULT_FISCAL_PARAMS.costiDeducibiliAnnuali
-            };
+            // MODIFICA: Assicuriamo che il campo 'regime' sia sempre presente al caricamento.
+            appData.fiscalParams = { ...DEFAULT_FISCAL_PARAMS, ...appData.fiscalParams };
+            appData.fiscalParams.regime = appData.fiscalParams.regime || 'forfettario'; 
 
             appData.currentBankBalance ||= 0; 
-            appData.dashboardLayout ||= DASHBOARD_WIDGETS.filter(w => w.default).map(w => w.id); 
+            appData.dashboardLayout ||= DASHBOARD_WIDGETS.filter(w => w.default).map(w => w.id); // Inizializza Layout
             
             document.getElementById('header-subtitle').textContent = `Profilo: ${user.name}`;
         } catch(e){ 
             console.error(e); 
-            saveData(); 
-            showToast('Errore nel caricamento dati utente. Prova a ricaricare la pagina.','red'); 
+            showToast('Errore nel caricamento dati utente','red'); 
+            saveData();
         }
     }
     
@@ -766,45 +834,42 @@
             return acc;
         }, {})).length || 1; 
 
-        const avgMonthlyRevenue = yearSummary.totalIncomes / historicalMonths;
-        const avgMonthlyExpenses = appData.expenses
-            .filter(e => e.type === 'activity' && new Date(e.date).getFullYear() === currentYear)
-            .reduce((sum, e) => sum + (e.gross || 0), 0) / historicalMonths;
-
-        const projectedRevenue = yearSummary.totalIncomes + (avgMonthlyRevenue * monthsRemaining);
-        const projectedExpenses = yearSummary.totalExpenses + (avgMonthlyExpenses * monthsRemaining);
+        const projectedRevenue = yearSummary.totalIncomes + (yearSummary.totalIncomes / historicalMonths * monthsRemaining);
+        const projectedExpenses = yearSummary.totalExpenses + (yearSummary.totalExpenses / historicalMonths * monthsRemaining);
 
         return { projectedRevenue, projectedExpenses };
     }
 
-    // --- FUNZIONE: Calcolo IRPEF a Scaglioni (Per Regime Ordinario) ---
+    // --- NUOVA FUNZIONE: Calcolo IRPEF a Scaglioni (Per Regime Ordinario) ---
     function calculateIRPEF(baseImponibile) {
         let irpef = 0;
         let residuo = baseImponibile;
 
         // Scaglioni IRPEF 2024 (Rif. standard Italia)
         const scaglioni = [
-            { limite: 28000, aliquota: 0.23, impostaMax: 6440 }, 
-            { limite: 50000, aliquota: 0.35, impostaMax: 7700 }, 
-            { limite: Infinity, aliquota: 0.43, impostaMax: Infinity } 
+            { limite: 28000, aliquota: 0.23 }, // Fino a 28.000 (23%)
+            { limite: 50000, aliquota: 0.35 }, // Oltre 28.000, fino a 50.000 (35%)
+            { limite: Infinity, aliquota: 0.43 } // Oltre 50.000 (43%)
         ];
         
         let scaglionePrecedenteLimite = 0;
 
         for (const scaglione of scaglioni) {
-            const delta = scaglione.limite - scaglionePrecedenteLimite;
             
-            if (residuo > 0) {
-                // Calcola l'importo imponibile in questo scaglione
-                let imponibileInScaglione = Math.min(residuo, delta);
-                
-                if (scaglione.limite === Infinity) {
-                    imponibileInScaglione = residuo; // L'ultimo scaglione prende tutto il residuo
-                }
-                
+            // Calcola quanto dell'imponibile rientra in questo scaglione
+            let imponibileInScaglione = 0;
+            if (scaglione.limite === Infinity) {
+                imponibileInScaglione = residuo;
+            } else {
+                // Dimensione dello scaglione: limite - limite precedente
+                const rangeSize = scaglione.limite - scaglionePrecedenteLimite;
+                imponibileInScaglione = Math.min(residuo, rangeSize);
+            }
+            
+            if (imponibileInScaglione > 0) {
                 irpef += imponibileInScaglione * scaglione.aliquota;
                 residuo -= imponibileInScaglione;
-            } else {
+            } else if (residuo <= 0) {
                 break; 
             }
             scaglionePrecedenteLimite = scaglione.limite;
@@ -815,15 +880,13 @@
 
 
     // Calcolo Simulazione Fiscale (con input What-If PROFESSIONALE) - LOGICA AGGIORNATA
-    function calculateFiscalSimulation(currentYear, overrideRegime = null) {
+    function calculateFiscalSimulation(currentYear) {
         const yearSummary = calculateFinancialSummary('activity', 'year', String(currentYear));
         const projection = calculateAnnualFiscalProjection();
         
         // Parametri fiscali attuali (dal salvataggio o default)
-        const regimeToUse = overrideRegime || appData.fiscalParams.regime; 
-        
         const params = { 
-            regime: regimeToUse, 
+            regime: appData.fiscalParams.regime, // Regime scelto
             profitRate: simulationState.profitRateOverride !== null ? simulationState.profitRateOverride : appData.fiscalParams.profitRate,
             taxRate: simulationState.taxRateOverride !== null ? simulationState.taxRateOverride : appData.fiscalParams.taxRate,
             inpsRate: appData.fiscalParams.inpsRate 
@@ -838,82 +901,64 @@
         let baseImponibileFiscale = 0;
         let impostaTotale = 0;
         let contributiINPS = 0;
-        let aliquotaEffettiva = 0;
-        let baseImponibileIRPEF = 0;
-        let notaRegime = '';
+        let note = '';
         
         // --- Logica Regime ---
         if (params.regime === 'forfettario') {
             // Logica Forfettaria
             baseImponibileFiscale = totalRicaviSimulated * params.profitRate;
             
+            // Simula la flat tax o il tasso override
             const aliquotaFiscaleUsata = params.taxRate;
             
             impostaTotale = baseImponibileFiscale * aliquotaFiscaleUsata;
             contributiINPS = baseImponibileFiscale * appData.fiscalParams.inpsRate; 
-            baseImponibileIRPEF = baseImponibileFiscale; 
-            
-            aliquotaEffettiva = baseImponibileFiscale > 0 ? (impostaTotale / baseImponibileFiscale) * 100 : 0; 
 
-            notaRegime = `Regime Forfettario - Coeff. di Redditività: ${(params.profitRate * 100).toFixed(0)}%. Tasso Effettivo: ${aliquotaEffettiva.toFixed(1)}%.`;
+            note = `Regime Forfettario - Coeff. di Redditività: ${(params.profitRate * 100).toFixed(0)}%.`;
             if (totalRicaviSimulated > MAX_FORFETTARIO_REVENUE) {
-                 notaRegime += ` ⚠️ Ricavi simulati sopra il massimale Forfettario (${MAX_FORFETTARIO_REVENUE.toFixed(0)}${getCurrencySymbol()}).`;
+                 note += ` ⚠️ Attenzione: Ricavi simulati sopra il massimale Forfettario (${MAX_FORFETTARIO_REVENUE.toFixed(0)}${getCurrencySymbol()}).`;
             }
 
         } else if (params.regime === 'ordinario') {
-            // Logica Regime Ordinario
+            // NUOVA Logica Regime Ordinario
             
             // 1. Base Imponibile Fiscale (Ricavi - Costi reali/proiettati)
-            const costiDeducibiliAggiuntivi = parseFloat(appData.fiscalParams.costiDeducibiliAnnuali || 0); 
-            const totaleCostiDeducibili = totalCostiSimulated + costiDeducibiliAggiuntivi;
-
-            baseImponibileFiscale = Math.max(0, totalRicaviSimulated - totaleCostiDeducibili); 
+            baseImponibileFiscale = Math.max(0, totalRicaviSimulated - totalCostiSimulated); 
             
-            // 2. Contributi INPS 
+            // 2. Contributi INPS (su Base Imponibile Fiscale lorda)
             contributiINPS = baseImponibileFiscale * appData.fiscalParams.inpsRate; 
             
             // 3. IRPEF a Scaglioni (dopo deduzione INPS)
-            baseImponibileIRPEF = Math.max(0, baseImponibileFiscale - contributiINPS);
+            const baseImponibileIRPEF = Math.max(0, baseImponibileFiscale - contributiINPS);
             impostaTotale = calculateIRPEF(baseImponibileIRPEF);
             
-            aliquotaEffettiva = baseImponibileIRPEF > 0 ? (impostaTotale / baseImponibileIRPEF) * 100 : 0; 
-            
-            notaRegime = `Regime Ordinario (IRPEF a Scaglioni). Tasso Effettivo IRPEF: ${aliquotaEffettiva.toFixed(1)}%. Costi Deducibili (Totali): ${totaleCostiDeducibili.toFixed(2)}${getCurrencySymbol()}`;
+            note = `Regime Ordinario - Aliquote IRPEF a Scaglioni. I costi e i contributi INPS sono DEDUCIBILI.`;
         }
 
         // Calcolo del Saldo Netto Rimanente
         const projectedNetBalance = totalRicaviSimulated - totalCostiSimulated;
         const nettaRimanente = projectedNetBalance - impostaTotale - contributiINPS;
-        const tasseSuRicavoTotale = totalRicaviSimulated > 0 ? ((impostaTotale + contributiINPS) / totalRicaviSimulated) * 100 : 0;
-
 
         const isSimulating = simulationState.additionalRevenue !== 0 || simulationState.additionalExpense !== 0 || simulationState.taxRateOverride !== null || simulationState.profitRateOverride !== null;
         
-        let note = notaRegime;
         if (isSimulating) {
-            note = `✨ Scenario What-If Attivo. Ricavi Add: ${simulationState.additionalRevenue.toFixed(2)}${getCurrencySymbol()}. Costi Add: ${simulationState.additionalExpense.toFixed(2)}${getCurrencySymbol()}. ` + notaRegime;
+            note = `✨ Scenario What-If Attivo. Ricavi Add: ${simulationState.additionalRevenue.toFixed(2)}${getCurrencySymbol()}. Costi Add: ${simulationState.additionalExpense.toFixed(2)}${getCurrencySymbol()}. ` + note;
         }
 
         return {
-            regime: regimeToUse, 
             totalRicavi: +totalRicaviSimulated.toFixed(2),
             totalCosti: +totalCostiSimulated.toFixed(2),
             baseImponibile: +baseImponibileFiscale.toFixed(2),
-            baseImponibileIRPEF: +baseImponibileIRPEF.toFixed(2), 
             impostaSostitutiva: +impostaTotale.toFixed(2),
             contributiINPS: +contributiINPS.toFixed(2),
             totaleTasse: +(impostaTotale + contributiINPS).toFixed(2),
             nettaRimanente: +nettaRimanente.toFixed(2),
-            aliquotaEffettivaImponibile: +aliquotaEffettiva.toFixed(1), 
-            aliquotaTotaleSuRicavi: +tasseSuRicavoTotale.toFixed(1), 
             note: note,
             projectionIsActive: isSimulating,
             fiscalParamsUsed: params
         };
     }
-
-// --- Fine blocco per la Parte 1/2 ---
-// --- Inizio blocco per la Parte 2/2 ---
+    // --- Fine Core Calculations ---
 
     function calculateIvaQuarterly(year, quarter) {
         // Mesi inclusi nel trimestre (0-11)
@@ -1106,8 +1151,66 @@
     }
     // --- Fine Core Calculations ---
 
+    // --- NUOVA FUNZIONE: AutoFill / Smart Data ---
+    function autoFillSmartData(description) {
+        if (!description || !currentPage || currentPage === 'report' || currentPage === 'reminders' || currentPage === 'settings') return;
+        
+        const isIncome = document.getElementById('isIncome').value === 'true';
+        const type = currentPage;
+        const desc = description.toLowerCase().trim();
 
-    // --- Contacts / Categories helpers ---
+        // 1. Riconoscimento basato sull'ultima transazione con la stessa descrizione
+        const allTransactions = [...appData.invoices, ...appData.expenses];
+        const lastSimilarTransaction = allTransactions
+            .filter(t => t.description?.toLowerCase() === desc && (t.isIncome === isIncome) && t.type === type)
+            .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+        if (lastSimilarTransaction) {
+            document.getElementById('category').value = lastSimilarTransaction.category || 'Altro';
+            document.getElementById('vat-rate').value = lastSimilarTransaction.vatRate.toFixed(0);
+            if (isIncome && type === 'activity') {
+                document.getElementById('incomeType').value = lastSimilarTransaction.incomeType || 'Fattura (Cliente)';
+                document.getElementById('incomeType').dispatchEvent(new Event('change'));
+            }
+            calculateGross();
+            showToast(`Dati suggeriti in base a "${lastSimilarTransaction.description}".`);
+            return;
+        }
+
+        // 2. Riconoscimento basato su parole chiave generiche (Pattern Matching)
+        let suggestedCategory = null;
+        let suggestedVatRate = 0; // Tasso di default per non attività o non fatturabile
+        
+        if (type === 'personal') {
+            if (desc.includes('affitto') || desc.includes('mutuo')) suggestedCategory = 'Affitto';
+            else if (desc.includes('bolletta') || desc.includes('luce') || desc.includes('gas') || desc.includes('acqua')) suggestedCategory = 'Bollette';
+            else if (desc.includes('supermercato') || desc.includes('spesa') || desc.includes('alimentari')) suggestedCategory = 'Spesa';
+            else if (desc.includes('ristorante') || desc.includes('pizzeria')) suggestedCategory = 'Ristoranti';
+            else if (desc.includes('abbonamento') || desc.includes('netflix') || desc.includes('spotify')) suggestedCategory = 'Abbonamenti';
+            
+            // Per le transazioni personali, l'IVA è solitamente irrilevante (0)
+            suggestedVatRate = 0; 
+        } 
+        
+        if (type === 'activity') {
+            suggestedVatRate = 22; // Default per attività
+            if (desc.includes('carburante') || desc.includes('benzina') || desc.includes('diesel')) suggestedCategory = 'Carburante';
+            else if (desc.includes('marketing') || desc.includes('ads') || desc.includes('pubblicit')) suggestedCategory = 'Marketing';
+            else if (desc.includes('consulenza') || desc.includes('servizi') || desc.includes('cloud')) suggestedCategory = 'Servizi';
+            else if (desc.includes('stipendio') || desc.includes('pagamento fornitore') || desc.includes('dipendente')) suggestedCategory = 'Stipendi';
+        }
+
+        if (suggestedCategory) {
+            document.getElementById('category').value = suggestedCategory;
+            document.getElementById('vat-rate').value = suggestedVatRate.toFixed(0);
+            calculateGross();
+            showToast(`Suggerimento: categoria impostata su "${suggestedCategory}".`);
+        }
+    }
+    // --- Fine NUOVA FUNZIONE: AutoFill / Smart Data ---
+
+
+    // --- Contacts / Categories helpers (omitted for brevity) ---
     function addContact(name, scope, relation){
       const clean = (name||'').trim(); if (!clean) return;
       const exists = appData.contacts.find(c=> c.name.toLowerCase()===clean.toLowerCase() && c.scope===scope );
@@ -1115,7 +1218,7 @@
     }
     
     function ensureCategory(cat){
-      const c=(cat||'').trim(); if (!c) return;
+      const c=(cat||'').trim(); if (c.length<1) return;
       if (!appData.categories.map(s=>s.toLowerCase()).includes(c.toLowerCase())) { 
         appData.categories.push(c); 
         appData.categories.sort((a,b)=>a.localeCompare(b)); 
@@ -1123,37 +1226,6 @@
       }
     }
     
-    // NUOVA FUNZIONE: Rinominazione Categoria
-    function renameCategory(oldName, newName) {
-        const cleanOld = oldName.trim();
-        const cleanNew = newName.trim();
-
-        if (!cleanOld || !cleanNew || cleanOld === cleanNew) return showToast('Nomi categoria non validi o uguali.', 'red');
-
-        // 1. Aggiorna l'elenco delle categorie
-        const index = appData.categories.findIndex(c => c.toLowerCase() === cleanOld.toLowerCase());
-        if (index > -1) {
-            appData.categories[index] = cleanNew;
-        }
-
-        // 2. Aggiorna le transazioni
-        [...appData.invoices, ...appData.expenses].forEach(t => {
-            if (t.category && t.category.toLowerCase() === cleanOld.toLowerCase()) {
-                t.category = cleanNew;
-            }
-        });
-
-        // 3. Aggiorna i budget
-        if (appData.categoryBudgets[cleanOld]) {
-            appData.categoryBudgets[cleanNew] = appData.categoryBudgets[cleanOld];
-            delete appData.categoryBudgets[cleanOld];
-        }
-        
-        saveData();
-        showToast(`Categoria '${cleanOld}' rinominata in '${cleanNew}' e aggiornata ovunque!`);
-        renderPage('settings');
-    }
-
     function getAverageMonthlyExpense(category) {
         const target = (category || 'Altro').toLowerCase();
         const relevantExpenses = appData.expenses.filter(e => 
@@ -1348,6 +1420,9 @@
         document.getElementById('tags').value = (transaction.tags || []).join(', ');
         document.getElementById('net-amount').value = transaction.net.toFixed(2);
         document.getElementById('vat-rate').value = transaction.vatRate.toFixed(0);
+        
+        // NUOVO: Ricarica i suggerimenti smart in base alla descrizione originale
+        autoFillSmartData(transaction.description || '');
 
         calculateGross();
         
@@ -1675,6 +1750,11 @@
           document.getElementById('description-label').textContent = isIncome ? 'Cliente / Descrizione' : 'Fornitore / Descrizione';
           setupContactAutocomplete(scope);
         }
+        
+        // Esegue l'autofill solo se non stiamo modificando (o se stiamo modificando ma l'utente interagisce)
+        if (!document.getElementById('transaction-form').getAttribute('data-transaction-id')) {
+            autoFillSmartData(document.getElementById('description').value);
+        }
       };
 
       incomeTypeSelect?.removeEventListener('change', updateVisibility);
@@ -1708,7 +1788,20 @@
         .sort((a,b)=> a.name.localeCompare(b.name));
       datalist.innerHTML = contacts.map(c=> `<option value="${c.name}"></option>`).join('');
       input.setAttribute('list','contact-list');
+      
+      // Aggiunge listener per il suggerimento smart quando la descrizione cambia
+      input.removeEventListener('input', handleDescriptionChange);
+      input.addEventListener('input', handleDescriptionChange);
     }
+    
+    function handleDescriptionChange() {
+        const desc = document.getElementById('description').value;
+        // Chiama la funzione di auto-suggerimento solo in fase di inserimento (non modifica)
+        if (!document.getElementById('transaction-form').getAttribute('data-transaction-id')) {
+            autoFillSmartData(desc);
+        }
+    }
+
 
     function setupCategoryAutocomplete(){
       const dl = document.getElementById('category-list');
@@ -1762,7 +1855,6 @@
 
 
     // --- Page router (continua nella parte 2) ---
-
     // --- Page router (dalla parte 2) ---
     function renderNavbar(){
       const navbar=document.getElementById('navbar');
@@ -1820,7 +1912,8 @@
             taxRateOverride: null,
             profitRateOverride: null
         };
-        renderPage('activity');
+        // CORREZIONE: Richiama la renderPage per ricaricare la UI ai valori di base
+        renderPage('activity'); 
     }
 
     function renderActivityOrPersonalPage(type){
@@ -1850,15 +1943,6 @@
       // Calcolo Simulazione Fiscale per l'anno in corso
       const fiscalSim = isActivity ? calculateFiscalSimulation(year) : null;
       const currentFiscal = fiscalSim?.fiscalParamsUsed || appData.fiscalParams;
-      
-      // NUOVO: Calcoli per Confronto Multi-Regime
-      let forfettarioSim = null;
-      let ordinarioSim = null;
-      
-      if (isActivity) {
-          forfettarioSim = calculateFiscalSimulation(year, 'forfettario');
-          ordinarioSim = calculateFiscalSimulation(year, 'ordinario');
-      }
 
       // NUOVO: Consigli Fiscali Intelligenti
       let fiscalAdvice = '';
@@ -1909,7 +1993,7 @@
 
 
       const fiscalSection = isActivity && fiscalSim ? `
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl card border-l-4 ${fiscalSim.projectionIsActive ? 'border-indigo-500' : 'border-red-500'} space-y-2">
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl card border-l-4 ${fiscalSim.projectionIsActive ? 'border-indigo-500' : 'border-red-500'} space-y-2 fiscal-simulation-card">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold ${fiscalSim.projectionIsActive ? 'text-indigo-600' : 'text-red-600'}">
                     Simulazione Fiscale (${fiscalTypeLabel} Proiezione ${year}) ${fiscalSim.projectionIsActive ? '✨ WHAT-IF' : ''}
@@ -1922,7 +2006,7 @@
                     <label for="additional-revenue" class="text-sm text-gray-500 block mb-1">Ricavo Aggiuntivo (Simula)</label>
                     <div class="flex items-center">
                         <input type="number" id="additional-revenue" value="${whatIfRevenue.toFixed(2)}" step="100" min="0" 
-                               oninput="simulationState.additionalRevenue = parseFloat(this.value) || 0; renderPage('activity');" 
+                               oninput="simulationState.additionalRevenue = parseFloat(this.value) || 0; debounceSimulationUpdate();" 
                                class="w-full p-2 border rounded-l-lg text-right dark:bg-gray-900 dark:border-gray-700 font-bold text-emerald-500" inputmode="decimal">
                         <span class="px-3 py-2 border rounded-r-lg dark:border-gray-700">${symbol}</span>
                     </div>
@@ -1931,7 +2015,7 @@
                     <label for="additional-expense" class="text-sm text-gray-500 block mb-1">Costo Aggiuntivo (Simula)</label>
                     <div class="flex items-center">
                         <input type="number" id="additional-expense" value="${whatIfExpense.toFixed(2)}" step="100" min="0" 
-                               oninput="simulationState.additionalExpense = parseFloat(this.value) || 0; renderPage('activity');" 
+                               oninput="simulationState.additionalExpense = parseFloat(this.value) || 0; debounceSimulationUpdate();" 
                                class="w-full p-2 border rounded-l-lg text-right dark:bg-gray-900 dark:border-gray-700 font-bold text-red-500" inputmode="decimal">
                         <span class="px-3 py-2 border rounded-r-lg dark:border-gray-700">${symbol}</span>
                     </div>
@@ -1940,25 +2024,25 @@
             
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label for="profit-rate-override" class="text-sm text-gray-500 block mb-1">${profitRateLabel}</label>
+                    <label for="profit-rate-override" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${profitRateLabel}</label>
                     <div class="flex items-center">
                         <input type="number" id="profit-rate-override" step="1" min="1" max="100" 
                             value="${currentFiscal.regime === 'forfettario' ? (profitRateOverride !== null ? (profitRateOverride * 100).toFixed(0) : '') : ''}" 
                             placeholder="${currentFiscal.regime === 'forfettario' ? (appData.fiscalParams.profitRate * 100).toFixed(0) : 'N/A'}"
                             ${currentFiscal.regime === 'ordinario' ? 'disabled' : ''}
-                            oninput="simulationState.profitRateOverride = this.value ? parseFloat(this.value) / 100 : null; renderPage('activity');"
+                            oninput="simulationState.profitRateOverride = this.value ? parseFloat(this.value) / 100 : null; debounceSimulationUpdate();"
                             class="w-full p-2 border rounded-l-lg text-right dark:bg-gray-900 dark:border-gray-700 font-bold text-orange-500" inputmode="numeric">
                         <span class="px-3 py-2 border rounded-r-lg dark:border-gray-700">%</span>
                     </div>
                 </div>
                 <div>
-                    <label for="tax-rate-override" class="text-sm text-gray-500 block mb-1">${fiscalTaxLabel}</label>
+                    <label for="tax-rate-override" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${fiscalTaxLabel}</label>
                     <div class="flex items-center">
                         <input type="number" id="tax-rate-override" step="0.1" min="0" max="50" 
                             value="${currentFiscal.regime === 'forfettario' ? (taxRateOverride !== null ? (taxRateOverride * 100).toFixed(1) : '') : ''}" 
                             placeholder="${currentFiscal.regime === 'forfettario' ? (appData.fiscalParams.taxRate * 100).toFixed(1) : 'Vedi Scaglioni'}"
                             ${currentFiscal.regime === 'ordinario' ? 'disabled' : ''}
-                            oninput="simulationState.taxRateOverride = this.value ? parseFloat(this.value) / 100 : null; renderPage('activity');"
+                            oninput="simulationState.taxRateOverride = this.value ? parseFloat(this.value) / 100 : null; debounceSimulationUpdate();"
                             class="w-full p-2 border rounded-l-lg text-right dark:bg-gray-900 dark:border-gray-700 font-bold text-orange-500" inputmode="decimal">
                         <span class="px-3 py-2 border rounded-r-lg dark:border-gray-700">%</span>
                     </div>
@@ -1968,69 +2052,36 @@
             <div class="mt-4 pt-2 border-t dark:border-gray-700">
                 <div class="flex justify-between text-sm">
                     <span>Ricavi Proiettati:</span>
-                    <span class="font-bold text-emerald-600">${fiscalSim.totalRicavi.toFixed(2)} ${symbol}</span>
+                    <span id="sim-ricavi" class="font-bold text-emerald-600">${fiscalSim.totalRicavi.toFixed(2)} ${symbol}</span>
                 </div>
                 <div class="flex justify-between text-sm">
                     <span>Costi Deducibili Proiettati:</span>
-                    <span class="font-bold text-red-600">${fiscalSim.totalCosti.toFixed(2)} ${symbol}</span>
+                    <span id="sim-costi" class="font-bold text-red-600">${fiscalSim.totalCosti.toFixed(2)} ${symbol}</span>
                 </div>
                 <div class="flex justify-between text-sm border-t pt-2 mt-2">
-                    <span>Base Imponibile Lorda:</span>
-                    <span class="font-bold">${fiscalSim.baseImponibile.toFixed(2)} ${symbol}</span>
+                    <span class="base-imponibile-label">${baseImponibileLabel}:</span>
+                    <span id="sim-base-imponibile" class="font-bold">${fiscalSim.baseImponibile.toFixed(2)} ${symbol}</span>
                 </div>
                 <div class="flex justify-between text-sm">
-                    <span>${baseImponibileLabel}:</span>
-                    <span class="font-bold">${fiscalSim.baseImponibileIRPEF.toFixed(2)} ${symbol}</span>
+                    <span>Imposta (IRPEF/Sostitutiva):</span>
+                    <span id="sim-imposta" class="font-bold text-red-600">${fiscalSim.impostaSostitutiva.toFixed(2)} ${symbol}</span>
                 </div>
                 <div class="flex justify-between text-sm">
-                    <span>Imposta (${currentFiscal.regime === 'forfettario' ? 'Flat Tax' : 'IRPEF'} - Effettiva ${fiscalSim.aliquotaEffettivaImponibile}%):</span>
-                    <span class="font-bold text-red-600">${fiscalSim.impostaSostitutiva.toFixed(2)} ${symbol}</span>
-                </div>
-                <div class="flex justify-between text-sm">
-                    <span>Contributi INPS Stimati (${(currentFiscal.inpsRate * 100).toFixed(1)}%):</span>
-                    <span class="font-bold text-red-600">${fiscalSim.contributiINPS.toFixed(2)} ${symbol}</span>
+                    <span>Contributi INPS Stimati:</span>
+                    <span id="sim-inps" class="font-bold text-red-600">${fiscalSim.contributiINPS.toFixed(2)} ${symbol}</span>
                 </div>
                 <div class="flex justify-between text-base font-extrabold border-t border-red-300 pt-2">
                     <span>TOTALE TASSE E CONTRIBUTI STIMATE:</span>
-                    <span class="text-red-600">${fiscalSim.totaleTasse.toFixed(2)} ${symbol}</span>
+                    <span id="sim-totale-tasse" class="text-red-600">${fiscalSim.totaleTasse.toFixed(2)} ${symbol}</span>
                 </div>
                 <div class="flex justify-between text-lg font-extrabold pt-2 mt-2 border-t border-indigo-300">
                     <span>LIQUIDITÀ NETTA RIMANENTE PROIETTATA:</span>
-                    <span class="${fiscalSim.nettaRimanente >= 0 ? 'text-emerald-600' : 'text-red-600'}">${fiscalSim.nettaRimanente.toFixed(2)} ${symbol}</span>
-                </div>
-                <div class="flex justify-between text-xs pt-1">
-                    <span>Tasso Totale (Imposte/Contributi) su Ricavi:</span>
-                    <span class="font-bold text-gray-500">${fiscalSim.aliquotaTotaleSuRicavi}%</span>
+                    <span id="sim-netta-rimanente" class="${fiscalSim.nettaRimanente >= 0 ? 'text-emerald-600' : 'text-red-600'}">${fiscalSim.nettaRimanente.toFixed(2)} ${symbol}</span>
                 </div>
             </div>
-            <p class="text-xs text-gray-500 mt-2">${fiscalSim.note}</p>
+            <p id="sim-note" class="text-xs text-gray-500 mt-2">${fiscalSim.note}</p>
         </div>
-        
-        ${isActivity && forfettarioSim && ordinarioSim ? `
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl card border-l-4 border-emerald-500 space-y-2">
-                <h3 class="text-xl font-bold text-emerald-600">Confronto Veloce Regime (Proiezione)</h3>
-                <p class="text-sm text-gray-500">Confronto Tasse Totali e Liquidità Netta proiettate con i due regimi:</p>
-
-                <div class="grid grid-cols-2 gap-4 text-center border-t pt-2">
-                    <div class="p-2 border rounded-lg ${forfettarioSim.totaleTasse < ordinarioSim.totaleTasse ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}">
-                        <p class="font-bold">FORFETTARIO</p>
-                        <p class="text-xs text-gray-600 dark:text-gray-400">Tasse/Contributi</p>
-                        <p class="text-lg font-extrabold text-red-600">${forfettarioSim.totaleTasse.toFixed(2)} ${symbol}</p>
-                        <p class="text-xs text-gray-600 dark:text-gray-400">Netto Rimanente</p>
-                        <p class="text-lg font-extrabold ${forfettarioSim.nettaRimanente >= 0 ? 'text-emerald-600' : 'text-red-600'}">${forfettarioSim.nettaRimanente.toFixed(2)} ${symbol}</p>
-                    </div>
-                    <div class="p-2 border rounded-lg ${ordinarioSim.totaleTasse < forfettarioSim.totaleTasse ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}">
-                        <p class="font-bold">ORDINARIO</p>
-                        <p class="text-xs text-gray-600 dark:text-gray-400">Tasse/Contributi</p>
-                        <p class="text-lg font-extrabold text-red-600">${ordinarioSim.totaleTasse.toFixed(2)} ${symbol}</p>
-                        <p class="text-xs text-gray-600 dark:text-gray-400">Netto Rimanente</p>
-                        <p class="text-lg font-extrabold ${ordinarioSim.nettaRimanente >= 0 ? 'text-emerald-600' : 'text-red-600'}">${ordinarioSim.nettaRimanente.toFixed(2)} ${symbol}</p>
-                    </div>
-                </div>
-            </div>
-        ` : ''}
-        
-      `;
+      ` : '';
 
 
       return `
@@ -2105,7 +2156,7 @@
                 <label id="description-label" for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cliente / Descrizione</label>
                 <input type="text" id="description" name="description" required placeholder="Seleziona o digita" class="w-full p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700">
                 <datalist id="contact-list"></datalist>
-                <p class="text-xs text-gray-500 mt-1">Suggerimento: i nomi digitati vengono salvati nei contatti.</p>
+                <p class="text-xs text-gray-500 mt-1">Suggerimento: i nomi digitati vengono salvati nei contatti. <span class="text-indigo-500 font-semibold">⚡ Smart-fill attivo.</span></p>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2314,43 +2365,25 @@
       });
     }
     
-    // NUOVO: Raggruppamento Flessibile
-    function groupTransactionsBy(transactions, key) {
+    // Raggruppamento per Mese
+    function groupTransactionsByMonth(transactions) {
         const grouped = {};
         transactions.forEach(t => {
-            let groupKey;
-            
-            if (key === 'month') {
-                const date = new Date(t.date);
-                groupKey = date.toLocaleDateString('it-IT', { year: 'numeric', month: 'long' });
-            } else if (key === 'category') {
-                groupKey = t.category || 'Altro';
-            } else if (key === 'tag') {
-                // Raggruppa per il primo tag trovato, altrimenti 'Nessun Tag'
-                groupKey = t.tags && t.tags.length > 0 ? t.tags[0] : 'Nessun Tag';
-            } else { // Default: Mese
-                 const date = new Date(t.date);
-                groupKey = date.toLocaleDateString('it-IT', { year: 'numeric', month: 'long' });
-            }
-            
-            grouped[groupKey] = grouped[groupKey] || [];
-            grouped[groupKey].push(t);
+            const date = new Date(t.date);
+            const monthYear = date.toLocaleDateString('it-IT', { year: 'numeric', month: 'long' });
+            grouped[monthYear] = grouped[monthYear] || [];
+            grouped[monthYear].push(t);
         });
         
-        // Ordina le chiavi (i mesi/categorie/tag)
+        // Ordina i mesi (decrescente)
         const sortedKeys = Object.keys(grouped).sort((a, b) => {
-            if (key === 'month') {
-                const dateA = new Date(a.replace(/[^0-9]/g, '-').slice(0, 7) + '-01');
-                const dateB = new Date(b.replace(/[^0-9]/g, '-').slice(0, 7) + '-01');
-                return dateB.getTime() - dateA.getTime(); // Decrescente per Mese
-            }
-            return a.localeCompare(b); // Alfabetico per Categoria/Tag
+            const dateA = new Date(a.replace(/[^0-9]/g, '-').slice(0, 7) + '-01');
+            const dateB = new Date(b.replace(/[^0-9]/g, '-').slice(0, 7) + '-01');
+            return dateB.getTime() - dateA.getTime();
         });
         
         const sortedGrouped = {};
         sortedKeys.forEach(key => {
-            // Ordina gli elementi interni per data
-            grouped[key].sort((a,b)=> new Date(b.date)-new Date(a.date)); 
             sortedGrouped[key] = grouped[key];
         });
         
@@ -2370,20 +2403,8 @@
       const tagFilter = document.getElementById('filter-tag')?.value || reportFilters.tagFilter;
       const sortKey = document.getElementById('sort-key')?.value || reportFilters.sortKey;
       const sortDirection = document.getElementById('sort-direction')?.value || reportFilters.sortDirection;
-      const groupBy = document.getElementById('group-by')?.value || reportFilters.groupBy || 'month'; 
-
       
-      // Persistenza dei filtri aggiornata
-      reportFilters = { 
-          type: currentType, 
-          filterType, 
-          filterDateStr, 
-          categoryFilter, 
-          tagFilter, 
-          sortKey, 
-          sortDirection,
-          groupBy 
-      };
+      reportFilters = { type: currentType, filterType, filterDateStr, categoryFilter, tagFilter, sortKey, sortDirection };
       saveReportFilters(); 
 
       const summary = calculateFinancialSummary(currentType, filterType, filterDateStr);
@@ -2395,8 +2416,8 @@
       // Applicazione Ordinamento
       transactionsList = sortTransactions(transactionsList);
       
-      // Raggruppamento flessibile per il dettaglio
-      const groupedTransactions = groupTransactionsBy(transactionsList, groupBy); 
+      // Raggruppamento per Mese (per il dettaglio)
+      const groupedTransactions = groupTransactionsByMonth(transactionsList);
 
       const totalCash = cashSummary.totalIncomes + cashSummary.totalExpenses;
       const cashIncomePercent = totalCash>0 ? (cashSummary.totalIncomes/totalCash)*100 : 50;
@@ -2514,7 +2535,7 @@
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div class="bg-white dark:bg-gray-800 p-4 rounded-xl card text-center border-l-4 border-indigo-500">
                   <p class="text-sm text-gray-500">Punteggio Salute Finanziaria</p>
-                  <p class="text-2xl font-extrabold ${FHSColor}">${fhs.score}/${fhs.max}</p>
+                  <p class="text-xl font-bold ${FHSColor}">${fhs.score}/${fhs.max}</p>
               </div>
               <div class="bg-white dark:bg-gray-800 p-4 rounded-xl card text-center border-l-4 border-dashed border-purple-500">
                   <p class="text-sm text-gray-500">Obiettivo Saldo Netto Mensile: ${appData.monthlySavingsTarget.toFixed(2)} ${symbol}</p>
@@ -2642,27 +2663,18 @@
                         <option value="asc" ${sortDirection === 'asc' ? 'selected' : ''}>Crescente</option>
                     </select>
                 </div>
-                <div class="flex-1">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Raggruppa per</label>
-                    <select id="group-by" onchange="reportFilters.groupBy = this.value; renderPage('report')" class="w-full p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700">
-                        <option value="month" ${reportFilters.groupBy === 'month' ? 'selected' : ''}>Mese</option>
-                        <option value="category" ${reportFilters.groupBy === 'category' ? 'selected' : ''}>Categoria</option>
-                        <option value="tag" ${reportFilters.groupBy === 'tag' ? 'selected' : ''}>Tag</option>
-                    </select>
-                </div>
             </div>
 
             <div id="transactions-detail" class="space-y-4">
-              ${Object.keys(groupedTransactions).length > 0 ? Object.keys(groupedTransactions).map(groupKey => {
-                  const monthlyTx = groupedTransactions[groupKey];
+              ${Object.keys(groupedTransactions).length > 0 ? Object.keys(groupedTransactions).map(month => {
+                  const monthlyTx = groupedTransactions[month];
                   const totalMonth = monthlyTx.reduce((sum, t) => sum + (t.gross * (t.isIncome ? 1 : -1)), 0);
-                  const groupLabel = reportFilters.groupBy === 'category' ? `${getCategoryIcon(groupKey)} ${groupKey}` : groupKey;
                   const monthColor = totalMonth >= 0 ? 'text-emerald-500' : 'text-red-500';
 
                   return `
                       <details class="bg-gray-50 dark:bg-gray-900 rounded-lg shadow-sm" open>
                           <summary class="p-3 font-bold group-header flex justify-between items-center bg-gray-100 dark:bg-gray-700 rounded-lg">
-                              <span>${groupLabel} (${monthlyTx.length} movimenti)</span>
+                              <span>${month} (${monthlyTx.length} movimenti)</span>
                               <span class="${monthColor}">${totalMonth.toFixed(2)} ${symbol}</span>
                           </summary>
                           <div class="space-y-3 p-3">
@@ -2961,19 +2973,17 @@
         );
     }
     
-    // Funzione per salvare i parametri fiscali (AGGIORNATA per Costi Deducibili)
+    // Funzione per salvare i parametri fiscali (AGGIORNATA)
     function saveFiscalParams() {
-        const regimeSelect = document.getElementById('fiscal-regime'); 
+        const regimeSelect = document.getElementById('fiscal-regime'); // NUOVO
         const profitRateInput = document.getElementById('fiscal-profit-rate');
         const taxRateInput = document.getElementById('fiscal-tax-rate');
         const inpsRateInput = document.getElementById('fiscal-inps-rate');
-        const costiDeducibiliInput = document.getElementById('costi-deducibili-annuali'); 
 
-        const regime = regimeSelect.value; 
+        const regime = regimeSelect.value; // NUOVO
         const profitRate = parseFloat(profitRateInput.value) / 100 || 0;
         const taxRate = parseFloat(taxRateInput.value) / 100 || 0;
         const inpsRate = parseFloat(inpsRateInput.value) / 100 || 0;
-        const costiDeducibiliAnnuali = parseFloat(costiDeducibiliInput.value) || 0;
         
         // Check logici
         if (regime === 'forfettario' && profitRate <= 0) { 
@@ -2981,21 +2991,21 @@
             return;
         }
 
-        if (taxRate < 0 || inpsRate < 0) {
+        if (regime === 'ordinario' && (taxRate < 0 || inpsRate < 0)) {
+             showToast('I tassi non possono essere negativi.', 'red');
+             return;
+        }
+        
+        if (regime === 'forfettario' && (taxRate < 0 || inpsRate < 0)) {
             showToast('I tassi non possono essere negativi.', 'red');
             return;
         }
-        
-        if (costiDeducibiliAnnuali < 0) {
-             showToast('I costi deducibili non possono essere negativi.', 'red');
-             return;
-        }
 
         showModal('Conferma Parametri Fiscali', 
-            `Salvare i parametri: Regime ${regime.toUpperCase()}, Tasse ${(taxRate * 100).toFixed(1)}%, INPS ${(inpsRate * 100).toFixed(1)}%?`, 
+            `Salvare i parametri: Regime ${regime.toUpperCase()}, Redditività ${(profitRate * 100).toFixed(0)}%, Tasse ${(taxRate * 100).toFixed(1)}%, INPS ${(inpsRate * 100).toFixed(1)}%?`, 
             true, 
             () => {
-                appData.fiscalParams = { regime, profitRate, taxRate, inpsRate, costiDeducibiliAnnuali }; // AGGIORNA OGGETTO
+                appData.fiscalParams = { regime, profitRate, taxRate, inpsRate }; // AGGIORNA OGGETTO
                 saveData();
                 showToast('Parametri fiscali aggiornati!');
                 renderPage('settings');
@@ -3053,14 +3063,14 @@
             <p class="text-sm text-gray-700 dark:text-gray-300">Questi parametri influenzano il calcolo delle Tasse in Attività. I valori sono in percentuali (%).</p>
 
             <div>
-                <label for="fiscal-regime" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Regime Fiscale Attuale (Simulato)</label>
+                <label for="fiscal-regime" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Regime Fiscale</label>
                 <select id="fiscal-regime" class="w-full p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700">
                     <option value="forfettario" ${currentFiscal.regime==='forfettario'?'selected':''}>Forfettario (Flat Tax / Coeff. Redditività)</option>
                     <option value="ordinario" ${currentFiscal.regime==='ordinario'?'selected':''}>Ordinario (IRPEF a Scaglioni / Costi Deducibili)</option>
                 </select>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-3 gap-4">
                 <div>
                     <label for="fiscal-profit-rate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coeff. Redditività (%)</label>
                     <input type="number" id="fiscal-profit-rate" step="1" min="1" max="100" value="${(currentFiscal.profitRate * 100).toFixed(0)}" 
@@ -3075,12 +3085,6 @@
                     <label for="fiscal-inps-rate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Aliquota INPS (%)</label>
                     <input type="number" id="fiscal-inps-rate" step="0.1" min="0" max="50" value="${(currentFiscal.inpsRate * 100).toFixed(1)}" 
                            class="w-full p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-right"/>
-                </div>
-                <div>
-                    <label for="costi-deducibili-annuali" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Costi Fissi Deduc. (${symbol})</label>
-                    <input type="number" id="costi-deducibili-annuali" step="100" min="0" value="${(currentFiscal.costiDeducibiliAnnuali || 0).toFixed(2)}" 
-                           class="w-full p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 text-right"/>
-                    <p class="text-xs text-gray-500 mt-1">Solo per calcolo **Regime Ordinario** (es. deduzioni IRPEF)</p>
                 </div>
             </div>
             <button onclick="saveFiscalParams()" class="cta-button w-full bg-orange-500 text-white p-3 rounded-lg font-bold hover:bg-orange-600">Salva Parametri Fiscali</button>
@@ -3123,13 +3127,15 @@
             <div class="space-y-2">
                 ${cats.map(cat => {
                     const currentBudget = (appData.categoryBudgets[cat] || 0).toFixed(2);
+                    // Correggiamo l'ID per il budget input per prevenire conflitti e renderlo unico
+                    const inputId = `budget-${cat.replace(/\s/g, '_').replace(/[^\w-]/g, '')}_input`;
                     return `
                         <div class="flex items-center space-x-2">
                             <span class="text-sm font-medium w-28">${getCategoryIcon(cat)} ${cat}</span>
-                            <input type="number" id="budget-${cat.replace(/\s/g, '_')}" step="0.01" min="0" placeholder="0.00" value="${currentBudget}"
+                            <input type="number" id="${inputId}" step="0.01" min="0" placeholder="0.00" value="${currentBudget}"
                                    class="p-2 border rounded-lg flex-1 dark:bg-gray-900 dark:border-gray-700 text-right" inputmode="decimal"/>
                             <button class="px-3 py-2 bg-emerald-500 text-white rounded-lg text-sm" 
-                                    onclick="saveCategoryBudget('${cat}', document.getElementById('budget-${cat.replace(/\s/g, '_')}').value)">
+                                    onclick="saveCategoryBudget('${cat}', document.getElementById('${inputId}').value)">
                                 Imposta
                             </button>
                         </div>
@@ -3164,18 +3170,9 @@
             </div>
             <div class="text-sm text-gray-500">Usate nell’autocomplete del form. Icona: ${getCategoryIcon('Altro')}</div>
             <div class="flex flex-wrap gap-2 mt-2">
-              ${cats.map(c=>`<span id="cat-pill-${c.replace(/\s/g, '_')}" class="px-2 py-1 rounded-full bg-gray-100 text-gray-700 border dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 cursor-pointer" onclick="document.getElementById('rename-old-cat').value='${c}'; document.getElementById('rename-new-cat').value='${c}'; document.getElementById('rename-new-cat').focus();">
-                ${getCategoryIcon(c)} ${c} ✏️
-              </span>`).join('')}
+              ${cats.map(c=>`<span class="px-2 py-1 rounded-full bg-gray-100 text-gray-700 border dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">${getCategoryIcon(c)} ${c}</span>`).join('')}
             </div>
-            
-            <h4 class="text-lg font-semibold border-t pt-3 mt-3 text-gray-700 dark:text-gray-300">Rinomina Categoria</h4>
-            <div class="grid grid-cols-2 gap-2">
-                <input id="rename-old-cat" placeholder="Nome Vecchio" class="p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700">
-                <input id="rename-new-cat" placeholder="Nome Nuovo" class="p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700">
-            </div>
-            <button onclick="renameCategory(document.getElementById('rename-old-cat').value, document.getElementById('rename-new-cat').value)" class="cta-button w-full bg-indigo-500 text-white p-3 rounded-lg font-bold hover:bg-indigo-600">Rinomina Categoria (Aggiorna Tutte le Transazioni)</button>
-            <button onclick="deleteUnusedCategories()" class="cta-button w-full bg-gray-400 text-white p-3 rounded-lg font-bold hover:bg-gray-500">Pulisci Categorie Non Usate</button>
+             <button onclick="deleteUnusedCategories()" class="cta-button w-full bg-gray-400 text-white p-3 rounded-lg font-bold hover:bg-gray-500">Pulisci Categorie Non Usate</button>
           </div>
           
           <div class="bg-white dark:bg-gray-800 p-5 rounded-xl card space-y-4">
@@ -3217,7 +3214,7 @@
 
           <div class="bg-red-50 dark:bg-red-900/50 p-5 rounded-xl card space-y-4 border-l-4 border-red-600">
             <h3 class="text-xl font-medium text-red-600">Gestione Profilo Corrente</h3>
-            <p class="text-sm text-red-700 dark:text-gray-300">ATTENZIONE: Questa azione eliminerà permanentemente l'intero profilo "${globalState.currentUser.name}" e i suoi dati dal dispositivo.</p>
+            <p class="text-sm text-red-700 dark:text-red-300">ATTENZIONE: Questa azione eliminerà permanentemente l'intero profilo "${globalState.currentUser.name}" e i suoi dati dal dispositivo.</p>
             <button onclick="deleteCurrentUserProfile()" class="cta-button w-full bg-red-500 text-white p-3 rounded-lg font-bold hover:bg-red-600">Elimina Profilo "${globalState.currentUser.name}"</button>
           </div>
         </div>
@@ -3248,8 +3245,8 @@
         showModal('Conferma Valuta', `Impostare il simbolo valuta su: ${newSymbol}?`, true, () => {
             appData.currencySymbol = newSymbol;
             saveData();
+            renderPage('settings'); // Re-render per aggiornare i simboli
             showToast('Simbolo Valuta aggiornato!');
-            renderPage('settings');
         });
     }
 
@@ -3326,8 +3323,15 @@
       const area=document.getElementById('content-area');
       const qa=document.getElementById('quick-actions');
 
-      if (pageId==='activity'||pageId==='personal'){ qa.classList.remove('hidden'); qa.classList.add('flex','justify-center'); }
-      else { qa.classList.add('hidden'); qa.classList.remove('flex','justify-center'); }
+      // CORREZIONE QUICK ACTIONS: mostra/nasconde la barra in fondo a seconda della pagina
+      if (pageId==='activity'||pageId==='personal'){ 
+        qa.classList.remove('hidden'); 
+        qa.classList.add('flex','justify-center'); 
+      }
+      else { 
+        qa.classList.add('hidden'); 
+        qa.classList.remove('flex','justify-center'); 
+      }
 
       document.getElementById('transaction-form')?.removeAttribute('data-transaction-id');
       
@@ -3346,6 +3350,8 @@
           setupCategoryAutocomplete();
           calculateGross(); 
           renderWeeklyBalanceChart(pageId);
+          // IMPORTANTE: Resetta il timer di debounce dopo il rendering completo
+          clearTimeout(simulationTimer);
           break;
         case 'report':
           loadReportFilters();
@@ -3490,12 +3496,10 @@
                 const tagFilter = document.getElementById('filter-tag').value || 'all';
                 const sortKey = document.getElementById('sort-key').value;
                 const sortDirection = document.getElementById('sort-direction').value;
-                const groupBy = document.getElementById('group-by').value;
                 
                 reportFilters.sortKey = sortKey;
                 reportFilters.sortDirection = sortDirection;
                 reportFilters.searchQuery = query; // Salva la query di ricerca
-                reportFilters.groupBy = groupBy;
                 
                 let results = calculateFinancialSummary(currentReportType, filterType, filterDate).transactions;
                 results = filterTransactionsByCriteria(results, categoryFilter === 'all' ? null : categoryFilter, tagFilter === 'all' ? null : tagFilter);
@@ -3505,20 +3509,19 @@
                 
                 const symbol = getCurrencySymbol();
                 
-                const searchGrouped = groupTransactionsBy(results, groupBy); // Usa la nuova funzione di raggruppamento
+                const searchGrouped = groupTransactionsByMonth(results);
                 
                 let searchHtml = '';
                 if (Object.keys(searchGrouped).length > 0) {
-                    searchHtml = Object.keys(searchGrouped).map(groupKey => {
-                        const monthlyTx = searchGrouped[groupKey];
+                    searchHtml = Object.keys(searchGrouped).map(month => {
+                        const monthlyTx = searchGrouped[month];
                         const totalMonth = monthlyTx.reduce((sum, t) => sum + (t.gross * (t.isIncome ? 1 : -1)), 0);
-                        const groupLabel = reportFilters.groupBy === 'category' ? `${getCategoryIcon(groupKey)} ${groupKey}` : groupKey;
                         const monthColor = totalMonth >= 0 ? 'text-emerald-500' : 'text-red-500';
                         
                         return `
                             <details class="bg-gray-50 dark:bg-gray-900 rounded-lg shadow-sm" open>
                                 <summary class="p-3 font-bold group-header flex justify-between items-center bg-gray-100 dark:bg-gray-700 rounded-lg">
-                                    <span>${groupLabel} (${monthlyTx.length} movimenti)</span>
+                                    <span>${month} (${monthlyTx.length} movimenti)</span>
                                     <span class="${monthColor}">${totalMonth.toFixed(2)} ${symbol}</span>
                                 </summary>
                                 <div class="space-y-3 p-3">
@@ -3592,3 +3595,6 @@
           else if (shortcut === 'report') renderPage('report');
       }
     };
+  </script>
+</body>
+</html>
