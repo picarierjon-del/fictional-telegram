@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pizzeria Manager Pro</title>
+    <title>Gestionale Pizzeria</title>
     <style>
         :root {
             --primary: #e65100;
@@ -11,7 +11,6 @@
             --accent: #2e7d32;
             --bg-dark: #121212;
             --surface-dark: #1e1e1e;
-            --surface-card: #252525;
             --border-color: #333333;
             --text-main: #f5f5f5;
             --text-muted: #b0b0b0;
@@ -36,13 +35,12 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            user-select: none;
         }
 
         header {
             background-color: var(--surface-dark);
             border-bottom: 1px solid var(--border-color);
-            padding: 10px 16px;
+            padding: 12px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -118,26 +116,6 @@
             border-right: 1px solid var(--border-color);
         }
 
-        .search-bar {
-            margin-bottom: 10px;
-        }
-
-        .search-input {
-            width: 100%;
-            background: var(--surface-dark);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 10px 14px;
-            color: var(--text-main);
-            font-size: 0.95rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .search-input:focus {
-            border-color: var(--primary);
-        }
-
         .categories-bar {
             display: flex;
             gap: 8px;
@@ -156,7 +134,6 @@
             font-size: 0.9rem;
             font-weight: 500;
             cursor: pointer;
-            transition: background 0.15s, border-color 0.15s;
         }
 
         .cat-btn.active {
@@ -167,7 +144,7 @@
         .products-grid {
             flex: 1;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
             gap: 10px;
             overflow-y: auto;
             align-content: start;
@@ -182,14 +159,13 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            min-height: 95px;
+            min-height: 90px;
             cursor: pointer;
-            transition: transform 0.1s ease, border-color 0.2s ease, background 0.2s;
+            transition: transform 0.1s ease, border-color 0.2s ease;
         }
 
         .product-card:active {
-            transform: scale(0.96);
-            background: #252525;
+            transform: scale(0.97);
         }
 
         .product-card:hover {
@@ -209,9 +185,8 @@
             margin-top: 8px;
         }
 
-        /* CARRELLO / COMANDA */
         .cart-area {
-            width: 380px;
+            width: 360px;
             background: var(--surface-dark);
             display: flex;
             flex-direction: column;
@@ -238,19 +213,13 @@
         }
 
         .cart-item {
-            background: var(--surface-card);
+            background: #252525;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 10px;
             display: flex;
             flex-direction: column;
             gap: 6px;
-            transition: border-color 0.2s;
-        }
-
-        .cart-item.editing {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 1px var(--primary);
         }
 
         .cart-item-row {
@@ -282,10 +251,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.15s;
-        }
-        .qty-btn:active {
-            background: #444;
         }
 
         .cart-footer {
@@ -314,26 +279,21 @@
             font-size: 1rem;
             cursor: pointer;
             text-align: center;
-            transition: background 0.2s ease, transform 0.1s;
-        }
-
-        .btn-primary:active {
-            transform: scale(0.98);
+            transition: background 0.2s ease;
         }
 
         .btn-primary:hover {
             background: var(--primary-dark);
         }
 
-        /* MODALE PERSONALIZZAZIONE AVANZATO */
+        /* MODALE MODIFICATORI / METÀ METÀ */
         .modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.75);
-            backdrop-filter: blur(2px);
+            background: rgba(0,0,0,0.7);
             display: none;
             justify-content: center;
             align-items: center;
@@ -350,12 +310,11 @@
             border: 1px solid var(--border-color);
             border-radius: 12px;
             width: 100%;
-            max-width: 440px;
+            max-width: 420px;
             max-height: 90vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
 
         .modal-header {
@@ -372,7 +331,7 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 12px;
         }
 
         .modal-footer {
@@ -382,67 +341,22 @@
             gap: 10px;
         }
 
-        .section-label {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .options-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-        }
-
         .checkbox-label {
             display: flex;
             align-items: center;
             gap: 10px;
-            background: var(--surface-card);
+            background: #252525;
             padding: 10px 12px;
             border-radius: 8px;
             border: 1px solid var(--border-color);
             cursor: pointer;
-            font-size: 0.85rem;
-            transition: border-color 0.2s, background 0.2s;
+            font-size: 0.9rem;
         }
 
         .checkbox-label input {
             accent-color: var(--primary);
-            width: 16px;
-            height: 16px;
-        }
-
-        .checkbox-label:hover {
-            border-color: #555;
-        }
-
-        /* VISTA ORDINI / CUCINA */
-        .orders-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 12px;
-            overflow-y: auto;
-            flex: 1;
-            padding: 4px;
-        }
-
-        .order-card {
-            background: var(--surface-dark);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            border-left: 4px solid var(--primary);
-        }
-
-        .order-card.urgent {
-            border-left-color: var(--danger);
+            width: 18px;
+            height: 18px;
         }
 
         /* SCROLLBAR CUSTOM */
@@ -463,11 +377,11 @@
 
     <header>
         <div class="header-title">
-            <span>🍕</span> Pizzeria Manager Pro
+            <span>🍕</span> Pizzeria Manager
         </div>
         <div class="nav-tabs">
             <button class="nav-btn active" onclick="switchView('pos')">Cassa</button>
-            <button class="nav-btn" onclick="switchView('orders')">Cucina / Ordini (<span id="orders-badge">0</span>)</button>
+            <button class="nav-btn" onclick="switchView('orders')">Ordini</button>
         </div>
     </header>
 
@@ -475,9 +389,6 @@
         <!-- VISTA CASSA -->
         <section id="view-pos" class="view-section active pos-layout">
             <div class="products-area">
-                <div class="search-bar">
-                    <input type="text" id="product-search" class="search-input" placeholder="Cerca prodotto..." oninput="filterProducts(this.value)">
-                </div>
                 <div class="categories-bar" id="categories-bar">
                     <!-- Generato via JS -->
                 </div>
@@ -505,12 +416,9 @@
         </section>
 
         <!-- VISTA ORDINI -->
-        <section id="view-orders" class="view-section" style="padding: 16px; flex-direction: column; gap: 12px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2 style="font-size: 1.1rem; font-weight: 600;">Monitor Comande Attive</h2>
-                <span style="font-size: 0.85rem; color: var(--text-muted);" id="active-orders-count">Nessun ordine in corso</span>
-            </div>
-            <div id="orders-container" class="orders-grid">
+        <section id="view-orders" class="view-section" style="padding: 20px; flex-direction: column; gap: 12px;">
+            <h2 style="font-size: 1.1rem; font-weight: 600;">Storico Ordini attivi</h2>
+            <div id="orders-container" style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1;">
                 <!-- Storico ordini -->
             </div>
         </section>
@@ -521,22 +429,22 @@
         <div class="modal-content">
             <div class="modal-header">
                 <span id="modal-product-title">Personalizza</span>
-                <button onclick="chiudiModale()" style="background:none; border:none; color:white; font-size:1.4rem; cursor:pointer; padding: 0 4px;">&times;</button>
+                <button onclick="chiudiModale()" style="background:none; border:none; color:white; font-size:1.2rem; cursor:pointer;">&times;</button>
             </div>
             <div class="modal-body" id="modal-product-body">
-                <!-- Opzioni dinamiche -->
+                <!-- Opzioni dinamiche (es. giunta ingredienti, impasto) -->
             </div>
             <div class="modal-footer">
-                <button class="btn-primary" style="flex:1;" id="modal-confirm-btn" onclick="salvaPersonalizzazione()">Aggiungi alla Comanda</button>
+                <button class="btn-primary" style="flex:1;" onclick="aggiungiAlCarrelloConModifiche()">Conferma e Aggiungi</button>
             </div>
         </div>
     </div>
 
     <script>
+        // Dati di esempio strutturati
         const categories = [
             { id: 'rosse', name: 'Pizze Rosse' },
             { id: 'bianche', name: 'Pizze Bianche' },
-            { id: 'speciali', name: 'Speciali' },
             { id: 'bevande', name: 'Bevande' }
         ];
 
@@ -546,25 +454,16 @@
             { id: 3, cat: 'rosse', name: 'Capricciosa', price: 8.50 },
             { id: 4, cat: 'bianche', name: 'Quattro Formaggi', price: 8.00 },
             { id: 5, cat: 'bianche', name: 'Wurstel e Patatine', price: 7.50 },
-            { id: 6, cat: 'speciali', name: 'Nerano', price: 9.50 },
-            { id: 7, cat: 'bevande', name: 'Coca Cola 33cl', price: 3.00 },
-            { id: 8, cat: 'bevande', name: 'Acqua Naturale 50cl', price: 1.50 },
-            { id: 9, cat: 'bevande', name: 'Birra Artigianale 33cl', price: 5.00 }
-        ];
-
-        const availableExtras = [
-            { name: 'Mozzarella di Bufala', price: 2.00 },
-            { name: 'Doppio Salame', price: 1.50 },
-            { name: 'Olio Piccante', price: 0.50 },
-            { name: 'Funghi Freschi', price: 1.50 },
-            { name: 'Acciughe', price: 1.50 }
+            { id: 6, cat: 'bevande', name: 'Coca Cola 33cl', price: 3.00 },
+            { id: 7, cat: 'bevande', name: 'Acqua Naturale 50cl', price: 1.50 }
         ];
 
         let cart = [];
         let activeCategory = 'rosse';
+        let activeProductForModal = null;
         let activeOrders = [];
-        let editingUuid = null; // Se non è null, stiamo modificando un elemento esistente nel carrello
 
+        // Inizializzazione Interfaccia
         function init() {
             renderCategories();
             renderProducts(activeCategory);
@@ -596,7 +495,6 @@
 
         function selectCategory(catId) {
             activeCategory = catId;
-            document.getElementById('product-search').value = '';
             renderCategories();
             renderProducts(catId);
         }
@@ -604,30 +502,13 @@
         function renderProducts(catId) {
             const grid = document.getElementById('products-grid');
             const filtered = products.filter(p => p.cat === catId);
-            grid.innerHTML = filtered.map(p => productCardHtml(p)).join('');
-        }
-
-        function filterProducts(query) {
-            const grid = document.getElementById('products-grid');
-            if (!query.trim()) {
-                renderProducts(activeCategory);
-                return;
-            }
-            const filtered = products.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
-            if (filtered.length === 0) {
-                grid.innerHTML = `<div style="color:var(--text-muted); font-size:0.9rem; grid-column: 1/-1; text-align:center; padding:20px;">Nessun prodotto trovato</div>`;
-                return;
-            }
-            grid.innerHTML = filtered.map(p => productCardHtml(p)).join('');
-        }
-
-        function productCardHtml(p) {
-            return `
+            
+            grid.innerHTML = filtered.map(p => `
                 <div class="product-card" onclick="handleProductClick(${p.id})">
                     <div class="prod-name">${p.name}</div>
                     <div class="prod-price">€ ${p.price.toFixed(2)}</div>
                 </div>
-            `;
+            `).join('');
         }
 
         function handleProductClick(productId) {
@@ -644,45 +525,27 @@
             if (existing) {
                 existing.qty++;
             } else {
-                cart.push({ ...product, basePrice: product.price, qty: 1, modifiche: [], uuid: Date.now() });
+                cart.push({ ...product, qty: 1, modifiche: [], uuid: Date.now() });
             }
             renderCart();
         }
 
-        // Apre il modale sia per un NUOVO inserimento sia per MODIFICARE un articolo esistente nel carrello
-        function apriModalePersonalizzazione(product, cartItemUuid = null) {
-            editingUuid = cartItemUuid;
-            const modalTitle = document.getElementById('modal-product-title');
-            const confirmBtn = document.getElementById('modal-confirm-btn');
-            
-            let currentModifiche = [];
-            if (editingUuid) {
-                const item = cart.find(i => i.uuid === editingUuid);
-                modalTitle.innerText = `Modifica: ${product.name}`;
-                confirmBtn.innerText = 'Aggiorna Articolo';
-                currentModifiche = item.modifiche || [];
-            } else {
-                modalTitle.innerText = product.name;
-                confirmBtn.innerText = 'Aggiungi alla Comanda';
-            }
+        function apriModalePersonalizzazione(product) {
+            activeProductForModal = product;
+            document.getElementById('modal-product-title').innerText = product.name;
             
             const body = document.getElementById('modal-product-body');
             body.innerHTML = `
-                <input type="hidden" id="modal-product-id" value="${product.id}">
-                <div>
-                    <div class="section-label">Aggiunte & Extra</div>
-                    <div class="options-grid">
-                        ${availableExtras.map(extra => {
-                            const isChecked = currentModifiche.some(m => m.name === extra.name);
-                            return `
-                                <label class="checkbox-label">
-                                    <input type="checkbox" value="${extra.name}" data-price="${extra.price}" ${isChecked ? 'checked' : ''}>
-                                    <span>${extra.name} (+€${extra.price.toFixed(2)})</span>
-                                </label>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
+                <p style="font-size:0.85rem; color:var(--text-muted);">Aggiunte extra:</p>
+                <label class="checkbox-label">
+                    <input type="checkbox" value="Mozzarella di Bufala (+€2.00)" data-price="2.00"> Mozzarella di Bufala (+€2.00)
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" value="Doppio Salame (+€1.50)" data-price="1.50"> Doppio Salame (+€1.50)
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" value="Piccante (+€0.50)" data-price="0.50"> Olio Piccante (+€0.50)
+                </label>
             `;
             
             document.getElementById('product-modal').classList.add('open');
@@ -690,42 +553,30 @@
 
         function chiudiModale() {
             document.getElementById('product-modal').classList.remove('open');
-            editingUuid = null;
+            activeProductForModal = null;
         }
 
-        function salvaPersonalizzazione() {
-            const productId = parseInt(document.getElementById('modal-product-id').value);
-            const product = products.find(p => p.id === productId);
+        function aggiungiAlCarrelloConModifiche() {
+            if (!activeProductForModal) return;
+
             const checkboxes = document.querySelectorAll('#modal-product-body input[type="checkbox"]:checked');
-            
             let extraPrice = 0;
             let modificheList = [];
 
             checkboxes.forEach(cb => {
                 extraPrice += parseFloat(cb.dataset.price);
-                modificheList.push({ name: cb.value, price: parseFloat(cb.dataset.price) });
+                modificheList.push(cb.value);
             });
 
-            const finalPrice = product.price + extraPrice;
+            const finalPrice = activeProductForModal.price + extraPrice;
 
-            if (editingUuid) {
-                // Aggiorna l'elemento esistente nel carrello
-                const item = cart.find(i => i.uuid === editingUuid);
-                if (item) {
-                    item.price = finalPrice;
-                    item.modifiche = modificheList;
-                }
-            } else {
-                // Aggiunge un nuovo elemento
-                cart.push({
-                    ...product,
-                    basePrice: product.price,
-                    price: finalPrice,
-                    qty: 1,
-                    modifiche: modificheList,
-                    uuid: Date.now()
-                });
-            }
+            cart.push({
+                ...activeProductForModal,
+                price: finalPrice,
+                qty: 1,
+                modifiche: modificheList,
+                uuid: Date.now()
+            });
 
             chiudiModale();
             renderCart();
@@ -745,38 +596,24 @@
             }
 
             container.innerHTML = cart.map(item => `
-                <div class="cart-item ${editingUuid === item.uuid ? 'editing' : ''}">
+                <div class="cart-item">
                     <div class="cart-item-row">
-                        <span class="cart-item-title" style="cursor:pointer;" onclick="richiediModificaItem(${item.uuid})" title="Clicca per modificare">${item.name} ✏️</span>
+                        <span class="cart-item-title">${item.name}</span>
                         <div class="cart-item-controls">
                             <button class="qty-btn" onclick="decrementQty(${item.uuid})">-</button>
-                            <span style="font-size:0.9rem; font-weight:600; min-width:16px; text-align:center;">${item.qty}</span>
+                            <span style="font-size:0.9rem; font-weight:600;">${item.qty}</span>
                             <button class="qty-btn" onclick="incrementQty(${item.uuid})">+</button>
                         </div>
                     </div>
-                    ${item.modifiche && item.modifiche.length > 0 ? `
-                        <div style="font-size:0.75rem; color:var(--text-muted); cursor:pointer;" onclick="richiediModificaItem(${item.uuid})">
-                            + ${item.modifiche.map(m => m.name).join(', ')}
-                        </div>
-                    ` : ''}
+                    ${item.modifiche && item.modifiche.length > 0 ? `<div style="font-size:0.75rem; color:var(--text-muted);">+ ${item.modifiche.join(', ')}</div>` : ''}
                     <div class="cart-item-row" style="margin-top: 4px;">
                         <span style="font-size:0.8rem; color:var(--text-muted);">€ ${(item.price * item.qty).toFixed(2)}</span>
-                        <button onclick="rimuoviItemCarrello(${item.uuid})" style="background:none; border:none; color:var(--danger); font-size:0.75rem; cursor:pointer; font-weight:600;">Rimuovi</button>
                     </div>
                 </div>
             `).join('');
 
             const total = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
             totalEl.innerText = `€ ${total.toFixed(2)}`;
-        }
-
-        function richiediModificaItem(uuid) {
-            const item = cart.find(i => i.uuid === uuid);
-            if (!item) return;
-            const product = products.find(p => p.id === item.id);
-            if (product) {
-                apriModalePersonalizzazione(product, uuid);
-            }
         }
 
         function incrementQty(uuid) {
@@ -799,18 +636,12 @@
             }
         }
 
-        function rimuoviItemCarrello(uuid) {
-            cart = cart.filter(i => i.uuid !== uuid);
-            renderCart();
-        }
-
         function confermaOrdine() {
             if (cart.length === 0) return;
 
             const newOrder = {
                 id: Math.floor(100 + Math.random() * 900),
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                timestamp: Date.now(),
                 items: [...cart],
                 total: cart.reduce((acc, item) => acc + (item.price * item.qty), 0)
             };
@@ -818,52 +649,31 @@
             activeOrders.unshift(newOrder);
             cart = [];
             renderCart();
-            document.getElementById('orders-badge').innerText = activeOrders.length;
-            
-            // Segnale visivo o feedback rapido
             alert(`Ordine #${newOrder.id} inviato correttamente in cucina!`);
         }
 
         function renderOrders() {
             const container = document.getElementById('orders-container');
-            const countEl = document.getElementById('active-orders-count');
-            document.getElementById('orders-badge').innerText = activeOrders.length;
-
             if (activeOrders.length === 0) {
-                countEl.innerText = `Nessun ordine in corso`;
-                container.innerHTML = `<div style="color:var(--text-muted); text-align:center; margin-top:40px; grid-column: 1/-1;">Nessuna comanda attiva al momento</div>`;
+                container.innerHTML = `<div style="color:var(--text-muted); text-align:center; margin-top:40px;">Nessun ordine attivo</div>`;
                 return;
             }
 
-            countEl.innerText = `${activeOrders.length} ordini attivi`;
-
-            container.innerHTML = activeOrders.map(o => {
-                const minutesElapsed = Math.floor((Date.now() - o.timestamp) / 60000);
-                const isUrgent = minutesElapsed > 25;
-
-                return `
-                    <div class="order-card ${isUrgent ? 'urgent' : ''}">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-weight:700; color:var(--primary); font-size:1.05rem;">Ordine #${o.id}</span>
-                            <div style="display:flex; gap:6px; align-items:center;">
-                                <span style="font-size:0.75rem; background:#333; padding:2px 6px; border-radius:4px; color:${isUrgent ? '#ff5252' : 'var(--text-muted)'};">${minutesElapsed} min fa</span>
-                            </div>
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid var(--border-color); border-bottom:1px solid var(--border-color); padding:8px 0;">
-                            ${o.items.map(i => `
-                                <div style="font-size:0.9rem; display:flex; justify-content:space-between;">
-                                    <span><b>${i.qty}x</b> ${i.name}</span>
-                                </div>
-                                ${i.modifiche && i.modifiche.length > 0 ? `<div style="font-size:0.75rem; color:var(--text-muted); padding-left:14px;">+ ${i.modifiche.map(m => m.name).join(', ')}</div>` : ''}
-                            `).join('')}
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-weight:700;">Tot: € ${o.total.toFixed(2)}</span>
-                            <button onclick="rimuoviOrdine(${o.id})" style="background:var(--success); color:white; border:none; padding:6px 12px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">Completato</button>
-                        </div>
+            container.innerHTML = activeOrders.map(o => `
+                <div style="background:var(--surface-dark); border:1px solid var(--border-color); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; color:var(--primary);">Ordine #${o.id}</span>
+                        <span style="font-size:0.85rem; color:var(--text-muted);">${o.time}</span>
                     </div>
-                `;
-            }).join('');
+                    <div style="font-size:0.85rem; color:var(--text-muted);">
+                        ${o.items.map(i => `${i.qty}x ${i.name}`).join(', ')}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                        <span style="font-weight:700;">Totale: € ${o.total.toFixed(2)}</span>
+                        <button onclick="rimuoviOrdine(${o.id})" style="background:var(--danger); color:white; border:none; padding:6px 10px; border-radius:6px; font-size:0.75rem; font-weight:600; cursor:pointer;">Completato</button>
+                    </div>
+                </div>
+            `).join('');
         }
 
         function rimuoviOrdine(orderId) {
@@ -871,6 +681,7 @@
             renderOrders();
         }
 
+        // Avvio app
         window.onload = init;
     </script>
 </body>
