@@ -1,328 +1,1183 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="theme-color" content="#b80f1f">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V2</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  <style>
-    :root{--accent:#c41424;--accent2:#8f0c18;--bg:#f3f5f8;--surface:#fff;--surface2:#f8f9fb;--text:#17202a;--muted:#647184;--line:#dce1e8;--success:#168a52;--warn:#d17700;--danger:#b91c1c;--radius:15px;--app-font:16px;--shadow:0 8px 26px rgba(21,28,38,.09)}
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html{background:var(--bg);font-size:var(--app-font)}
-    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.35;padding:env(safe-area-inset-top) 0 calc(82px + env(safe-area-inset-bottom));min-height:100vh}
-    button,input,select,textarea{font:inherit} button{cursor:pointer} button:disabled{opacity:.45;cursor:not-allowed}
-    .topbar{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;padding:12px 16px;box-shadow:0 4px 18px rgba(70,0,8,.22)}
-    .topbar-inner{max-width:1180px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{font-size:1.15rem;font-weight:850}.sub{font-size:.76rem;opacity:.82}.save-state{font-size:.78rem;background:rgba(255,255,255,.14);padding:7px 10px;border-radius:999px;white-space:nowrap}
-    main{max-width:1180px;margin:auto;padding:14px}.view{display:none}.view.active{display:block}
-    .page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.page-head h1{font-size:1.25rem;margin:0}.page-head .tools{display:flex;gap:8px;flex-wrap:wrap}
-    .layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);gap:14px}.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px}.card h2,.card h3{margin:0 0 10px}.sticky-card{position:sticky;top:86px;align-self:start}
-    .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.stack{display:grid;gap:10px}.grid{display:grid;gap:9px}.grid.products{grid-template-columns:repeat(auto-fill,minmax(142px,1fr))}.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
-    .btn{border:0;border-radius:11px;padding:11px 14px;font-weight:750;background:#e7eaf0;color:var(--text);min-height:44px}.btn.primary{background:var(--accent);color:#fff}.btn.success{background:var(--success);color:#fff}.btn.warn{background:var(--warn);color:#fff}.btn.danger{background:var(--danger);color:#fff}.btn.ghost{background:transparent;border:1px solid var(--line)}.btn.small{padding:7px 10px;min-height:36px;font-size:.86rem}.btn.icon{width:44px;padding:0}.btn.full{width:100%}
-    .tabs{display:flex;gap:7px;overflow:auto;padding:2px 1px 10px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:9px 13px;font-weight:750;white-space:nowrap;color:var(--text)}.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}.chip.mod-plus{border-color:#31a46c;color:#087743}.chip.mod-minus{border-color:#7d8795}.chip.mod-little{border-color:#d39a16;color:#8a5b00}.chip.mod-more{border-color:#2774d8;color:#1659ad}
-    .product{border:1px solid var(--line);background:var(--surface);border-radius:13px;padding:12px;min-height:92px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)}.product strong{font-size:.98rem}.product .price{color:var(--accent);font-weight:850}.product.soldout{opacity:.46;text-decoration:line-through}.product.multi{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 5%,white)}
-    .field{display:grid;gap:5px}.field label{font-size:.82rem;color:var(--muted);font-weight:750}.input{width:100%;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:11px;padding:11px 12px;min-height:44px}.input:focus{outline:3px solid color-mix(in srgb,var(--accent) 18%,transparent);border-color:var(--accent)} textarea.input{min-height:88px;resize:vertical}.search{position:relative}.search input{padding-left:40px}.search:before{content:"\2315";position:absolute;left:14px;top:8px;font-size:1.35rem;color:var(--muted)}
-    .order-line{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}.order-line:last-child{border:0}.order-name{font-weight:780}.order-meta{font-size:.82rem;color:var(--muted);margin-top:3px}.qty{display:flex;align-items:center;gap:7px}.qty button{width:34px;height:34px;border:1px solid var(--line);background:#fff;border-radius:9px}.total-box{margin-top:12px;border-top:2px solid var(--accent);padding-top:12px;display:flex;justify-content:space-between;font-size:1.2rem;font-weight:900}.empty{text-align:center;color:var(--muted);padding:28px 12px}.notice{padding:10px 12px;background:#fff8db;border:1px solid #efd36d;border-radius:11px;color:#674900;font-size:.88rem}
-    .order-card{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--accent);border-radius:14px;padding:13px;box-shadow:var(--shadow)}.order-card.urgent{border-left-color:var(--danger)}.order-card.ready{border-left-color:var(--success)}.order-top{display:flex;justify-content:space-between;gap:10px}.order-id{font-weight:900;font-size:1.08rem}.badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#edf0f4;font-size:.76rem;font-weight:800}.badge.red{background:#fee2e2;color:#991b1b}.badge.green{background:#dcfce7;color:#126b3d}.badge.amber{background:#fff1ca;color:#825200}.order-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.timer{font-variant-numeric:tabular-nums;font-weight:800;color:var(--muted)}
-    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}.stat .value{font-size:1.55rem;font-weight:900}.stat .label{color:var(--muted);font-size:.8rem}
-    .settings-nav{display:flex;gap:7px;overflow:auto;margin-bottom:12px}.settings-panel{display:none}.settings-panel.active{display:block}.setting-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.setting-row:last-child{border:0}.drag{color:var(--muted);font-size:.8rem}.danger-zone{border-color:#f2b5b5;background:#fff7f7}
-    .bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(15px);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(4,1fr)}.nav-btn{border:0;background:transparent;color:var(--muted);font-size:.73rem;font-weight:750;display:grid;justify-items:center;gap:2px;padding:5px}.nav-btn span:first-child{font-size:1.28rem}.nav-btn.active{color:var(--accent)}
-    dialog{border:0;border-radius:18px;padding:0;width:min(620px,calc(100% - 24px));max-height:88vh;box-shadow:0 25px 90px rgba(0,0,0,.35);color:var(--text)}dialog::backdrop{background:rgba(8,12,18,.62);backdrop-filter:blur(3px)}.dialog-head{padding:15px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.dialog-head h2{margin:0;font-size:1.12rem}.dialog-body{padding:15px;overflow:auto;max-height:65vh}.dialog-foot{padding:12px 15px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:var(--surface2)}
-    .toast{position:fixed;left:50%;bottom:94px;transform:translate(-50%,20px);background:#17202a;color:#fff;padding:11px 15px;border-radius:11px;z-index:80;opacity:0;pointer-events:none;transition:.2s;max-width:calc(100% - 24px);text-align:center}.toast.show{opacity:1;transform:translate(-50%,0)}
-    #multiDialog{width:min(760px,calc(100% - 16px))}#multiDialog .dialog-body{background:var(--bg);max-height:72vh}#multiDialog .dialog-foot{position:sticky;bottom:0}.picker-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:180px;overflow:auto;margin-top:7px;padding:2px}.picker-option{border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px;text-align:left;display:grid;gap:3px;min-height:62px;box-shadow:0 2px 6px rgba(0,0,0,.04)}.picker-option:active{transform:scale(.98)}.picker-option.selected{border:2px solid var(--accent);background:#fff5f5}.picker-action{color:var(--accent);font-size:.74rem;font-weight:850}.taste-card{border:2px solid var(--line);background:#fff;border-radius:16px;padding:13px;box-shadow:0 4px 14px rgba(0,0,0,.06)}.taste-card h3{display:flex;justify-content:space-between;gap:8px;margin-bottom:10px;color:var(--accent)}.taste-card h3 span:last-child{color:var(--text);text-align:right}.taste-card .field-title{font-size:.8rem;font-weight:850;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.mod-normal{font-weight:400}.mod-bold{font-weight:900}.mod-highlight{font-weight:900;background:#fff09a;padding:1px 4px;border:1px solid #111}.capacity-ok{background:#e8f8ef;border-color:#7bc69c;color:#11643a}.capacity-warn{background:#fff0f0;border-color:#e27a7a;color:#8d1111}.print-taste{margin:5px 0 7px;padding:4px 0;border-bottom:1px dotted #777}.print-mod{display:block;margin-left:10px;font-size:1.08em}
-    .switch{display:inline-flex;align-items:center;gap:8px}.switch input{width:22px;height:22px;accent-color:var(--accent)}.color-input{width:52px;height:38px;padding:2px;border:1px solid var(--line);border-radius:9px;background:#fff}
-    @media(max-width:780px){.layout{grid-template-columns:1fr}.sticky-card{position:static}.stats{grid-template-columns:repeat(2,1fr)}main{padding:11px}.grid.products{grid-template-columns:repeat(2,minmax(0,1fr))}.topbar{padding:10px 12px}.page-head{align-items:flex-start}.page-head .tools .btn span.hide-mobile{display:none}}
-    body.kitchen-mode{padding-bottom:0}body.kitchen-mode .bottom-nav{display:none}body.kitchen-mode #view-orders>.grid{grid-template-columns:repeat(auto-fit,minmax(285px,1fr))}
-    @media(max-width:430px){.grid.two,.grid.three{grid-template-columns:1fr}.card{padding:12px}.product{min-height:86px}.save-state{font-size:.7rem;padding:6px 8px}.order-line{grid-template-columns:1fr}.qty{justify-content:flex-end}.qty button{width:40px;height:40px}.picker-results{grid-template-columns:1fr;max-height:155px}#multiDialog{width:calc(100% - 8px);max-height:94vh}.taste-card{padding:11px}}
-    @media print{body{padding:0;background:#fff}.topbar,main,.bottom-nav,.toast,dialog{display:none!important}#print-area{display:block!important;color:#000;background:#fff;width:var(--print-width,80mm);padding:2mm;font-family:var(--print-font,Arial),sans-serif;font-size:var(--print-body-size,12px)}#print-area h1{font-size:var(--print-title-size,19px);text-align:center;margin:0 0 7px}#print-area h2{font-size:var(--print-heading-size,15px);margin:8px 0 3px;border-bottom:1px solid #000}#print-area .print-line{display:flex;justify-content:space-between;gap:8px;margin:3px 0}#print-area .print-note{font-weight:800;border:1px solid #000;padding:4px;margin:4px 0}#print-area .print-total{font-size:var(--print-total-size,18px);font-weight:900;border-top:2px solid #000;margin-top:8px;padding-top:5px}#print-area .cut{border-top:1px dashed #000;margin:8px 0}}
-    #print-area{display:none}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pizzeria Manager Ultimate - KDS & POS</title>
+    <style>
+        :root {
+            --primary: #ff6f00;
+            --primary-dark: #e65100;
+            --primary-light: #ffa726;
+            --accent: #2e7d32;
+            --bg-dark: #0f0f0f;
+            --surface-dark: #1a1a1a;
+            --surface-card: #242424;
+            --surface-hover: #2f2f2f;
+            --border-color: #333333;
+            --text-main: #f8f9fa;
+            --text-muted: #a0a0a0;
+            --danger: #e53935;
+            --warning: #fb8c00;
+            --success: #43a047;
+            --info: #039be5;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* HEADER PROFESSIONALE */
+        header {
+            background-color: var(--surface-dark);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        .header-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: -0.5px;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            background: var(--surface-card);
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .header-stats span strong {
+            color: var(--text-main);
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 6px;
+        }
+
+        .nav-btn {
+            background: var(--surface-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary-dark);
+            box-shadow: 0 0 12px rgba(255,111,0,0.3);
+        }
+
+        .badge-count {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .view-section {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            background: var(--bg-dark);
+        }
+
+        .view-section.active {
+            display: flex;
+        }
+
+        /* VISTA CASSA / POS */
+        .pos-layout {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .products-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 14px;
+            overflow: hidden;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .search-filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .search-input {
+            flex: 1;
+            background: var(--surface-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+        }
+
+        .categories-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .cat-btn {
+            background: var(--surface-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 8px;
+            white-space: nowrap;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .cat-btn.active {
+            background: var(--primary);
+            border-color: var(--primary-dark);
+            color: white;
+        }
+
+        .products-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+            gap: 10px;
+            overflow-y: auto;
+            align-content: start;
+            padding-right: 4px;
+        }
+
+        .product-card {
+            background: var(--surface-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 100px;
+            cursor: pointer;
+            transition: transform 0.1s ease, border-color 0.2s ease, background 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .product-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--primary);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .product-card:hover {
+            border-color: var(--primary);
+            background: var(--surface-hover);
+        }
+
+        .product-card:hover::after {
+            opacity: 1;
+        }
+
+        .product-card:active {
+            transform: scale(0.96);
+        }
+
+        .prod-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .prod-price {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--primary-light);
+            margin-top: 8px;
+        }
+
+        /* SEZIONE CARRELLO / COMANDA */
+        .cart-area {
+            width: 400px;
+            background: var(--surface-dark);
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--border-color);
+            box-shadow: -4px 0 15px rgba(0,0,0,0.3);
+        }
+
+        .cart-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--surface-card);
+        }
+
+        .order-type-selector {
+            display: flex;
+            background: var(--bg-dark);
+            padding: 3px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            margin: 12px 16px 0 16px;
+        }
+
+        .type-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 6px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .type-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .client-inputs {
+            padding: 10px 16px 0 16px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .client-input {
+            flex: 1;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            outline: none;
+        }
+        .client-input:focus {
+            border-color: var(--primary);
+        }
+
+        .cart-items {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .cart-item {
+            background: var(--surface-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .cart-item.editing {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 1px var(--primary);
+            background: #2a1b0c;
+        }
+
+        .cart-item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cart-item-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-main);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .cart-item-title:hover {
+            color: var(--primary-light);
+        }
+
+        .cart-item-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .qty-btn {
+            background: #333;
+            border: none;
+            color: white;
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+        }
+        .qty-btn:active {
+            background: #555;
+        }
+
+        .cart-footer {
+            padding: 16px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: var(--surface-card);
+        }
+
+        .cart-total-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.15rem;
+            font-weight: 800;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.2s ease, transform 0.1s;
+            box-shadow: 0 4px 12px rgba(255,111,0,0.3);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        /* MODALE AVANZATO DI PERSONALIZZAZIONE / METÀ & METÀ */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(3px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 16px;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--surface-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+        }
+
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--surface-card);
+        }
+
+        .modal-body {
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-footer {
+            padding: 14px 16px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+            background: var(--surface-card);
+        }
+
+        .section-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--surface-card);
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .checkbox-label input {
+            accent-color: var(--primary);
+            width: 16px;
+            height: 16px;
+        }
+
+        .checkbox-label:hover {
+            border-color: #666;
+            background: var(--surface-hover);
+        }
+
+        /* KDS / MONITOR COMANDE ATTIVE */
+        .kds-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            overflow-y: auto;
+            flex: 1;
+            padding: 16px;
+            align-content: start;
+        }
+
+        .kds-card {
+            background: var(--surface-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-left: 5px solid var(--primary);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .kds-card.urgent {
+            border-left-color: var(--danger);
+            background: #1e1111;
+        }
+
+        .kds-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .kds-items {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        /* VISTA REPORT & CASSETTO */
+        .report-layout {
+            padding: 20px;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+        }
+
+        .report-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+        }
+
+        .report-card {
+            background: var(--surface-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .report-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary-light);
+        }
+
+        /* SCROLLBAR CUSTOM */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+    </style>
 </head>
 <body>
-  <header class="topbar"><div class="topbar-inner"><div><div class="brand" id="brandName">Pizzeria Smart</div><div class="sub">Gestionale V6 &#183; Offline</div></div><div class="save-state" id="saveState">Avvio&#8230;</div></div></header>
-  <main>
-    <section class="view active" data-view="entry" id="view-entry"></section>
-    <section class="view" data-view="orders" id="view-orders"></section>
-    <section class="view" data-view="history" id="view-history"></section>
-    <section class="view" data-view="settings" id="view-settings"></section>
-  </main>
-  <nav class="bottom-nav" aria-label="Navigazione principale">
-    <button class="nav-btn active" data-go="entry"><span>&#9000;&#65039;</span><span id="navEntry">Inserimento</span></button>
-    <button class="nav-btn" data-go="orders"><span>&#128203;</span><span id="navOrders">Ordini</span></button>
-    <button class="nav-btn" data-go="history"><span>&#128200;</span><span id="navHistory">Storico</span></button>
-    <button class="nav-btn" data-go="settings"><span>&#9881;&#65039;</span><span id="navSettings">Impostazioni</span></button>
-  </nav>
-  <dialog id="editorDialog"><form method="dialog" id="editorForm"><div class="dialog-head"><h2 id="editorTitle">Modifica</h2><button class="btn icon ghost" value="cancel" aria-label="Chiudi">&#10005;</button></div><div class="dialog-body" id="editorBody"></div><div class="dialog-foot"><button class="btn ghost" value="cancel">Annulla</button><button class="btn primary" value="default" id="editorSave">Salva</button></div></form></dialog>
-  <dialog id="orderDialog"><form method="dialog" id="orderForm"><div class="dialog-head"><h2>Finalizza ordine</h2><button class="btn icon ghost" value="cancel">&#10005;</button></div><div class="dialog-body" id="orderBody"></div><div class="dialog-foot"><button class="btn ghost" value="cancel">Annulla</button><button class="btn success" value="default">Conferma ordine</button></div></form></dialog>
-  <dialog id="multiDialog"><form method="dialog" id="multiForm"><div class="dialog-head"><h2 id="multiTitle">Componi</h2><button class="btn icon ghost" value="cancel">&#10005;</button></div><div class="dialog-body" id="multiBody"></div><div class="dialog-foot"><button class="btn ghost" value="cancel">Annulla</button><button class="btn primary" value="default">Aggiungi</button></div></form></dialog>
-  <div class="toast" id="toast"></div><div id="print-area"></div><input hidden type="file" id="importFile" accept="application/json">
-  <script>
-  'use strict';
-  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-  const uid=(p='id')=>`${p}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}`;
-  const clone=o=>JSON.parse(JSON.stringify(o));
-  const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-  const money=n=>`${state.settings.currency}${Number(n||0).toFixed(2)}`;
-  const nowLocal=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)};
-  const today=()=>nowLocal().slice(0,10);
-  const DEFAULTS={version:2,settings:{businessName:'Pizzeria Smart',currency:'\u20ac',accent:'#c41424',accent2:'#8f0c18',background:'#f3f5f8',appFont:16,defaultLeadMinutes:30,deliveryEnabled:true,showPhone:true,showAddress:true,showTable:true,showNotes:true,showPayment:true,labels:{entry:'Inserimento',orders:'Ordini',history:'Storico',settings:'Impostazioni',customer:'Cliente',notes:'Note',delivery:'Consegna',pickup:'Asporto',counter:'Banco',newOrder:'Nuovo ordine',currentOrder:'Ordine corrente',total:'Totale',finalize:'Finalizza ordine',productSearch:'Cerca prodotto\u2026',kitchenMode:'Modalit\u00e0 cucina',advance:'Avanza stato',kitchenPrint:'Comanda',receipt:'Riepilogo',whatsapp:'WhatsApp',duplicate:'Duplica',close:'Chiudi'},statuses:[{id:'new',name:'Nuovo',color:'#c41424'},{id:'prep',name:'Preparazione',color:'#d17700'},{id:'oven',name:'Forno',color:'#7c3aed'},{id:'ready',name:'Pronto',color:'#168a52'},{id:'delivery',name:'In consegna',color:'#1769aa'}],print:{businessName:'Pizzeria Smart',header:'',footer:'Grazie',paperWidth:80,font:'Arial',bodySize:12,titleSize:19,headingSize:15,totalSize:18,showCustomer:true,showPhone:true,showAddress:true,showPayment:true,showPrices:true,showFooter:true,autoPrintKitchen:false}},categories:[{id:'cat_pizze',name:'Pizze',type:'standard',enabled:true,items:[{id:uid('p'),name:'Margherita',price:5,soldOut:false},{id:uid('p'),name:'Diavola',price:7.5,soldOut:false},{id:uid('p'),name:'Quattro Formaggi',price:9,soldOut:false}]},{id:'cat_bibite',name:'Bibite',type:'standard',enabled:true,items:[{id:uid('p'),name:'Acqua 1L',price:1.5,soldOut:false},{id:uid('p'),name:'Coca-Cola 33cl',price:2.5,soldOut:false}]},{id:'cat_meta',name:'Pizza met\u00e0',type:'multi',enabled:true,slots:2,priceRule:'highest',basePrice:0,items:[{id:uid('p'),name:'Pizza divisa a met\u00e0',price:0,soldOut:false}]},{id:'cat_metro',name:'Mezzo metro',type:'multi',enabled:true,slots:3,priceRule:'fixed',basePrice:17,items:[{id:uid('p'),name:'Mezzo metro 3 gusti',price:17,soldOut:false}]}],modifierGroups:[{id:'mg_plus',name:'Pi\u00f9',style:'plus',items:[{id:uid('m'),name:'Extra mozzarella',price:1.5,soldOut:false},{id:uid('m'),name:'Doppia salsiccia',price:2,soldOut:false}]},{id:'mg_without',name:'Senza',style:'minus',items:[{id:uid('m'),name:'Senza olive',price:0,soldOut:false}]},{id:'mg_little',name:'Poco',style:'little',items:[{id:uid('m'),name:'Poco cotta',price:0,soldOut:false}]},{id:'mg_more',name:'Abbondante',style:'more',items:[{id:uid('m'),name:'Basilico abbondante',price:0,soldOut:false}]}],zones:[{id:uid('z'),name:'Poncarale',price:3},{id:uid('z'),name:'Capriano del Colle',price:3},{id:uid('z'),name:'Borgosatollo',price:3}],drivers:[{id:uid('d'),name:'Fattorino 1',active:true}],customers:[],orders:[],archive:[]};
-  let state=clone(DEFAULTS),ui={view:'entry',category:'cat_pizze',modGroup:'mg_plus',search:'',selectedLine:null,settingsTab:'general',historyDate:today(),orderSearch:'',lastSaved:null};
-  const DB={name:'PizzeriaSmartV2',store:'state',db:null,async open(){if(this.db)return this.db;return new Promise(res=>{if(!('indexedDB' in window))return res(null);const q=indexedDB.open(this.name,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(this.store))q.result.createObjectStore(this.store)};q.onsuccess=()=>res(this.db=q.result);q.onerror=()=>res(null)})},async get(){const db=await this.open();if(!db)return null;return new Promise(res=>{const q=db.transaction(this.store).objectStore(this.store).get('main');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})},async put(data){const db=await this.open();if(!db)return false;return new Promise(res=>{const tx=db.transaction(this.store,'readwrite');tx.objectStore(this.store).put(data,'main');tx.oncomplete=()=>res(true);tx.onerror=()=>res(false)})}};
-  function mergeDefaults(saved){const raw=saved&&typeof saved==='object'?saved:clone(DEFAULTS),next={...clone(DEFAULTS),...raw};next.settings={...clone(DEFAULTS.settings),...(raw.settings||{})};next.settings.capacity={enabled:true,limit:15,minutes:5,...(raw.settings?.capacity||{})};next.settings.labels={...DEFAULTS.settings.labels,...(raw.settings?.labels||{})};next.settings.print={...DEFAULTS.settings.print,...(raw.settings?.print||{})};if(!Array.isArray(next.categories))next.categories=[];next.categories.forEach(c=>{if(!Array.isArray(c.items))c.items=[];if(c.type==='standard'&&typeof c.useAsTaste!=='boolean')c.useAsTaste=!/bibit|bevande|dolci|dessert/i.test(c.name||'');c.items.forEach(p=>{if(typeof p.soldOut!=='boolean')p.soldOut=false})});if(!Array.isArray(next.modifierGroups))next.modifierGroups=[];next.modifierGroups.forEach(g=>{if(!Array.isArray(g.items))g.items=[];if(typeof g.enabled!=='boolean')g.enabled=true;g.items.forEach(m=>{if(typeof m.soldOut!=='boolean')m.soldOut=false;if(!m.printStyle)m.printStyle='normal'})});if(!Array.isArray(next.zones))next.zones=[];if(!Array.isArray(next.drivers))next.drivers=[];if(!Array.isArray(next.customers))next.customers=[];return next}
-  function repairText(value){
-    if(typeof value==='string'){
-      const direct=[['\u00e2\u201a\u00ac','\u20ac'],['\u00e2\u20ac\u00a6','\u2026'],['\u00e2\u20ac\u2122','\u2019'],['\u00e2\u20ac\u201c','\u2013'],['\u00e2\u20ac\u201d','\u2014'],['\u00c2\u00b7','\u00b7'],['\u00c2\u00a0',' '],['\u00c3\u00a0','\u00e0'],['\u00c3\u00a8','\u00e8'],['\u00c3\u00a9','\u00e9'],['\u00c3\u00ac','\u00ec'],['\u00c3\u00b2','\u00f2'],['\u00c3\u00b9','\u00f9'],['\u00c3\u00c8','\u00c8'],['\u00c3\u00c9','\u00c9']];
-      let out=value;for(const [bad,good] of direct)out=out.split(bad).join(good);
-      return out;
-    }
-    if(Array.isArray(value))return value.map(repairText);
-    if(value&&typeof value==='object'){for(const key of Object.keys(value))value[key]=repairText(value[key]);}
-    return value;
-  }
-  async function load(){let data=null;try{data=await DB.get()}catch{}if(!data)try{data=JSON.parse(localStorage.getItem('pizzeria_smart_v2')||'null')}catch{}state=mergeDefaults(repairText(data));if(/[\u00e2\u00c2\u00c3]/.test(JSON.stringify(state)))state.settings.currency='\u20ac';applyTheme();renderAll();save();setSave('Pronto \u00b7 offline')}
-  let saveTimer;function save(){clearTimeout(saveTimer);setSave('Salvataggio\u2026');saveTimer=setTimeout(async()=>{state.version=2;try{localStorage.setItem('pizzeria_smart_v2',JSON.stringify(state))}catch{}await DB.put(clone(state));ui.lastSaved=new Date();setSave(`Salvato ${ui.lastSaved.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}`)},120)}
-  function setSave(t){$('#saveState').textContent=t}function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),1800)}
-  function applyTheme(){const s=state.settings,root=document.documentElement.style;root.setProperty('--accent',s.accent);root.setProperty('--accent2',s.accent2);root.setProperty('--bg',s.background);root.setProperty('--app-font',`${s.appFont}px`);$('#brandName').textContent=s.businessName;document.title=`${s.businessName} \u00b7 Gestionale V2`;const l=s.labels;$('#navEntry').textContent=l.entry;$('#navOrders').textContent=l.orders;$('#navHistory').textContent=l.history;$('#navSettings').textContent=l.settings;document.querySelector('meta[name="theme-color"]').content=s.accent}
-  const activeCat=()=>state.categories.find(c=>c.id===ui.category&&c.enabled)||state.categories.find(c=>c.enabled);
-  const activeMods=()=>state.modifierGroups.find(g=>g.id===ui.modGroup&&g.enabled!==false)||state.modifierGroups.find(g=>g.enabled!==false);
-  function lineTotal(l){const qty=Number(l.qty)||1;return ((Number(l.unitPrice)||0)+(l.modifiers||[]).reduce((a,m)=>a+(Number(m.price)||0),0)+(l.slots||[]).reduce((a,s)=>a+(s.modifiers||[]).reduce((x,m)=>x+(Number(m.price)||0),0),0))*qty}
-  function draftTotal(){return state.draft.lines.reduce((a,l)=>a+lineTotal(l),0)}
-  function ensureDraft(){if(!state.draft)state.draft={lines:[],mode:'pickup',customer:'',phone:'',address:'',streetName:'',streetNum:'',table:'',zoneId:state.zones[0]?.id||'',dateTime:addMinutes(state.settings.defaultLeadMinutes),notes:'',payment:'Da pagare',deposit:0}}
-  function addMinutes(m){const d=new Date(Date.now()+m*60000);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)}
-  function renderAll(){ensureDraft();applyTheme();renderEntry();renderOrders();renderHistory();renderSettings();showView(ui.view)}
-  function showView(v){ui.view=v;$$('.view').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$$('.nav-btn').forEach(x=>x.classList.toggle('active',x.dataset.go===v));if(v==='orders')renderOrders();if(v==='history')renderHistory();if(v==='settings')renderSettings()}
-  function renderEntry(){const cat=activeCat();if(cat)ui.category=cat.id;const q=ui.search.trim().toLowerCase();const source=(cat?.type==='multi'&&!(cat.items||[]).length)?[{id:`builder_${cat.id}`,name:`Componi ${cat.slots||2} gusti`,price:+cat.basePrice||0,synthetic:true}]:(cat?.items||[]);const products=source.filter(p=>`${p.name} ${p.price}`.toLowerCase().includes(q));const sel=state.draft.lines[ui.selectedLine];const mg=activeMods();$('#view-entry').innerHTML=`
-    <div class="page-head"><h1>${state.draft.editingOrderId?`Modifica ordine #${esc(state.draft.editingOrderId)}`:esc(state.settings.labels.entry)}</h1><div class="tools"><button class="btn ghost small" data-action="clear-draft">${state.draft.editingOrderId?'Annulla modifica':esc(state.settings.labels.newOrder)}</button></div></div>
-    <div class="layout"><div class="stack"><div class="card"><div class="tabs">${state.categories.filter(c=>c.enabled).map(c=>`<button class="chip ${c.id===ui.category?'active':''}" data-cat="${c.id}">${esc(c.name)}</button>`).join('')}</div><div class="search"><input class="input" id="productSearch" value="${esc(ui.search)}" placeholder="${esc(state.settings.labels.productSearch)}"></div><div class="grid products" style="margin-top:10px">${products.map(p=>`<button class="product ${p.soldOut?'soldout':''} ${cat.type==='multi'?'multi':''}" data-product="${p.id}" ${p.soldOut?'disabled':''}><strong>${esc(p.name)}</strong><span class="price">${money(p.price||cat.basePrice)} ${cat.type==='multi'?`\u00b7 ${cat.slots} gusti`:''}</span></button>`).join('')||'<div class="empty">Nessun prodotto</div>'}</div></div>
-    ${sel?`<div class="card"><h3>Modifica: ${esc(sel.name)}</h3><div class="tabs">${state.modifierGroups.filter(g=>g.enabled!==false).map(g=>`<button class="chip mod-${g.style} ${g.id===ui.modGroup?'active':''}" data-modgroup="${g.id}">${esc(g.name)}</button>`).join('')}</div><div class="grid products">${(mg?.items||[]).map(m=>`<button class="product ${m.soldOut?'soldout':''}" data-mod="${m.id}" ${m.soldOut?'disabled':''}><strong>${esc(m.name)}</strong><span class="price">${m.price?`+${money(m.price)}`:'Incluso'}</span></button>`).join('')}</div></div>`:''}</div>
-    <aside class="card sticky-card"><h2>${esc(state.settings.labels.currentOrder)}</h2>${state.draft.lines.length?state.draft.lines.map((l,i)=>`<div class="order-line ${i===ui.selectedLine?'selected':''}" data-line="${i}"><div><div class="order-name">${esc(l.name)}</div>${l.slots?.length?`<div class="order-meta">${l.slots.map((s,n)=>`${n+1}. ${esc(s.taste||'\u2014')}${s.modifiers?.length?` (${s.modifiers.map(m=>esc(m.name)).join(', ')})`:''}`).join('<br>')}</div>`:''}${l.modifiers?.length?`<div class="order-meta">${l.modifiers.map(m=>esc(m.name)).join(', ')}</div>`:''}<div class="order-meta">${money(lineTotal(l))}</div></div><div class="qty">${l.slots?.length?`<button title="Modifica gusti" data-action="edit-multi" data-index="${i}">\u270e</button>`:''}<button data-action="qty-minus" data-index="${i}">\u2212</button><b>${l.qty}</b><button data-action="qty-plus" data-index="${i}">+</button><button data-action="remove-line" data-index="${i}">\u2715</button></div></div>`).join(''):'<div class="empty">Tocca un prodotto per iniziare</div>'}<div class="total-box"><span>${esc(state.settings.labels.total)}</span><span>${money(draftTotal())}</span></div><button class="btn success full" style="margin-top:12px" data-action="finalize" ${state.draft.lines.length?'':'disabled'}>${esc(state.settings.labels.finalize)}</button></aside></div>`}
-  function statusById(id){return state.settings.statuses.find(s=>s.id===id)||state.settings.statuses[0]}
-  function renderOrders(){const q=ui.orderSearch.toLowerCase();const orders=state.orders.filter(o=>[o.customer,o.phone,o.address,o.id].join(' ').toLowerCase().includes(q)).sort((a,b)=>a.dateTime.localeCompare(b.dateTime));$('#view-orders').innerHTML=`<div class="page-head"><h1>${esc(state.settings.labels.orders)} <span class="badge">${orders.length}</span></h1><div class="tools"><button class="btn ghost small" data-action="kitchen-view">${esc(state.settings.labels.kitchenMode)}</button></div></div><div class="search"><input class="input" id="orderSearch" value="${esc(ui.orderSearch)}" placeholder="Cerca cliente, telefono, indirizzo\u2026"></div><div class="grid" style="margin-top:12px">${orders.map(o=>orderCard(o)).join('')||'<div class="card empty">Nessun ordine attivo</div>'}</div>`}
-  function orderModifierText(m){return `<span class="${m.printStyle==='highlight'?'mod-highlight':m.printStyle==='bold'?'mod-bold':'mod-normal'}">${esc(m.name)}</span>`}
-  function orderCard(o){
-    const st=statusById(o.status),mins=Math.floor((Date.now()-new Date(o.createdAt).getTime())/60000),urgent=mins>35&&o.status!=='ready';
-    return `<article class="order-card ${urgent?'urgent':''} ${o.status==='ready'?'ready':''}" data-order="${o.id}">
-      <div class="order-top">
-        <div>
-          <div class="order-id">#${esc(o.id)} \u00b7 ${esc(o.customer||o.mode)}</div>
-          <div class="order-meta">${new Date(o.dateTime).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} \u00b7 ${esc(o.mode)} ${o.address?`\u00b7 ${esc(o.address)}`:''}</div>
-        </div>
-        <div style="text-align:right">
-          <span class="badge" style="background:${st.color}22;color:${st.color}">${esc(st.name)}</span>
-          <div class="timer">${Math.max(0,mins)} min</div>
-        </div>
-      </div>
-      <div class="stack" style="margin-top:10px">${o.lines.map(l=>`<div style="border-top:1px solid var(--line);padding-top:7px"><b>${l.qty}\u00d7 ${esc(l.name)}</b>${l.slots?.map((s,i)=>`<div class="order-meta"><b>Gusto ${i+1}: ${esc(s.taste)}</b>${s.modifiers?.length?` \u2014 ${s.modifiers.map(orderModifierText).join(', ')}`:''}</div>`).join('')||''}${l.modifiers?.length?`<div class="order-meta">${l.modifiers.map(orderModifierText).join(', ')}</div>`:''}</div>`).join('')}</div>
-      ${o.notes?`<div class="notice" style="margin-top:8px"><b>Nota:</b> ${esc(o.notes)}</div>`:''}
-      <div class="order-top" style="margin-top:9px">
-        <b>${money(o.total)}</b>
-        <select class="input" style="width:auto;min-height:38px;padding:6px" data-driver-select="${o.id}"><option value="">Fattorino</option>${state.drivers.filter(d=>d.active).map(d=>`<option value="${d.id}" ${o.driverId===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select>
-      </div>
-      <div class="order-actions">
-        <button class="btn warn small" data-action="edit-order" data-id="${o.id}">\u270e Apri e modifica</button>
-        <button class="btn primary small" data-action="advance-order" data-id="${o.id}">${esc(state.settings.labels.advance)}</button>
-        <button class="btn ghost small" data-action="print-kitchen" data-id="${o.id}">\ud83c\udf55 ${esc(state.settings.labels.kitchenPrint)}</button>
-        <button class="btn ghost small" data-action="print-receipt" data-id="${o.id}">\ud83e\uddfe ${esc(state.settings.labels.receipt)}</button>
-        <button class="btn ghost small" data-action="share-order" data-id="${o.id}">\ud83d\udcac ${esc(state.settings.labels.whatsapp)}</button>
-        <button class="btn success small" data-action="archive-order" data-id="${o.id}">${esc(state.settings.labels.close)}</button>
-      </div>
-    </article>`;
-  }
-  function openOrderForEdit(id){const o=state.orders.find(x=>x.id===id);if(!o)return toast('Ordine non trovato');if(state.draft?.lines?.length&&!state.draft.editingOrderId&&!confirm('Sostituire l\u2019ordine in inserimento con questo ordine?'))return;state.draft={...clone(o),editingOrderId:o.id,lines:clone(o.lines),streetName:o.streetName||'',streetNum:o.streetNum||''};ui.selectedLine=null;showView('entry');save();renderEntry();toast(`Ordine #${o.id} aperto in modifica`)}
-  function renderHistoryBase(){const list=state.archive.filter(o=>(o.closedAt||o.dateTime).slice(0,10)===ui.historyDate);const total=list.reduce((a,o)=>a+Number(o.total||0),0),deliveries=list.filter(o=>o.mode==='delivery').length;$('#view-history').innerHTML=`<div class="page-head"><h1>${esc(state.settings.labels.history)}</h1><input class="input" style="width:auto" type="date" id="historyDate" value="${ui.historyDate}"></div><div class="stats"><div class="stat"><div class="value">${money(total)}</div><div class="label">Incasso</div></div><div class="stat"><div class="value">${list.length}</div><div class="label">Ordini</div></div><div class="stat"><div class="value">${deliveries}</div><div class="label">Consegne</div></div><div class="stat"><div class="value">${list.length?money(total/list.length):money(0)}</div><div class="label">Scontrino medio</div></div></div><div class="grid" style="margin-top:12px">${list.map(o=>`<div class="order-card"><div class="order-top"><b>#${esc(o.id)} \u00b7 ${esc(o.customer||o.mode)}</b><b>${money(o.total)}</b></div><div class="order-meta">${new Date(o.dateTime).toLocaleString('it-IT')} \u00b7 ${esc(o.payment||'')} ${o.driverId?`\u00b7 ${esc(state.drivers.find(d=>d.id===o.driverId)?.name||'Fattorino eliminato')}`:''}</div><div class="order-actions"><select class="input" style="width:auto;min-height:34px;padding:4px" data-driver-select="${o.id}"><option value="">Fattorino</option>${state.drivers.filter(d=>d.active).map(d=>`<option value="${d.id}" ${o.driverId===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select><button class="btn ghost small" data-action="print-receipt" data-id="${o.id}" data-archive="1">Stampa</button><button class="btn ghost small" data-action="duplicate-order" data-id="${o.id}" data-archive="1">${esc(state.settings.labels.duplicate)}</button><button class="btn danger small" data-action="delete-archive" data-id="${o.id}">Elimina</button></div></div>`).join('')||'<div class="card empty">Nessun ordine archiviato in questa data</div>'}</div>`}
-  function renderHistory(){renderHistoryBase();const list=state.archive.filter(o=>(o.closedAt||o.dateTime).slice(0,10)===ui.historyDate),rows=state.drivers.map(d=>{const orders=list.filter(o=>o.driverId===d.id),total=orders.reduce((n,o)=>n+(+o.total||0),0);return{d,orders,total}}),card=document.createElement('div');card.className='card';card.style.marginTop='12px';card.innerHTML=`<h2>Totale fattorini</h2>${rows.map(x=>`<div class="setting-row"><div><b>${esc(x.d.name)}</b><div class="order-meta">${x.orders.length} consegne</div></div><b>${money(x.total)}</b></div>`).join('')||'<div class="empty">Nessun fattorino configurato</div>'}`;const stats=$('.stats',$('#view-history'));stats?.after(card)}
-  const settingTabs=[['general','Generale'],['menu','Menu'],['multi','Multigusto'],['mods','Modificatori'],['delivery','Consegne'],['statuses','Stati'],['print','Stampa'],['data','Dati']];
-  function renderSettings(){const s=state.settings;$('#view-settings').innerHTML=`<div class="page-head"><h1>${esc(s.labels.settings)}</h1><div class="tools"><button class="btn primary small" data-action="save-settings">Salva tutto</button></div></div><div class="settings-nav">${settingTabs.map(([id,n])=>`<button class="chip ${ui.settingsTab===id?'active':''}" data-settingtab="${id}">${n}</button>`).join('')}</div>${settingTabs.map(([id])=>`<div class="settings-panel ${ui.settingsTab===id?'active':''}" data-panel="${id}">${settingsPanel(id)}</div>`).join('')}`}
-  function settingsPanel(id){const s=state.settings;if(id==='general')return `<div class="card stack"><h2>Aspetto e testi</h2>${field('Nome attivit\u00e0','set-business',s.businessName)}<div class="grid three">${colorField('Colore principale','set-accent',s.accent)}${colorField('Colore scuro','set-accent2',s.accent2)}${colorField('Sfondo','set-background',s.background)}</div>${numField('Dimensione caratteri app','set-appfont',s.appFont,14,22,1)}${numField('Minuti predefiniti ordine','set-lead',s.defaultLeadMinutes,0,180,5)}<h3>Etichette schermate</h3><div class="grid two">${Object.entries(s.labels).map(([k,v])=>field(k,`label-${k}`,v)).join('')}</div><h3>Campi visibili</h3><div class="row">${[['showPhone','Telefono'],['showAddress','Indirizzo'],['showTable','Tavolo'],['showNotes','Note'],['showPayment','Pagamento'],['deliveryEnabled','Consegna']].map(([k,n])=>check(n,k,s[k])).join('')}</div></div>`;
-  if(id==='menu')return `<div class="stack"><div class="card"><div class="page-head"><h2>Categorie e prodotti</h2><button class="btn primary small" data-action="add-category" data-type="standard">+ Categoria</button></div><div class="stack">${state.categories.filter(c=>c.type==='standard').map(categorySetting).join('')||'<div class="empty">Nessuna categoria standard</div>'}</div></div></div>`;
-  if(id==='multi')return `<div class="card"><div class="page-head"><div><h2>Categorie multigusto</h2><div class="order-meta">Pizza met\u00e0, mezzo metro e qualsiasi formato futuro.</div></div><button class="btn primary small" data-action="add-category" data-type="multi">+ Multigusto</button></div><div class="stack">${state.categories.filter(c=>c.type==='multi').map(categorySetting).join('')||'<div class="empty">Nessuna categoria multigusto</div>'}</div></div>`;
-  if(id==='mods')return `<div class="card"><div class="page-head"><div><h2>Gruppi modificatori</h2><div class="order-meta">Crea gruppi come Pi\u00f9, Senza, Poco, Abbondante o qualsiasi altro.</div></div><button class="btn primary small" data-action="add-modgroup">+ Gruppo</button></div><div class="stack">${state.modifierGroups.map(g=>`<div class="setting-row"><div><b>${esc(g.name)}</b> <span class="badge ${g.enabled===false?'red':'green'}">${g.enabled===false?'NON DISPONIBILE':'DISPONIBILE'}</span><div class="order-meta">${g.items.length} modificatori</div></div><div class="row"><button class="btn small ghost" data-action="edit-modgroup" data-id="${g.id}">Modifica</button><button class="btn small" data-action="manage-moditems" data-id="${g.id}">Voci e prezzi</button><button class="btn small danger" data-action="delete-modgroup" data-id="${g.id}">Elimina</button></div></div>`).join('')}</div></div>`;
-  if(id==='delivery')return `<div class="stack"><div class="card"><h2>Capacit\u00e0 per fascia oraria</h2><div class="notice">Il gestionale controlla quante pizze sono gi\u00e0 prenotate nella stessa fascia. Se superi il limite ti avvisa, ma puoi decidere di procedere.</div><div class="grid three" style="margin-top:10px">${check('Controllo attivo','capacity-enabled',s.capacity?.enabled!==false)}${numField('Massimo pizze','capacity-limit',s.capacity?.limit||15,1,200,1)}${numField('Minuti per fascia','capacity-minutes',s.capacity?.minutes||5,5,60,5)}</div></div><div class="grid two"><div class="card"><div class="page-head"><h2>Zone</h2><button class="btn primary small" data-action="add-zone">+ Zona</button></div>${state.zones.map(z=>settingSimple(z,'zone')).join('')}</div><div class="card"><div class="page-head"><h2>Fattorini</h2><button class="btn primary small" data-action="add-driver">+ Fattorino</button></div>${state.drivers.map(d=>settingSimple(d,'driver')).join('')}</div></div></div>`;
-  if(id==='statuses')return `<div class="card"><div class="page-head"><div><h2>Flusso ordine</h2><div class="order-meta">L\u2019ordine avanza nell\u2019ordine mostrato.</div></div><button class="btn primary small" data-action="add-status">+ Stato</button></div>${s.statuses.map((x,i)=>`<div class="setting-row"><div><span style="display:inline-block;width:12px;height:12px;background:${x.color};border-radius:50%;margin-right:7px"></span><b>${esc(x.name)}</b> <span class="drag">posizione ${i+1}</span></div><div class="row"><button class="btn small ghost" data-action="move-status" data-id="${x.id}" data-dir="-1">&#8593;</button><button class="btn small ghost" data-action="move-status" data-id="${x.id}" data-dir="1">&#8595;</button><button class="btn small" data-action="edit-status" data-id="${x.id}">Modifica</button><button class="btn small danger" data-action="delete-status" data-id="${x.id}">Elimina</button></div></div>`).join('')}</div>`;
-  if(id==='print'){const p=s.print;return `<div class="card stack"><h2>Stampa personalizzata</h2><div class="grid two">${field('Nome in testata','print-businessName',p.businessName)}${field('Font','print-font',p.font)}${field('Testo sopra','print-header',p.header)}${field('Testo finale','print-footer',p.footer)}${numField('Larghezza carta mm','print-paperWidth',p.paperWidth,48,110,1)}${numField('Corpo testo px','print-bodySize',p.bodySize,8,28,1)}${numField('Titolo px','print-titleSize',p.titleSize,10,36,1)}${numField('Sottotitoli px','print-headingSize',p.headingSize,9,30,1)}${numField('Totale px','print-totalSize',p.totalSize,10,36,1)}</div><div class="row">${[['showCustomer','Cliente'],['showPhone','Telefono'],['showAddress','Indirizzo'],['showPayment','Pagamento'],['showPrices','Prezzi'],['showFooter','Testo finale'],['autoPrintKitchen','Comanda automatica']].map(([k,n])=>check(n,`print-${k}`,p[k])).join('')}</div><button class="btn ghost" data-action="test-print">Prova stampa</button></div>`}
-  if(id==='data')return `<div class="stack"><div class="card"><h2>Backup e ripristino</h2><p class="order-meta">Menu, modificatori, ordini e impostazioni restano in IndexedDB con copia locale. Esporta periodicamente un backup.</p><div class="row"><button class="btn primary" data-action="export-data">Esporta backup completo</button><button class="btn ghost" data-action="import-data">Importa backup</button></div></div><div class="card"><h2>Pulizia ordini</h2><div class="notice">Questi pulsanti non cancellano mai menu, pizze, bibite, modificatori, prezzi, fattorini o impostazioni.</div><div class="row" style="margin-top:10px"><button class="btn warn" data-action="purge-active-orders">Cancella ordini attivi</button><button class="btn warn" data-action="purge-history">Cancella solo storico</button><button class="btn danger" data-action="purge-all-orders">Cancella ordini e storico</button></div></div><div class="card danger-zone"><h2>Ripristina solo aspetto</h2><p>Ripristina colori, testi e stampa iniziali senza modificare menu e dati operativi.</p><button class="btn ghost" data-action="reset-settings-safe">Ripristina aspetto e stampa</button></div></div>`;return ''}
-  function categorySetting(c){return `<div class="setting-row"><div><b>${esc(c.name)}</b> <span class="badge">${c.enabled?'Visibile':'Nascosta'}</span><div class="order-meta">${c.items.length} prodotti${c.type==='multi'?` \u00b7 ${c.slots} gusti \u00b7 ${ruleName(c.priceRule)}`:''}</div></div><div class="row"><button class="btn small ghost" data-action="edit-category" data-id="${c.id}">Modifica categoria</button><button class="btn small primary" data-action="manage-items" data-id="${c.id}">Apri prodotti</button><button class="btn small danger" data-action="delete-category" data-id="${c.id}">Elimina</button></div></div>`}
-  function settingSimple(x,type){return `<div class="setting-row"><div><b>${esc(x.name)}</b>${type==='zone'?`<div class="order-meta">${money(x.price)}</div>`:` <span class="badge">${x.active?'Attivo':'Disattivo'}</span>`}</div><div class="row"><button class="btn small" data-action="edit-${type}" data-id="${x.id}">Modifica</button><button class="btn small danger" data-action="delete-${type}" data-id="${x.id}">Elimina</button></div></div>`}
-  function field(label,name,value,type='text'){return `<div class="field"><label>${esc(label)}</label><input class="input" type="${type}" name="${name}" value="${esc(value)}"></div>`}function numField(l,n,v,min,max,step){return `<div class="field"><label>${esc(l)}</label><input class="input" type="number" name="${n}" value="${v}" min="${min}" max="${max}" step="${step}"></div>`}function colorField(l,n,v){return `<div class="field"><label>${esc(l)}</label><input class="color-input" type="color" name="${n}" value="${v}"></div>`}function check(l,n,v){return `<label class="switch"><input type="checkbox" name="${n}" ${v?'checked':''}> ${esc(l)}</label>`}function ruleName(r){return ({highest:'Prezzo pi\u00f9 alto',average:'Media prezzi',sum:'Somma prezzi',fixed:'Prezzo fisso'})[r]||r}
-  function openEditor(title,html,onSave){$('#editorTitle').textContent=title;$('#editorBody').innerHTML=html;const d=$('#editorDialog');d.returnValue='';d.showModal();$('#editorForm').onsubmit=e=>{e.preventDefault();const fd=new FormData(e.currentTarget);if(onSave(fd)!==false)d.close()}}
-  function openCategory(id,type='standard'){const c=state.categories.find(x=>x.id===id);openEditor(c?'Modifica categoria':'Nuova categoria',`${field('Nome','name',c?.name||'')}${check('Visibile','enabled',c?.enabled??true)}${type==='standard'?check('Usa questi prodotti come gusti multi-gusto','useAsTaste',c?.useAsTaste??!/bibit|bevande|dolci|dessert/i.test(c?.name||'')):''}${type==='multi'?`<div class="grid two">${numField('Numero gusti','slots',c?.slots||2,2,6,1)}<div class="field"><label>Calcolo prezzo</label><select class="input" name="priceRule"><option value="highest" ${c?.priceRule==='highest'?'selected':''}>Prezzo pi\u00f9 alto</option><option value="average" ${c?.priceRule==='average'?'selected':''}>Media prezzi</option><option value="sum" ${c?.priceRule==='sum'?'selected':''}>Somma prezzi</option><option value="fixed" ${c?.priceRule==='fixed'?'selected':''}>Prezzo fisso + modificatori</option></select></div>${numField('Prezzo base/fisso','basePrice',c?.basePrice||0,0,999,.1)}</div>`:''}`,fd=>{const name=fd.get('name').trim();if(!name)return toast('Inserisci il nome'),false;const obj=c||{id:uid('cat'),type,items:[]};obj.name=name;obj.enabled=fd.has('enabled');if(type==='standard')obj.useAsTaste=fd.has('useAsTaste');if(type==='multi'){obj.slots=Math.max(2,+fd.get('slots')||2);obj.priceRule=fd.get('priceRule');obj.basePrice=+fd.get('basePrice')||0}if(!c)state.categories.push(obj);save();renderAll()})}
-  function openSimple(type,id){const map={zone:state.zones,driver:state.drivers,status:state.settings.statuses},arr=map[type],x=arr?.find(v=>v.id===id);let html=field('Nome','name',x?.name||'');if(type==='zone')html+=numField('Costo consegna','price',x?.price||0,0,99,.1);if(type==='driver')html+=check('Attivo','active',x?.active??true);if(type==='status')html+=colorField('Colore','color',x?.color||'#c41424');openEditor(x?'Modifica':'Nuovo',html,fd=>{const name=fd.get('name').trim();if(!name)return toast('Inserisci il nome'),false;const obj=x||{id:uid(type[0])};obj.name=name;if(type==='zone')obj.price=+fd.get('price');if(type==='driver')obj.active=fd.has('active');if(type==='status')obj.color=fd.get('color');if(!x)arr.push(obj);save();renderAll()})}
-  function managerDialog(title,html){const d=$('#editorDialog');$('#editorTitle').textContent=title;$('#editorBody').innerHTML=html;$('#editorSave').style.display='none';d.returnValue='';if(!d.open)d.showModal();$('#editorForm').onsubmit=e=>e.preventDefault()}
-  function closeManager(next){const d=$('#editorDialog');$('#editorSave').style.display='';if(d.open)d.close();setTimeout(next,0)}
-  function manageItems(catId){const c=state.categories.find(x=>x.id===catId);if(!c)return;managerDialog(`Prodotti \u00b7 ${c.name}`,`<div class="notice">Qui puoi creare qualsiasi prodotto, cambiarne prezzo e disponibilit\u00e0 oppure eliminarlo.</div><button type="button" class="btn primary full" id="addItemInEditor" style="margin-top:10px">+ Nuovo prodotto</button><div class="stack" style="margin-top:10px">${(c.items||[]).map(p=>`<div class="setting-row"><div><b>${esc(p.name)}</b><div class="order-meta">${money(p.price)} \u00b7 <span class="badge ${p.soldOut?'red':'green'}">${p.soldOut?'NON DISPONIBILE':'DISPONIBILE'}</span></div></div><div class="row"><button type="button" class="btn small ${p.soldOut?'success':'warn'} toggle-i" data-id="${p.id}">${p.soldOut?'Attiva':'Disattiva'}</button><button type="button" class="btn small edit-i" data-id="${p.id}">Modifica</button><button type="button" class="btn small danger del-i" data-id="${p.id}">Elimina</button></div></div>`).join('')||'<div class="empty">Nessun prodotto: premi Nuovo prodotto</div>'}</div>`);$('#addItemInEditor').onclick=()=>closeManager(()=>editItem(c));$$('.edit-i').forEach(b=>b.onclick=()=>closeManager(()=>editItem(c,c.items.find(x=>x.id===b.dataset.id))));$$('.toggle-i').forEach(b=>b.onclick=()=>{const p=c.items.find(x=>x.id===b.dataset.id);p.soldOut=!p.soldOut;save();manageItems(catId)});$$('.del-i').forEach(b=>b.onclick=()=>{if(confirm('Eliminare definitivamente questo prodotto?')){c.items=c.items.filter(x=>x.id!==b.dataset.id);save();manageItems(catId)}})}
-  function editItem(c,p){openEditor(p?'Modifica prodotto':'Nuovo prodotto',`${field('Nome prodotto','name',p?.name||'')}${numField('Prezzo','price',p?.price??0,0,9999,.1)}${check('Disponibile','available',!p?.soldOut)}`,fd=>{const name=fd.get('name').trim();if(!name)return toast('Inserisci il nome'),false;const obj=p||{id:uid('p')};obj.name=name;obj.price=Math.max(0,+fd.get('price')||0);obj.soldOut=!fd.has('available');if(!p)c.items.push(obj);save();renderAll();setTimeout(()=>manageItems(c.id),0)})}
-  function manageModItems(groupId){const g=state.modifierGroups.find(x=>x.id===groupId);if(!g)return;managerDialog(`Modificatori \u00b7 ${g.name}`,`<div class="notice">Aggiungi tutte le voci che desideri. Ogni voce ha prezzo, disponibilit\u00e0 e stile di stampa indipendenti.</div><button type="button" class="btn primary full" id="addModInEditor" style="margin-top:10px">+ Nuovo modificatore</button><div class="stack" style="margin-top:10px">${(g.items||[]).map(m=>`<div class="setting-row"><div><b>${esc(m.name)}</b><div class="order-meta">${money(m.price)} \u00b7 <span class="badge ${m.soldOut?'red':'green'}">${m.soldOut?'NON DISPONIBILE':'DISPONIBILE'}</span> \u00b7 ${m.printStyle==='highlight'?'Evidenziato':m.printStyle==='bold'?'Grassetto':'Normale'}</div></div><div class="row"><button type="button" class="btn small ${m.soldOut?'success':'warn'} toggle-m" data-id="${m.id}">${m.soldOut?'Attiva':'Disattiva'}</button><button type="button" class="btn small edit-m" data-id="${m.id}">Modifica</button><button type="button" class="btn small danger del-m" data-id="${m.id}">Elimina</button></div></div>`).join('')||'<div class="empty">Nessun modificatore: premi Nuovo modificatore</div>'}</div>`);$('#addModInEditor').onclick=()=>closeManager(()=>editMod(g));$$('.edit-m').forEach(b=>b.onclick=()=>closeManager(()=>editMod(g,g.items.find(x=>x.id===b.dataset.id))));$$('.toggle-m').forEach(b=>b.onclick=()=>{const m=g.items.find(x=>x.id===b.dataset.id);m.soldOut=!m.soldOut;save();manageModItems(groupId)});$$('.del-m').forEach(b=>b.onclick=()=>{if(confirm('Eliminare definitivamente questo modificatore?')){g.items=g.items.filter(x=>x.id!==b.dataset.id);save();manageModItems(groupId)}})}
-  function editMod(g,m){openEditor(m?'Modifica modificatore':'Nuovo modificatore',`${field('Nome modificatore','name',m?.name||'')}${numField('Supplemento','price',m?.price??0,0,9999,.1)}<div class="field"><label>Stile in comanda</label><select class="input" name="printStyle"><option value="normal" ${(m?.printStyle||'normal')==='normal'?'selected':''}>Normale</option><option value="bold" ${m?.printStyle==='bold'?'selected':''}>Grassetto</option><option value="highlight" ${m?.printStyle==='highlight'?'selected':''}>Evidenziato</option></select></div>${check('Disponibile','available',!m?.soldOut)}`,fd=>{const name=fd.get('name').trim();if(!name)return toast('Inserisci il nome'),false;const obj=m||{id:uid('m')};obj.name=name;obj.price=Math.max(0,+fd.get('price')||0);obj.printStyle=fd.get('printStyle')||'normal';obj.soldOut=!fd.has('available');if(!m)g.items.push(obj);save();renderAll();setTimeout(()=>manageModItems(g.id),0)})}
-  function editModGroup(g){openEditor(g?'Modifica gruppo modificatori':'Nuovo gruppo modificatori',`${field('Nome gruppo','name',g?.name||'')}<div class="field"><label>Colore pulsante</label><select class="input" name="style"><option value="plus" ${g?.style==='plus'?'selected':''}>Verde</option><option value="minus" ${g?.style==='minus'?'selected':''}>Grigio</option><option value="little" ${g?.style==='little'?'selected':''}>Giallo</option><option value="more" ${g?.style==='more'?'selected':''}>Blu</option></select></div>${check('Gruppo disponibile','enabled',g?.enabled!==false)}`,fd=>{const name=fd.get('name').trim();if(!name)return toast('Inserisci il nome del gruppo'),false;const obj=g||{id:uid('mg'),items:[]};obj.name=name;obj.style=fd.get('style')||'plus';obj.enabled=fd.has('enabled');if(!g)state.modifierGroups.push(obj);if(!state.modifierGroups.some(x=>x.id===ui.modGroup&&x.enabled!==false))ui.modGroup=state.modifierGroups.find(x=>x.enabled!==false)?.id||'';save();renderAll()})}
-  function addProduct(cat,p){if(cat.type==='multi')return composeMulti(cat,p);state.draft.lines.push({id:uid('l'),categoryId:cat.id,productId:p.id,name:p.name,unitPrice:+p.price,qty:1,modifiers:[]});ui.selectedLine=state.draft.lines.length-1;save();renderEntry()}
-  function composeMulti(cat,p,editIndex=null){
-    const bases=state.categories.filter(c=>c.type==='standard'&&c.enabled!==false&&c.useAsTaste!==false).flatMap(c=>(c.items||[]).filter(x=>!x.soldOut).map(x=>({...x,categoryName:c.name,label:`${x.name} \u00b7 ${c.name}`})));
-    const mods=state.modifierGroups.filter(g=>g.enabled!==false).flatMap(g=>(g.items||[]).filter(m=>!m.soldOut).map(m=>({...m,groupName:g.name,label:`${g.name}: ${m.name}`})));
-    if(!bases.length)return toast('Nessuna pizza disponibile: abilita una categoria come gusti multi-gusto');
-    const old=editIndex===null?null:state.draft.lines[editIndex],count=Math.max(2,+cat.slots||2),draft=Array.from({length:count},(_,i)=>old?.slots?.[i]?clone(old.slots[i]):{taste:'',productId:'',price:0,modifiers:[]});
-    const d=$('#multiDialog');$('#multiTitle').textContent=`${editIndex===null?'Componi':'Modifica'} ${p.name}`;
-    const modClass=m=>`mod-${m.printStyle||'normal'}`;
-    const resultButtons=(items,kind,i)=>items.slice(0,30).map(x=>`<button type="button" class="picker-option ${kind==='taste'&&draft[i].productId===x.id?'selected':''}" data-pick-${kind}="${x.id}" data-slot="${i}"><b>${esc(x.name)}</b><span class="order-meta">${esc(kind==='taste'?x.categoryName:x.groupName)} ${x.price?`\u00b7 ${kind==='mod'?'+':''}${money(x.price)}`:''}</span><span class="picker-action">${kind==='taste'?'SCEGLI QUESTA PIZZA':'+ AGGIUNGI AL GUSTO'}</span></button>`).join('')||'<div class="empty">Nessun risultato</div>';
-    const render=()=>{$('#multiBody').innerHTML=`<div class="notice">Tocca una pizza per ogni gusto. Cerca per nome: i risultati qui sotto sono pulsanti reali e funzionano anche su iPhone.</div><div class="stack" style="margin-top:12px">${draft.map((s,i)=>`<section class="taste-card"><h3><span>Gusto ${i+1}</span><span>${s.taste?esc(s.taste):'Da scegliere'}</span></h3><input class="input taste-filter" data-slot="${i}" placeholder="Cerca pizza..." autocomplete="off"><div class="picker-results taste-results" data-slot="${i}">${resultButtons(bases,'taste',i)}</div><div style="border-top:1px solid var(--line);margin:12px 0"></div><label><b>Modificatori del gusto ${i+1}</b></label><input class="input mod-filter" data-slot="${i}" placeholder="Cerca pi\u00f9, senza, poco, abbondante..." autocomplete="off" style="margin-top:6px"><div class="picker-results mod-results" data-slot="${i}">${resultButtons(mods,'mod',i)}</div><div class="stack" style="margin-top:9px">${(s.modifiers||[]).map((m,j)=>`<div class="setting-row"><span class="${modClass(m)}">${esc(m.name)} ${m.price?`(+${money(m.price)})`:''}</span><button type="button" class="btn small danger" data-remove-slot="${i}" data-remove-mod="${j}">\u2715</button></div>`).join('')||'<div class="order-meta">Nessun modificatore aggiunto</div>'}</div></section>`).join('')}</div><div class="total-box"><span>Totale anteprima</span><span>${money(multiPrice(cat,p,draft)+slotModifierTotal(draft))}</span></div>`;bind()};
-    const bind=()=>{$$('.taste-filter',$('#multiBody')).forEach(input=>input.oninput=()=>{const q=input.value.trim().toLowerCase(),box=$(`.taste-results[data-slot="${input.dataset.slot}"]`,$('#multiBody'));box.innerHTML=resultButtons(bases.filter(x=>`${x.name} ${x.categoryName}`.toLowerCase().includes(q)),'taste',+input.dataset.slot);bind()});$$('.mod-filter',$('#multiBody')).forEach(input=>input.oninput=()=>{const q=input.value.trim().toLowerCase(),box=$(`.mod-results[data-slot="${input.dataset.slot}"]`,$('#multiBody'));box.innerHTML=resultButtons(mods.filter(x=>`${x.name} ${x.groupName}`.toLowerCase().includes(q)),'mod',+input.dataset.slot);bind()});$$('[data-pick-taste]',$('#multiBody')).forEach(b=>b.onclick=()=>{const x=bases.find(v=>v.id===b.dataset.pickTaste);Object.assign(draft[+b.dataset.slot],{taste:x.name,productId:x.id,price:+x.price});render()});$$('[data-pick-mod]',$('#multiBody')).forEach(b=>b.onclick=()=>{const x=mods.find(v=>v.id===b.dataset.pickMod),i=+b.dataset.slot;draft[i].modifiers.push({id:uid('sm'),modifierId:x.id,name:x.label,price:+x.price,printStyle:x.printStyle||'normal'});render()});$$('[data-remove-slot]',$('#multiBody')).forEach(b=>b.onclick=()=>{draft[+b.dataset.removeSlot].modifiers.splice(+b.dataset.removeMod,1);render()})};
-    render();d.showModal();$('#multiForm').onsubmit=e=>{e.preventDefault();const missing=draft.findIndex(s=>!s.productId);if(missing>=0)return toast(`Scegli la pizza per il gusto ${missing+1}`);const line={id:old?.id||uid('l'),categoryId:cat.id,productId:p.id,name:p.name,unitPrice:multiPrice(cat,p,draft),qty:old?.qty||1,modifiers:old?.modifiers||[],slots:draft};if(editIndex===null){state.draft.lines.push(line);ui.selectedLine=state.draft.lines.length-1}else{state.draft.lines[editIndex]=line;ui.selectedLine=editIndex}d.close();save();renderEntry()};
-  }
-  function pizzaUnits(lines){return (lines||[]).reduce((n,l)=>{const c=state.categories.find(x=>x.id===l.categoryId)||state.categories.find(x=>(x.items||[]).some(p=>p.id===l.productId)),pizzaCategory=c?.type==='standard'&&c.useAsTaste!==false&&!/bibit|bevande|dolci|dessert/i.test(c.name||'');return n+((l.slots?.length||c?.type==='multi'||pizzaCategory)?(+l.qty||1):0)},0)}
-  function capacityInfo(dateTime){const cfg=state.settings.capacity||{enabled:true,limit:15,minutes:5},ms=Math.max(5,+cfg.minutes||5)*60000,t=new Date(dateTime).getTime(),start=Math.floor(t/ms)*ms,end=start+ms,editingId=state.draft?.editingOrderId,orders=[...state.orders,...state.archive].filter(o=>{const x=new Date(o.dateTime).getTime();return o.id!==editingId&&x>=start&&x<end}),used=orders.reduce((n,o)=>n+pizzaUnits(o.lines),0),incoming=pizzaUnits(state.draft?.lines),limit=Math.max(1,+cfg.limit||15);return{used,incoming,total:used+incoming,limit,start,end,over:used+incoming>limit}}
-  
-  function openFinalize(){
-    const d=state.draft, s=state.settings, cap=capacityInfo(d.dateTime), drivers=state.drivers.filter(x=>x.active);
-    const existingCustomers = [...new Set(state.customers.map(c=>c.name).filter(Boolean))];
-    const existingPhones = [...new Set(state.customers.map(c=>c.phone).filter(Boolean))];
-    const existingStreets = [...new Set(state.customers.map(c=>c.address ? c.address.replace(/\s*\d+[\w/]*\s*$/, '').trim() : '').filter(Boolean))];
 
-    $('#orderBody').innerHTML=`
-      <div class="grid three">
-        <button type="button" class="btn ${d.mode==='pickup'?'primary':''}" data-mode="pickup">${esc(s.labels.pickup)}</button>
-        <button type="button" class="btn ${d.mode==='counter'?'primary':''}" data-mode="counter">${esc(s.labels.counter)}</button>
-        ${s.deliveryEnabled?`<button type="button" class="btn ${d.mode==='delivery'?'primary':''}" data-mode="delivery">${esc(s.labels.delivery)}</button>`:''}
-      </div>
-      <div class="notice ${cap.over?'capacity-warn':'capacity-ok'}" style="margin-top:12px"><b>Fascia ${new Date(cap.start).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}-${new Date(cap.end).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</b>: ${cap.used} gi\u00e0 inserite + ${cap.incoming} nuove = ${cap.total}/${cap.limit} pizze.</div>
-      <datalist id="list-customers">${existingCustomers.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
-      <datalist id="list-phones">${existingPhones.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
-      <datalist id="list-streets">${existingStreets.map(st=>`<option value="${esc(st)}">`).join('')}</datalist>
+    <header>
+        <div class="header-title">
+            <span>🍕</span> Pizzeria Manager Ultimate
+        </div>
+        <div class="header-stats">
+            <span>Incasso Giorno: <strong id="header-total-revenue">€ 0.00</strong></span>
+            <span>Ordini Evasi: <strong id="header-completed-count">0</strong></span>
+        </div>
+        <div class="nav-tabs">
+            <button class="nav-btn active" onclick="switchView('pos')">🛒 Cassa / POS</button>
+            <button class="nav-btn" onclick="switchView('kds')">👨‍🍳 Cucina KDS <span class="badge-count" id="kds-badge">0</span></button>
+            <button class="nav-btn" onclick="switchView('reports')">📊 Report & Cassa</button>
+        </div>
+    </header>
 
-      <div class="grid two" style="margin-top:12px">
-        <div class="field"><label>${esc(s.labels.customer)}</label><input class="input" name="customer" list="list-customers" value="${esc(d.customer)}" autocomplete="off"></div>
-        ${s.showPhone?`<div class="field"><label>Telefono</label><input class="input" type="tel" name="phone" list="list-phones" value="${esc(d.phone)}" autocomplete="off"></div>`:''}
-        ${s.showAddress?`<div class="field" style="grid-column:1/-1"><label>Indirizzo (Via e Numero)</label><div style="display:grid;grid-template-columns:1fr 110px;gap:8px"><input class="input" name="streetName" list="list-streets" placeholder="Nome via" value="${esc(d.streetName||'')}" autocomplete="off"><input class="input" name="streetNum" placeholder="N. civico" value="${esc(d.streetNum||'')}"></div></div>`:''}
-        ${s.showTable?field('Tavolo','table',d.table):''}
-        <div class="field"><label>Data e ora</label><input class="input" type="datetime-local" name="dateTime" step="60" value="${esc(d.dateTime)}"></div>
-        ${s.showPayment?`<div class="field"><label>Pagamento</label><select class="input" name="payment">${['Da pagare','Contanti','Carta','Satispay','App delivery'].map(x=>`<option ${d.payment===x?'selected':''}>${x}</option>`).join('')}</select></div>`:''}
-        <div class="field zone-field" style="${d.mode==='delivery'?'':'display:none'}"><label>Zona</label><select class="input" name="zoneId">${state.zones.map(z=>`<option value="${z.id}" ${d.zoneId===z.id?'selected':''}>${esc(z.name)} \u00b7 ${money(z.price)}</option>`).join('')}</select></div>
-        <div class="field"><label>Fattorino</label><select class="input" name="driverId"><option value="">Da assegnare</option>${drivers.map(x=>`<option value="${x.id}" ${d.driverId===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
-        ${s.showNotes?`<div class="field" style="grid-column:1/-1"><label>${esc(s.labels.notes)}</label><textarea class="input" name="notes">${esc(d.notes)}</textarea></div>`:''}
-      </div>
-      <div class="total-box"><span>Totale ordine</span><span>${money(finalTotal(d))}</span></div>`;
-    
-    $$('[data-mode]',$('#orderBody')).forEach(b=>b.onclick=()=>{d.mode=b.dataset.mode;openFinalize()});
-    const dt=$('[name="dateTime"]',$('#orderBody'));if(dt)dt.onchange=()=>{d.dateTime=dt.value;openFinalize()};
-    
-    // Auto-fill address when selecting known customer
-    const custInput = $('[name="customer"]', $('#orderBody'));
-    if(custInput){
-      custInput.onchange = () => {
-        const found = state.customers.find(c => c.name.toLowerCase() === custInput.value.trim().toLowerCase());
-        if(found){
-          if(found.phone && !$('[name="phone"]', $('#orderBody')).value) $('[name="phone"]', $('#orderBody')).value = found.phone;
-          if(found.address){
-            const parts = found.address.match(/^(.*?)\s*(\d+[\w/]*)\s*$/);
-            if(parts){
-              $('[name="streetName"]', $('#orderBody')).value = parts[1];
-              $('[name="streetNum"]', $('#orderBody')).value = parts[2];
-            } else {
-              $('[name="streetName"]', $('#orderBody')).value = found.address;
-            }
-          }
+    <main>
+        <!-- VISTA CASSA / POS -->
+        <section id="view-pos" class="view-section active pos-layout">
+            <div class="products-area">
+                <div class="search-filter-bar">
+                    <input type="text" id="product-search" class="search-input" placeholder="Cerca prodotto o ingrediente..." oninput="filterProducts(this.value)">
+                </div>
+                <div class="categories-bar" id="categories-bar"></div>
+                <div class="products-grid" id="products-grid"></div>
+            </div>
+            
+            <div class="cart-area">
+                <div class="cart-header">
+                    <span>Nuova Comanda</span>
+                    <span id="cart-item-count" style="font-size: 0.8rem; color: var(--text-muted);">0 articoli</span>
+                </div>
+                
+                <div class="order-type-selector">
+                    <button class="type-btn active" id="type-tavolo" onclick="setOrderType('Tavolo')">Tavolo / Asporto</button>
+                    <button class="type-btn" id="type-domicilio" onclick="setOrderType('Domicilio')">Domicilio 🛵</button>
+                </div>
+
+                <div class="client-inputs">
+                    <input type="text" id="client-name" class="client-input" placeholder="Nome Cliente / Tavolo (es. Tavolo 4)">
+                    <input type="text" id="client-phone" class="client-input" placeholder="Telefono / Note" style="display:none;">
+                </div>
+
+                <div class="cart-items" id="cart-items"></div>
+                
+                <div class="cart-footer">
+                    <div class="cart-total-row">
+                        <span>Totale Comanda:</span>
+                        <span id="cart-total">€ 0.00</span>
+                    </div>
+                    <button class="btn-primary" onclick="confermaOrdine()">Invia in Cucina e Stampa Comanda</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- VISTA KDS CUCINA -->
+        <section id="view-kds" class="view-section" style="flex-direction: column;">
+            <div style="padding: 16px 16px 0 16px; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="font-size: 1.1rem; font-weight: 700;">Kitchen Display System (KDS)</h2>
+                <span style="font-size: 0.85rem; color: var(--text-muted);" id="kds-status-text">Nessuna comanda in preparazione</span>
+            </div>
+            <div id="kds-container" class="kds-container"></div>
+        </section>
+
+        <!-- VISTA REPORT -->
+        <section id="view-reports" class="view-section report-layout">
+            <h2 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 4px;">Riepilogo Finanziario e Statistiche</h2>
+            <div class="report-cards-grid">
+                <div class="report-card">
+                    <span class="section-label">Fatturato Totale Giornaliero</span>
+                    <span class="report-value" id="rep-total-rev">€ 0.00</span>
+                </div>
+                <div class="report-card">
+                    <span class="section-label">Totale Ordini Gestiti</span>
+                    <span class="report-value" id="rep-total-orders">0</span>
+                </div>
+                <div class="report-card">
+                    <span class="section-label">Scontrino Medio</span>
+                    <span class="report-value" id="rep-avg-ticket">€ 0.00</span>
+                </div>
+            </div>
+            <div style="margin-top: 20px;">
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 10px;">Storico Ordini Completati Oggi</h3>
+                <div id="completed-orders-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODALE PERSONALIZZAZIONE & METÀ-METÀ -->
+    <div class="modal-overlay" id="product-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="modal-product-title" style="font-size: 1rem;">Personalizza Pizza</span>
+                <button onclick="chiudiModale()" style="background:none; border:none; color:white; font-size:1.4rem; cursor:pointer;">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-product-body"></div>
+            <div class="modal-footer">
+                <button class="btn-primary" style="flex:1;" id="modal-confirm-btn" onclick="salvaPersonalizzazione()">Conferma Articolo</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const categories = [
+            { id: 'rosse', name: 'Pizze Rosse' },
+            { id: 'bianche', name: 'Pizze Bianche' },
+            { id: 'speciali', name: 'Pizze Speciali' },
+            { id: 'bevande', name: 'Bevande' },
+            { id: 'fritti', name: 'Fritti & Appetizers' }
+        ];
+
+        const products = [
+            { id: 1, cat: 'rosse', name: 'Margherita', price: 6.50, allowHalf: true },
+            { id: 2, cat: 'rosse', name: 'Diavola', price: 8.00, allowHalf: true },
+            { id: 3, cat: 'rosse', name: 'Capricciosa', price: 8.50, allowHalf: true },
+            { id: 4, cat: 'bianche', name: 'Quattro Formaggi', price: 8.00, allowHalf: true },
+            { id: 5, cat: 'bianche', name: 'Wurstel e Patatine', price: 7.50, allowHalf: true },
+            { id: 6, cat: 'speciali', name: 'Nerano', price: 9.50, allowHalf: true },
+            { id: 7, cat: 'speciali', name: 'Bufalina', price: 9.00, allowHalf: true },
+            { id: 8, cat: 'bevande', name: 'Coca Cola 33cl', price: 3.00, allowHalf: false },
+            { id: 9, cat: 'bevande', name: 'Acqua Naturale 50cl', price: 1.50, allowHalf: false },
+            { id: 10, cat: 'bevande', name: 'Birra Artigianale 33cl', price: 5.00, allowHalf: false },
+            { id: 11, cat: 'fritti', name: 'Patatine Fritte', price: 4.00, allowHalf: false },
+            { id: 12, cat: 'fritti', name: 'Olive Ascolane (6pz)', price: 5.00, allowHalf: false }
+        ];
+
+        const availableExtras = [
+            { name: 'Mozzarella di Bufala', price: 2.00 },
+            { name: 'Doppio Salame / Wurstel', price: 1.50 },
+            { name: 'Olio Piccante', price: 0.50 },
+            { name: 'Funghi Freschi', price: 1.50 },
+            { name: 'Acciughe', price: 1.50 },
+            { name: 'Senza Lattosio / Impasto Integrale', price: 1.00 }
+        ];
+
+        let cart = [];
+        let activeCategory = 'rosse';
+        let activeOrders = [];
+        let completedOrders = [];
+        let editingUuid = null;
+        let currentOrderType = 'Tavolo';
+
+        function init() {
+            renderCategories();
+            renderProducts(activeCategory);
+            renderCart();
+            setInterval(updateKdsTimers, 30000); // Aggiorna i minuti trascorsi in cucina ogni 30s
         }
-      };
-    }
 
-    $('#orderDialog').showModal();
-    $('#orderForm').onsubmit=e=>{
-      e.preventDefault();
-      const fd=new FormData(e.currentTarget);
-      ['customer','phone','table','dateTime','payment','zoneId','driverId','notes'].forEach(k=>{if(fd.has(k))d[k]=fd.get(k)});
-      d.streetName = fd.get('streetName')?.trim() || '';
-      d.streetNum = fd.get('streetNum')?.trim() || '';
-      d.address = d.streetNum ? `${d.streetName}, ${d.streetNum}` : d.streetName;
+        function switchView(viewName) {
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
 
-      const checkCap=capacityInfo(d.dateTime);
-      if(s.capacity?.enabled!==false&&checkCap.over&&!confirm(`ATTENZIONE: fascia piena. ${checkCap.total} pizze su un massimo di ${checkCap.limit}. Vuoi inserirlo comunque?`))return;
-      const order={...clone(d),id:nextOrderId(),createdAt:new Date().toISOString(),status:s.statuses[0]?.id||'new',total:finalTotal(d),deliveryCost:d.mode==='delivery'?zonePrice(d.zoneId):0,capacityOverride:checkCap.over};
-      state.orders.push(order);state.customers=upsertCustomer(order,state.customers);state.draft=null;ui.selectedLine=null;$('#orderDialog').close();save();renderAll();toast(`Ordine #${order.id} creato`);if(s.print.autoPrintKitchen)printOrder(order,'kitchen')
-    }
-  }
+            if (viewName === 'pos') {
+                event.currentTarget.classList.add('active');
+                document.getElementById('view-pos').classList.add('active');
+            } else if (viewName === 'kds') {
+                event.currentTarget.classList.add('active');
+                document.getElementById('view-kds').classList.add('active');
+                renderKds();
+            } else if (viewName === 'reports') {
+                event.currentTarget.classList.add('active');
+                document.getElementById('view-reports').classList.add('active');
+                renderReports();
+            }
+        }
 
-  function zonePrice(id){return Number(state.zones.find(z=>z.id===id)?.price||0)}function finalTotal(d){return d.lines.reduce((a,l)=>a+lineTotal(l),0)+(d.mode==='delivery'?zonePrice(d.zoneId):0)}function nextOrderId(){const all=[...state.orders,...state.archive].map(o=>Number(o.id)).filter(Number.isFinite);return String((Math.max(0,...all)+1)).padStart(3,'0')}function upsertCustomer(o,list){if(!o.phone&&!o.customer)return list;const found=list.find(c=>o.phone&&c.phone===o.phone);if(found)Object.assign(found,{name:o.customer,address:o.address,lastOrder:new Date().toISOString()});else list.push({id:uid('c'),name:o.customer,phone:o.phone,address:o.address,lastOrder:new Date().toISOString()});return list}
-  function findOrder(id,archive=false){return (archive?state.archive:state.orders).find(o=>o.id===id)||state.archive.find(o=>o.id===id)}function advanceOrder(o){const a=state.settings.statuses,i=Math.max(0,a.findIndex(x=>x.id===o.status));o.status=a[Math.min(i+1,a.length-1)]?.id||o.status;save();renderOrders()}function archiveOrder(o){state.orders=state.orders.filter(x=>x.id!==o.id);o.closedAt=new Date().toISOString();state.archive.push(o);save();renderAll();toast('Ordine archiviato')}function duplicateOrder(o){state.draft={...clone(o),lines:clone(o.lines),dateTime:addMinutes(state.settings.defaultLeadMinutes)};delete state.draft.id;delete state.draft.status;delete state.draft.createdAt;delete state.draft.closedAt;ui.selectedLine=null;showView('entry');renderEntry();save();toast('Ordine copiato nel carrello')}
-  function printMod(m){const cls=m.printStyle==='highlight'?'mod-highlight':m.printStyle==='bold'?'mod-bold':'mod-normal';return `<span class="print-mod ${cls}">+ ${esc(m.name)}</span>`}
-  function printOrder(o,type){const p=state.settings.print,driver=state.drivers.find(d=>d.id===o.driverId);document.documentElement.style.setProperty('--print-width',`${p.paperWidth}mm`);document.documentElement.style.setProperty('--print-font',p.font);document.documentElement.style.setProperty('--print-body-size',`${p.bodySize}px`);document.documentElement.style.setProperty('--print-title-size',`${p.titleSize}px`);document.documentElement.style.setProperty('--print-heading-size',`${p.headingSize}px`);document.documentElement.style.setProperty('--print-total-size',`${p.totalSize}px`);$('#print-area').innerHTML=`<h1>${esc(p.businessName)}</h1>${p.header?`<div style="text-align:center">${esc(p.header)}</div>`:''}<h2>${type==='kitchen'?'COMANDA CUCINA':'RIEPILOGO ORDINE'} #${esc(o.id)}</h2><div><b>${new Date(o.dateTime).toLocaleString('it-IT')}</b> \u00b7 ${esc(o.mode)}</div>${o.customer?`<div><b>Cliente:</b> ${esc(o.customer)}</div>`:''}${p.showPhone&&o.phone?`<div><b>Tel:</b> ${esc(o.phone)}</div>`:''}${p.showAddress&&o.address?`<div><b>Indirizzo:</b> ${esc(o.address)}</div>`:''}${driver?`<div><b>Fattorino:</b> ${esc(driver.name)}</div>`:''}<div class="cut"></div>${o.lines.map(l=>`<div style="border-bottom:2px solid #000;padding:6px 0"><div class="print-line"><b>${l.qty}\u00d7 ${esc(l.name)}</b>${p.showPrices&&type!=='kitchen'?`<b>${money(lineTotal(l))}</b>`:''}</div>${l.slots?.map((s,i)=>`<div class="print-taste"><b>GUSTO ${i+1}: ${esc(s.taste)}</b>${(s.modifiers||[]).map(printMod).join('')}</div>`).join('')||''}${(l.modifiers||[]).map(printMod).join('')}</div>`).join('')}${o.notes?`<div class="print-note">NOTE: ${esc(o.notes)}</div>`:''}${type!=='kitchen'?`<div class="print-total print-line"><span>TOTALE</span><span>${money(o.total)}</span></div>${p.showPayment?`<div>Pagamento: ${esc(o.payment||'')}</div>`:''}`:''}${p.showFooter?`<div class="cut"></div><div style="text-align:center">${esc(p.footer)}</div>`:''}`;setTimeout(()=>window.print(),80)}
-  function saveSettingsForm(){const f=$('#view-settings'),s=state.settings,p=s.print;const val=n=>f.querySelector(`[name="${n}"]`)?.value,has=n=>!!f.querySelector(`[name="${n}"]`)?.checked;if(ui.settingsTab==='general'){s.businessName=val('set-business')||s.businessName;s.accent=val('set-accent')||s.accent;s.accent2=val('set-accent2')||s.accent2;s.background=val('set-background')||s.background;s.appFont=+val('set-appfont')||16;s.defaultLeadMinutes=+val('set-lead')||0;Object.keys(s.labels).forEach(k=>{const v=val(`label-${k}`);if(v)s.labels[k]=v});['showPhone','showAddress','showTable','showNotes','showPayment','deliveryEnabled'].forEach(k=>s[k]=has(k))}if(ui.settingsTab==='delivery'){s.capacity={enabled:has('capacity-enabled'),limit:Math.max(1,+val('capacity-limit')||15),minutes:Math.max(5,+val('capacity-minutes')||5)}}if(ui.settingsTab==='print'){['businessName','font','header','footer'].forEach(k=>p[k]=val(`print-${k}`)??p[k]);['paperWidth','bodySize','titleSize','headingSize','totalSize'].forEach(k=>p[k]=+val(`print-${k}`)||p[k]);['showCustomer','showPhone','showAddress','showPayment','showPrices','showFooter','autoPrintKitchen'].forEach(k=>p[k]=has(`print-${k}`))}save();applyTheme();renderAll();toast('Impostazioni salvate')}
-  
-  document.addEventListener('change', e => {
-    const sel = e.target.closest('[data-driver-select]');
-    if(sel){
-      const id = sel.dataset.driverSelect, driverId = sel.value;
-      const order = state.orders.find(o=>o.id===id) || state.archive.find(o=>o.id===id);
-      if(order){ order.driverId = driverId; save(); toast('Fattorino aggiornato'); }
-    }
-  });
+        function setOrderType(type) {
+            currentOrderType = type;
+            document.getElementById('type-tavolo').classList.toggle('active', type === 'Tavolo');
+            document.getElementById('type-domicilio').classList.toggle('active', type === 'Domicilio');
+            document.getElementById('client-phone').style.display = type === 'Domicilio' ? 'block' : 'none';
+            document.getElementById('client-name').placeholder = type === 'Domicilio' ? 'Indirizzo e Nome' : 'Nome Cliente / Tavolo (es. Tavolo 4)';
+        }
 
-  document.addEventListener('click',e=>{
-    const b=e.target.closest('button[data-action], button[data-cat], button[data-go], button[data-product], button[data-mod], button[data-modgroup], button[data-settingtab]');if(!b)return;
-    const a=b.dataset.action, cat=b.dataset.cat, go=b.dataset.go, prod=b.dataset.product, mod=b.dataset.mod, mg=b.dataset.modgroup, stab=b.dataset.settingtab;
-    if(go){showView(go);return}
-    if(cat){ui.category=cat;ui.search='';renderEntry();return}
-    if(mg){ui.modGroup=mg;renderEntry();return}
-    if(stab){ui.settingsTab=stab;renderSettings();return}
-    if(prod){const c=activeCat();const p=c?.items?.find(x=>x.id===prod)||(c?.type==='multi'?{id:prod,name:c.name,price:c.basePrice}:null);if(p)addProduct(c,p);return}
-    if(mod){const mg=activeMods(),m=mg?.items?.find(x=>x.id===mod),sel=state.draft?.lines[ui.selectedLine];if(m&&sel){sel.modifiers.push({id:uid('m'),modifierId:m.id,name:m.name,price:+m.price,printStyle:m.printStyle||'normal'});save();renderEntry()}return}
-    if(a==='clear-draft'){state.draft=null;ui.selectedLine=null;renderEntry();return}
-    if(a==='finalize'){openFinalize();return}
-    if(a==='qty-plus'){state.draft.lines[+b.dataset.index].qty++;save();renderEntry();return}
-    if(a==='qty-minus'){const l=state.draft.lines[+b.dataset.index];l.qty=Math.max(1,l.qty-1);save();renderEntry();return}
-    if(a==='remove-line'){state.draft.lines.splice(+b.dataset.index,1);if(ui.selectedLine>=state.draft.lines.length)ui.selectedLine=null;save();renderEntry();return}
-    if(a==='edit-multi'){const l=state.draft.lines[+b.dataset.index],c=state.categories.find(x=>x.id===l.categoryId);if(c)composeMulti(c,{id:l.productId,name:l.name,price:l.unitPrice},+b.dataset.index);return}
-    if(a==='advance-order'){const o=findOrder(b.dataset.id);if(o)advanceOrder(o);return}
-    if(a==='edit-order'){openOrderForEdit(b.dataset.id);return}
-    if(a==='print-kitchen'){const o=findOrder(b.dataset.id,b.dataset.archive);if(o)printOrder(o,'kitchen');return}
-    if(a==='print-receipt'){const o=findOrder(b.dataset.id,b.dataset.archive);if(o)printOrder(o,'receipt');return}
-    if(a==='share-order'){const o=findOrder(b.dataset.id,b.dataset.archive);if(o)shareOrder(o);return}
-    if(a==='duplicate-order'){const o=findOrder(b.dataset.id,b.dataset.archive);if(o)duplicateOrder(o);return}
-    if(a==='archive-order'){const o=findOrder(b.dataset.id);if(o)archiveOrder(o);return}
-    if(a==='delete-archive'){const id=b.dataset.id;if(confirm('Eliminare questo ordine dallo storico?')){state.archive=state.archive.filter(o=>o.id!==id);save();renderHistory();toast('Eliminato')}}
-    if(a==='kitchen-view'){document.body.classList.toggle('kitchen-mode');toast('Modalit\u00e0 cucina attivata/disattivata');return}
-    if(a==='save-settings'){saveSettingsForm();return}
-    if(a==='add-category')openCategory(null,b.dataset.type);
-    if(a==='edit-category')openCategory(b.dataset.id);
-    if(a==='delete-category'){if(confirm('Eliminare categoria?')){state.categories=state.categories.filter(x=>x.id!==b.dataset.id);save();renderAll()}}
-    if(a==='manage-items')manageItems(b.dataset.id);
-    if(a==='add-zone')openSimple('zone');
-    if(a==='edit-zone')openSimple('zone',b.dataset.id);
-    if(a==='delete-zone'){if(confirm('Eliminare zona?')){state.zones=state.zones.filter(x=>x.id!==b.dataset.id);save();renderAll()}}
-    if(a==='add-driver')openSimple('driver');
-    if(a==='edit-driver')openSimple('driver',b.dataset.id);
-    if(a==='delete-driver'){if(confirm('Eliminare fattorino?')){state.drivers=state.drivers.filter(x=>x.id!==b.dataset.id);save();renderAll()}}
-    if(a==='add-status')openSimple('status');
-    if(a==='edit-status')openSimple('status',b.dataset.id);
-    if(a==='delete-status'){if(confirm('Eliminare stato?')){state.settings.statuses=state.settings.statuses.filter(x=>x.id!==b.dataset.id);save();renderAll()}}
-    if(a==='move-status'){const id=b.dataset.id,dir=+b.dataset.dir,arr=state.settings.statuses,i=arr.findIndex(x=>x.id===id);if(i>=0&&arr[i+dir]){const t=arr[i];arr[i]=arr[i+dir];arr[i+dir]=t;save();renderSettings()}}
-    if(a==='add-modgroup')editModGroup(null);
-    if(a==='edit-modgroup')editModGroup(state.modifierGroups.find(x=>x.id===b.dataset.id));
-    if(a==='delete-modgroup'){if(confirm('Eliminare gruppo modificatori?')){state.modifierGroups=state.modifierGroups.filter(x=>x.id!==b.dataset.id);save();renderAll()}}
-    if(a==='manage-moditems')manageModItems(b.dataset.id);
-    if(a==='test-print'){printOrder({id:'TEST',dateTime:new Date().toISOString(),mode:'pickup',customer:'Mario Rossi',phone:'3331234567',address:'Via Roma 1',lines:[{qty:2,name:'Margherita',slots:[],modifiers:[{name:'Extra mozzarella'}]}],notes:'Ben cotta',total:10},'receipt')}
-    if(a==='export-data'){const blob=new Blob([JSON.stringify(state,null,2)],{type:'json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pizzeria_smart_${today()}.json`;a.click();toast('Backup esportato')}
-    if(a==='import-data'){$('#importFile').click()}
-    if(a==='purge-active-orders'){if(confirm('Cancellare tutti gli ordini attivi?')){state.orders=[];save();renderAll();toast('Ordini attivi cancellati')}}
-    if(a==='purge-history'){if(confirm('Cancellare tutto lo storico?')){state.archive=[];save();renderAll();toast('Storico cancellato')}}
-    if(a==='purge-all-orders'){if(confirm('Cancellare tutti gli ordini attivi e lo storico?')){state.orders=[];state.archive=[];save();renderAll();toast('Tutti gli ordini eliminati')}}
-    if(a==='reset-settings-safe'){if(confirm('Ripristinare solo colori e aspetto predefiniti?')){state.settings=clone(DEFAULTS.settings);save();renderAll();toast('Aspetto ripristinato')}}
-  });
+        function renderCategories() {
+            const container = document.getElementById('categories-bar');
+            container.innerHTML = categories.map(cat => `
+                <button class="cat-btn ${cat.id === activeCategory ? 'active' : ''}" onclick="selectCategory('${cat.id}')">
+                    ${cat.name}
+                </button>
+            `).join('');
+        }
 
-  document.addEventListener('input',e=>{
-    if(e.target.id==='productSearch'){ui.search=e.target.value;renderEntry()}
-    if(e.target.id==='orderSearch'){ui.orderSearch=e.target.value;renderOrders()}
-    if(e.target.id==='historyDate'){ui.historyDate=e.target.value;renderHistory()}
-  });
+        function selectCategory(catId) {
+            activeCategory = catId;
+            document.getElementById('product-search').value = '';
+            renderCategories();
+            renderProducts(catId);
+        }
 
-  document.addEventListener('click',e=>{
-    const line=e.target.closest('.order-line');
-    if(line&&!e.target.closest('button')){ui.selectedLine=+line.dataset.line;renderEntry()}
-  });
+        function renderProducts(catId) {
+            const grid = document.getElementById('products-grid');
+            const filtered = products.filter(p => p.cat === catId);
+            grid.innerHTML = filtered.map(p => productCardHtml(p)).join('');
+        }
 
-  $('#importFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=evt=>{try{state=mergeDefaults(JSON.parse(evt.target.result));save();renderAll();toast('Backup importato con successo')}catch{toast('File di backup non valido')}};r.readAsText(f)};
-  load();
-  </script>
+        function filterProducts(query) {
+            const grid = document.getElementById('products-grid');
+            if (!query.trim()) {
+                renderProducts(activeCategory);
+                return;
+            }
+            const filtered = products.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div style="color:var(--text-muted); font-size:0.9rem; grid-column: 1/-1; text-align:center; padding:20px;">Nessun prodotto trovato</div>`;
+                return;
+            }
+            grid.innerHTML = filtered.map(p => productCardHtml(p)).join('');
+        }
+
+        function productCardHtml(p) {
+            return `
+                <div class="product-card" onclick="handleProductClick(${p.id})">
+                    <div class="prod-name">${p.name}</div>
+                    <div class="prod-price">€ ${p.price.toFixed(2)}</div>
+                </div>
+            `;
+        }
+
+        function handleProductClick(productId) {
+            const product = products.find(p => p.id === productId);
+            if (product.cat === 'bevande' || product.cat === 'fritti') {
+                aggiungiDirettoAlCarrello(product);
+            } else {
+                apriModalePersonalizzazione(product);
+            }
+        }
+
+        function aggiungiDirettoAlCarrello(product) {
+            const existing = cart.find(item => item.id === product.id && (!item.modifiche || item.modifiche.length === 0) && !item.isHalf);
+            if (existing) {
+                existing.qty++;
+            } else {
+                cart.push({ ...product, price: product.price, qty: 1, modifiche: [], uuid: Date.now() });
+            }
+            renderCart();
+        }
+
+        function apriModalePersonalizzazione(product, cartItemUuid = null) {
+            editingUuid = cartItemUuid;
+            const modalTitle = document.getElementById('modal-product-title');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            
+            let currentModifiche = [];
+            let isHalfActive = false;
+            let secondHalfId = null;
+
+            if (editingUuid) {
+                const item = cart.find(i => i.uuid === editingUuid);
+                modalTitle.innerText = `Modifica: ${product.name}`;
+                confirmBtn.innerText = 'Aggiorna Articolo';
+                currentModifiche = item.modifiche || [];
+                isHalfActive = item.isHalf || false;
+                secondHalfId = item.secondHalfId || null;
+            } else {
+                modalTitle.innerText = `Personalizza: ${product.name}`;
+                confirmBtn.innerText = 'Aggiungi alla Comanda';
+            }
+
+            const pizzaOptions = products.filter(p => p.cat === 'rosse' || p.cat === 'bianche' || p.cat === 'speciali');
+            
+            const body = document.getElementById('modal-product-body');
+            body.innerHTML = `
+                <input type="hidden" id="modal-product-id" value="${product.id}">
+                ${product.allowHalf ? `
+                    <div>
+                        <div class="section-label">Gestione Metà & Metà</div>
+                        <label class="checkbox-label" style="background:#2a1b0c; border-color:var(--primary);">
+                            <input type="checkbox" id="half-pizza-check" ${isHalfActive ? 'checked' : ''} onchange="toggleHalfSelector(this.checked)">
+                            <span>Fai Metà & Metà con un'altra pizza</span>
+                        </label>
+                        <div id="half-selector-container" style="margin-top: 8px; display: ${isHalfActive ? 'block' : 'none'};">
+                            <select id="second-half-select" class="client-input" style="width:100%;">
+                                <option value="">-- Seleziona seconda metà --</option>
+                                ${pizzaOptions.map(p => `<option value="${p.id}" ${secondHalfId === p.id ? 'selected' : ''}>${p.name} (€${p.price.toFixed(2)})</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                ` : ''}
+                <div>
+                    <div class="section-label">Aggiunte & Extra</div>
+                    <div class="options-grid">
+                        ${availableExtras.map(extra => {
+                            const isChecked = currentModifiche.some(m => m.name === extra.name);
+                            return `
+                                <label class="checkbox-label">
+                                    <input type="checkbox" value="${extra.name}" data-price="${extra.price}" ${isChecked ? 'checked' : ''}>
+                                    <span>${extra.name} (+€${extra.price.toFixed(2)})</span>
+                                </label>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('product-modal').classList.add('open');
+        }
+
+        function toggleHalfSelector(checked) {
+            document.getElementById('half-selector-container').style.display = checked ? 'block' : 'none';
+        }
+
+        function chiudiModale() {
+            document.getElementById('product-modal').classList.remove('open');
+            editingUuid = null;
+        }
+
+        function salvaPersonalizzazione() {
+            const productId = parseInt(document.getElementById('modal-product-id').value);
+            const product = products.find(p => p.id === productId);
+            const isHalf = document.getElementById('half-pizza-check') ? document.getElementById('half-pizza-check').checked : false;
+            
+            let finalName = product.name;
+            let finalPrice = product.price;
+            let secondHalfId = null;
+
+            if (isHalf) {
+                const secondHalfSelect = document.getElementById('second-half-select');
+                if (secondHalfSelect && secondHalfSelect.value) {
+                    secondHalfId = parseInt(secondHalfSelect.value);
+                    const secondProduct = products.find(p => p.id === secondHalfId);
+                    if (secondProduct) {
+                        finalName = `Metà ${product.name} / Metà ${secondProduct.name}`;
+                        // Prezzo calcolato come media o prezzo massimo (standard pizzeria: il prezzo più alto)
+                        finalPrice = Math.max(product.price, secondProduct.price);
+                    }
+                }
+            }
+
+            const checkboxes = document.querySelectorAll('#modal-product-body input[type="checkbox"]:checked');
+            let extraPrice = 0;
+            let modificheList = [];
+
+            checkboxes.forEach(cb => {
+                extraPrice += parseFloat(cb.dataset.price);
+                modificheList.push({ name: cb.value, price: parseFloat(cb.dataset.price) });
+            });
+
+            const calculatedPrice = finalPrice + extraPrice;
+
+            if (editingUuid) {
+                const item = cart.find(i => i.uuid === editingUuid);
+                if (item) {
+                    item.name = finalName;
+                    item.price = calculatedPrice;
+                    item.modifiche = modificheList;
+                    item.isHalf = isHalf;
+                    item.secondHalfId = secondHalfId;
+                }
+            } else {
+                cart.push({
+                    id: product.id,
+                    name: finalName,
+                    price: calculatedPrice,
+                    qty: 1,
+                    modifiche: modificheList,
+                    isHalf: isHalf,
+                    secondHalfId: secondHalfId,
+                    uuid: Date.now()
+                });
+            }
+
+            chiudiModale();
+            renderCart();
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cart-items');
+            const countEl = document.getElementById('cart-item-count');
+            const totalEl = document.getElementById('cart-total');
+
+            countEl.innerText = `${cart.reduce((acc, item) => acc + item.qty, 0)} articoli`;
+            
+            if (cart.length === 0) {
+                container.innerHTML = `<div style="color:var(--text-muted); text-align:center; margin-top:30px; font-size:0.9rem;">Carrello vuoto</div>`;
+                totalEl.innerText = `€ 0.00`;
+                return;
+            }
+
+            container.innerHTML = cart.map(item => `
+                <div class="cart-item ${editingUuid === item.uuid ? 'editing' : ''}">
+                    <div class="cart-item-row">
+                        <span class="cart-item-title" onclick="richiediModificaItem(${item.uuid})" title="Clicca per modificare">${item.name} ✏️</span>
+                        <div class="cart-item-controls">
+                            <button class="qty-btn" onclick="decrementQty(${item.uuid})">-</button>
+                            <span style="font-size:0.9rem; font-weight:700; min-width:18px; text-align:center;">${item.qty}</span>
+                            <button class="qty-btn" onclick="incrementQty(${item.uuid})">+</button>
+                        </div>
+                    </div>
+                    ${item.modifiche && item.modifiche.length > 0 ? `
+                        <div style="font-size:0.75rem; color:var(--text-muted); cursor:pointer;" onclick="richiediModificaItem(${item.uuid})">
+                            + ${item.modifiche.map(m => m.name).join(', ')}
+                        </div>
+                    ` : ''}
+                    <div class="cart-item-row" style="margin-top: 4px;">
+                        <span style="font-size:0.85rem; font-weight:700; color:var(--primary-light);">€ ${(item.price * item.qty).toFixed(2)}</span>
+                        <button onclick="rimuoviItemCarrello(${item.uuid})" style="background:none; border:none; color:var(--danger); font-size:0.75rem; cursor:pointer; font-weight:700;">Rimuovi</button>
+                    </div>
+                </div>
+            `).join('');
+
+            const total = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+            totalEl.innerText = `€ ${total.toFixed(2)}`;
+        }
+
+        function richiediModificaItem(uuid) {
+            const item = cart.find(i => i.uuid === uuid);
+            if (!item) return;
+            const product = products.find(p => p.id === item.id);
+            if (product) {
+                apriModalePersonalizzazione(product, uuid);
+            }
+        }
+
+        function incrementQty(uuid) {
+            const item = cart.find(i => i.uuid === uuid);
+            if (item) { item.qty++; renderCart(); }
+        }
+
+        function decrementQty(uuid) {
+            const index = cart.findIndex(i => i.uuid === uuid);
+            if (index !== -1) {
+                if (cart[index].qty > 1) { cart[index].qty--; } else { cart.splice(index, 1); }
+                renderCart();
+            }
+        }
+
+        function rimuoviItemCarrello(uuid) {
+            cart = cart.filter(i => i.uuid !== uuid);
+            renderCart();
+        }
+
+        function confermaOrdine() {
+            if (cart.length === 0) return;
+
+            const clientNameInput = document.getElementById('client-name').value.trim();
+            const clientPhoneInput = document.getElementById('client-phone').value.trim();
+            
+            const newOrder = {
+                id: Math.floor(100 + Math.random() * 900),
+                type: currentOrderType,
+                client: clientNameInput || (currentOrderType === 'Domicilio' ? 'Cliente Domicilio' : 'Banco / Tavolo Generico'),
+                phone: clientPhoneInput,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                timestamp: Date.now(),
+                items: [...cart],
+                total: cart.reduce((acc, item) => acc + (item.price * item.qty), 0)
+            };
+
+            activeOrders.unshift(newOrder);
+            cart = [];
+            document.getElementById('client-name').value = '';
+            document.getElementById('client-phone').value = '';
+            renderCart();
+            
+            document.getElementById('kds-badge').innerText = activeOrders.length;
+            alert(`Comanda #${newOrder.id} inviata con successo in cucina!`);
+        }
+
+        function renderKds() {
+            const container = document.getElementById('kds-container');
+            const statusText = document.getElementById('kds-status-text');
+            document.getElementById('kds-badge').innerText = activeOrders.length;
+
+            if (activeOrders.length === 0) {
+                statusText.innerText = `Nessuna comanda in preparazione`;
+                container.innerHTML = `<div style="color:var(--text-muted); text-align:center; margin-top:50px; grid-column: 1/-1;">Tutte le comande sono state evase! Ottimo lavoro 🚀</div>`;
+                return;
+            }
+
+            statusText.innerText = `${activeOrders.length} comande attive in cucina`;
+
+            container.innerHTML = activeOrders.map(o => {
+                const minutesElapsed = Math.floor((Date.now() - o.timestamp) / 60000);
+                const isUrgent = minutesElapsed > 25;
+
+                return `
+                    <div class="kds-card ${isUrgent ? 'urgent' : ''}">
+                        <div class="kds-header">
+                            <div>
+                                <span style="font-weight:800; color:var(--primary); font-size:1.1rem;">#${o.id} - ${o.client}</span>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">${o.type} ${o.phone ? '• ' + o.phone : ''}</div>
+                            </div>
+                            <span style="font-size:0.75rem; background:#333; padding:3px 8px; border-radius:4px; color:${isUrgent ? '#ff5252' : 'var(--text-muted)'}; font-weight:700;">${minutesElapsed} min fa</span>
+                        </div>
+                        <div class="kds-items">
+                            ${o.items.map(i => `
+                                <div style="font-size:0.9rem; display:flex; flex-direction:column; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">
+                                    <span><b>${i.qty}x</b> ${i.name}</span>
+                                    ${i.modifiche && i.modifiche.length > 0 ? `<span style="font-size:0.75rem; color:var(--primary-light); padding-left:14px;">+ ${i.modifiche.map(m => m.name).join(', ')}</span>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:8px;">
+                            <span style="font-weight:700;">Tot: € ${o.total.toFixed(2)}</span>
+                            <button onclick="completaOrdine(${o.id})" style="background:var(--success); color:white; border:none; padding:8px 14px; border-radius:6px; font-size:0.85rem; font-weight:700; cursor:pointer;">Completato 🏁</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateKdsTimers() {
+            if (document.getElementById('view-kds').classList.contains('active')) {
+                renderKds();
+            }
+        }
+
+        function completaOrdine(orderId) {
+            const index = activeOrders.findIndex(o => o.id === orderId);
+            if (index !== -1) {
+                const completed = activeOrders.splice(index, 1)[0];
+                completedOrders.unshift(completed);
+                renderKds();
+                updateHeaderStats();
+            }
+        }
+
+        function updateHeaderStats() {
+            const totalRev = completedOrders.reduce((acc, o) => acc + o.total, 0);
+            document.getElementById('header-total-revenue').innerText = `€ ${totalRev.toFixed(2)}`;
+            document.getElementById('header-completed-count').innerText = completedOrders.length;
+        }
+
+        function renderReports() {
+            const totalRev = completedOrders.reduce((acc, o) => acc + o.total, 0);
+            const totalCount = completedOrders.length;
+            const avgTicket = totalCount > 0 ? totalRev / totalCount : 0;
+
+            document.getElementById('rep-total-rev').innerText = `€ ${totalRev.toFixed(2)}`;
+            document.getElementById('rep-total-orders').innerText = totalCount;
+            document.getElementById('rep-avg-ticket').innerText = `€ ${avgTicket.toFixed(2)}`;
+
+            const listContainer = document.getElementById('completed-orders-list');
+            if (totalCount === 0) {
+                listContainer.innerHTML = `<div style="color:var(--text-muted); font-size:0.9rem;">Nessun ordine completato nella sessione odierna.</div>`;
+                return;
+            }
+
+            listContainer.innerHTML = completedOrders.map(o => `
+                <div style="background:var(--surface-dark); border:1px solid var(--border-color); border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <span style="font-weight:700; color:var(--success);">#${o.id} - ${o.client}</span>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">${o.items.length} articoli • ${o.time}</div>
+                    </div>
+                    <span style="font-weight:700;">€ ${o.total.toFixed(2)}</span>
+                </div>
+            `).join('');
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>
