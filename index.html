@@ -3,24 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pizzeria Manager Ultimate - KDS & POS</title>
+    <title>Pizzeria Manager Pro</title>
     <style>
         :root {
-            --primary: #ff6f00;
-            --primary-dark: #e65100;
-            --primary-light: #ffa726;
+            --primary: #e65100;
+            --primary-dark: #bf360c;
             --accent: #2e7d32;
-            --bg-dark: #0f0f0f;
-            --surface-dark: #1a1a1a;
-            --surface-card: #242424;
-            --surface-hover: #2f2f2f;
+            --bg-dark: #121212;
+            --surface-dark: #1e1e1e;
+            --surface-card: #252525;
             --border-color: #333333;
-            --text-main: #f8f9fa;
-            --text-muted: #a0a0a0;
-            --danger: #e53935;
-            --warning: #fb8c00;
-            --success: #43a047;
-            --info: #039be5;
+            --text-main: #f5f5f5;
+            --text-muted: #b0b0b0;
+            --danger: #d32f2f;
+            --warning: #f57c00;
+            --success: #388e3c;
         }
 
         * {
@@ -42,7 +39,6 @@
             user-select: none;
         }
 
-        /* HEADER PROFESSIONALE */
         header {
             background-color: var(--surface-dark);
             border-bottom: 1px solid var(--border-color);
@@ -51,32 +47,15 @@
             justify-content: space-between;
             align-items: center;
             z-index: 10;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }
 
         .header-title {
-            font-size: 1.15rem;
-            font-weight: 800;
+            font-size: 1.1rem;
+            font-weight: 700;
             color: var(--primary);
             display: flex;
             align-items: center;
-            gap: 10px;
-            letter-spacing: -0.5px;
-        }
-
-        .header-stats {
-            display: flex;
-            gap: 16px;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            background: var(--surface-card);
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-        }
-
-        .header-stats span strong {
-            color: var(--text-main);
+            gap: 8px;
         }
 
         .nav-tabs {
@@ -85,32 +64,21 @@
         }
 
         .nav-btn {
-            background: var(--surface-card);
+            background: #2a2a2a;
             border: 1px solid var(--border-color);
             color: var(--text-muted);
-            padding: 6px 14px;
+            padding: 6px 12px;
             border-radius: 6px;
             font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
 
         .nav-btn.active {
             background: var(--primary);
             color: white;
             border-color: var(--primary-dark);
-            box-shadow: 0 0 12px rgba(255,111,0,0.3);
-        }
-
-        .badge-count {
-            background: rgba(0,0,0,0.3);
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-size: 0.75rem;
         }
 
         main {
@@ -134,7 +102,7 @@
             display: flex;
         }
 
-        /* VISTA CASSA / POS */
+        /* VISTA CASSA / ORDINI */
         .pos-layout {
             display: flex;
             width: 100%;
@@ -145,19 +113,17 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            padding: 14px;
+            padding: 12px;
             overflow: hidden;
             border-right: 1px solid var(--border-color);
         }
 
-        .search-filter-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 12px;
+        .search-bar {
+            margin-bottom: 10px;
         }
 
         .search-input {
-            flex: 1;
+            width: 100%;
             background: var(--surface-dark);
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -188,21 +154,20 @@
             border-radius: 8px;
             white-space: nowrap;
             font-size: 0.9rem;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: background 0.15s, border-color 0.15s;
         }
 
         .cat-btn.active {
             background: var(--primary);
             border-color: var(--primary-dark);
-            color: white;
         }
 
         .products-grid {
             flex: 1;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 10px;
             overflow-y: auto;
             align-content: start;
@@ -217,123 +182,56 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            min-height: 100px;
+            min-height: 95px;
             cursor: pointer;
             transition: transform 0.1s ease, border-color 0.2s ease, background 0.2s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .product-card::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background: var(--primary);
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .product-card:hover {
-            border-color: var(--primary);
-            background: var(--surface-hover);
-        }
-
-        .product-card:hover::after {
-            opacity: 1;
         }
 
         .product-card:active {
             transform: scale(0.96);
+            background: #252525;
+        }
+
+        .product-card:hover {
+            border-color: var(--primary);
         }
 
         .prod-name {
             font-size: 0.9rem;
             font-weight: 600;
-            line-height: 1.25;
+            line-height: 1.2;
         }
 
         .prod-price {
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: 700;
-            color: var(--primary-light);
+            color: var(--primary);
             margin-top: 8px;
         }
 
-        /* SEZIONE CARRELLO / COMANDA */
+        /* CARRELLO / COMANDA */
         .cart-area {
-            width: 400px;
+            width: 380px;
             background: var(--surface-dark);
             display: flex;
             flex-direction: column;
             border-left: 1px solid var(--border-color);
-            box-shadow: -4px 0 15px rgba(0,0,0,0.3);
         }
 
         .cart-header {
-            padding: 14px 16px;
+            padding: 12px 16px;
             border-bottom: 1px solid var(--border-color);
             font-weight: 700;
             font-size: 0.95rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: var(--surface-card);
-        }
-
-        .order-type-selector {
-            display: flex;
-            background: var(--bg-dark);
-            padding: 3px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            margin: 12px 16px 0 16px;
-        }
-
-        .type-btn {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            padding: 6px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .type-btn.active {
-            background: var(--primary);
-            color: white;
-        }
-
-        .client-inputs {
-            padding: 10px 16px 0 16px;
-            display: flex;
-            gap: 8px;
-        }
-
-        .client-input {
-            flex: 1;
-            background: var(--bg-dark);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 8px 10px;
-            color: var(--text-main);
-            font-size: 0.85rem;
-            outline: none;
-        }
-        .client-input:focus {
-            border-color: var(--primary);
         }
 
         .cart-items {
             flex: 1;
             overflow-y: auto;
-            padding: 12px 16px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -343,17 +241,16 @@
             background: var(--surface-card);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 10px 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             gap: 6px;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.2s;
         }
 
         .cart-item.editing {
             border-color: var(--primary);
             box-shadow: 0 0 0 1px var(--primary);
-            background: #2a1b0c;
         }
 
         .cart-item-row {
@@ -364,22 +261,13 @@
 
         .cart-item-title {
             font-size: 0.9rem;
-            font-weight: 700;
-            color: var(--text-main);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .cart-item-title:hover {
-            color: var(--primary-light);
+            font-weight: 600;
         }
 
         .cart-item-controls {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .qty-btn {
@@ -397,7 +285,7 @@
             transition: background 0.15s;
         }
         .qty-btn:active {
-            background: #555;
+            background: #444;
         }
 
         .cart-footer {
@@ -406,14 +294,14 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            background: var(--surface-card);
+            background: #181818;
         }
 
         .cart-total-row {
             display: flex;
             justify-content: space-between;
-            font-size: 1.15rem;
-            font-weight: 800;
+            font-size: 1.1rem;
+            font-weight: 700;
         }
 
         .btn-primary {
@@ -427,7 +315,6 @@
             cursor: pointer;
             text-align: center;
             transition: background 0.2s ease, transform 0.1s;
-            box-shadow: 0 4px 12px rgba(255,111,0,0.3);
         }
 
         .btn-primary:active {
@@ -438,15 +325,15 @@
             background: var(--primary-dark);
         }
 
-        /* MODALE AVANZATO DI PERSONALIZZAZIONE / METÀ & METÀ */
+        /* MODALE PERSONALIZZAZIONE AVANZATO */
         .modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(3px);
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(2px);
             display: none;
             justify-content: center;
             align-items: center;
@@ -463,22 +350,21 @@
             border: 1px solid var(--border-color);
             border-radius: 12px;
             width: 100%;
-            max-width: 480px;
+            max-width: 440px;
             max-height: 90vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
 
         .modal-header {
-            padding: 16px;
+            padding: 14px 16px;
             border-bottom: 1px solid var(--border-color);
             font-weight: 700;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: var(--surface-card);
         }
 
         .modal-body {
@@ -486,7 +372,7 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
         }
 
         .modal-footer {
@@ -494,16 +380,15 @@
             border-top: 1px solid var(--border-color);
             display: flex;
             gap: 10px;
-            background: var(--surface-card);
         }
 
         .section-label {
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.5px;
             font-weight: 700;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
         .options-grid {
@@ -532,83 +417,32 @@
         }
 
         .checkbox-label:hover {
-            border-color: #666;
-            background: var(--surface-hover);
+            border-color: #555;
         }
 
-        /* KDS / MONITOR COMANDE ATTIVE */
-        .kds-container {
+        /* VISTA ORDINI / CUCINA */
+        .orders-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
             overflow-y: auto;
             flex: 1;
-            padding: 16px;
-            align-content: start;
+            padding: 4px;
         }
 
-        .kds-card {
+        .order-card {
             background: var(--surface-dark);
             border: 1px solid var(--border-color);
             border-radius: 10px;
-            padding: 16px;
+            padding: 14px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            border-left: 5px solid var(--primary);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            position: relative;
+            gap: 10px;
+            border-left: 4px solid var(--primary);
         }
 
-        .kds-card.urgent {
+        .order-card.urgent {
             border-left-color: var(--danger);
-            background: #1e1111;
-        }
-
-        .kds-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 8px;
-        }
-
-        .kds-items {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            max-height: 220px;
-            overflow-y: auto;
-        }
-
-        /* VISTA REPORT & CASSETTO */
-        .report-layout {
-            padding: 20px;
-            flex-direction: column;
-            gap: 16px;
-            overflow-y: auto;
-        }
-
-        .report-cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 14px;
-        }
-
-        .report-card {
-            background: var(--surface-dark);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .report-value {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: var(--primary-light);
         }
 
         /* SCROLLBAR CUSTOM */
@@ -620,7 +454,7 @@
             background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background: #444;
+            background: #333;
             border-radius: 3px;
         }
     </style>
@@ -629,101 +463,71 @@
 
     <header>
         <div class="header-title">
-            <span>🍕</span> Pizzeria Manager Ultimate
-        </div>
-        <div class="header-stats">
-            <span>Incasso Giorno: <strong id="header-total-revenue">€ 0.00</strong></span>
-            <span>Ordini Evasi: <strong id="header-completed-count">0</strong></span>
+            <span>🍕</span> Pizzeria Manager Pro
         </div>
         <div class="nav-tabs">
-            <button class="nav-btn active" onclick="switchView('pos')">🛒 Cassa / POS</button>
-            <button class="nav-btn" onclick="switchView('kds')">👨‍🍳 Cucina KDS <span class="badge-count" id="kds-badge">0</span></button>
-            <button class="nav-btn" onclick="switchView('reports')">📊 Report & Cassa</button>
+            <button class="nav-btn active" onclick="switchView('pos')">Cassa</button>
+            <button class="nav-btn" onclick="switchView('orders')">Cucina / Ordini (<span id="orders-badge">0</span>)</button>
         </div>
     </header>
 
     <main>
-        <!-- VISTA CASSA / POS -->
+        <!-- VISTA CASSA -->
         <section id="view-pos" class="view-section active pos-layout">
             <div class="products-area">
-                <div class="search-filter-bar">
-                    <input type="text" id="product-search" class="search-input" placeholder="Cerca prodotto o ingrediente..." oninput="filterProducts(this.value)">
+                <div class="search-bar">
+                    <input type="text" id="product-search" class="search-input" placeholder="Cerca prodotto..." oninput="filterProducts(this.value)">
                 </div>
-                <div class="categories-bar" id="categories-bar"></div>
-                <div class="products-grid" id="products-grid"></div>
+                <div class="categories-bar" id="categories-bar">
+                    <!-- Generato via JS -->
+                </div>
+                <div class="products-grid" id="products-grid">
+                    <!-- Generato via JS -->
+                </div>
             </div>
             
             <div class="cart-area">
                 <div class="cart-header">
-                    <span>Nuova Comanda</span>
+                    <span>Comanda Corrente</span>
                     <span id="cart-item-count" style="font-size: 0.8rem; color: var(--text-muted);">0 articoli</span>
                 </div>
-                
-                <div class="order-type-selector">
-                    <button class="type-btn active" id="type-tavolo" onclick="setOrderType('Tavolo')">Tavolo / Asporto</button>
-                    <button class="type-btn" id="type-domicilio" onclick="setOrderType('Domicilio')">Domicilio 🛵</button>
+                <div class="cart-items" id="cart-items">
+                    <!-- Elementi carrello dinamici -->
                 </div>
-
-                <div class="client-inputs">
-                    <input type="text" id="client-name" class="client-input" placeholder="Nome Cliente / Tavolo (es. Tavolo 4)">
-                    <input type="text" id="client-phone" class="client-input" placeholder="Telefono / Note" style="display:none;">
-                </div>
-
-                <div class="cart-items" id="cart-items"></div>
-                
                 <div class="cart-footer">
                     <div class="cart-total-row">
-                        <span>Totale Comanda:</span>
+                        <span>Totale:</span>
                         <span id="cart-total">€ 0.00</span>
                     </div>
-                    <button class="btn-primary" onclick="confermaOrdine()">Invia in Cucina e Stampa Comanda</button>
+                    <button class="btn-primary" onclick="confermaOrdine()">Invia in Cucina / Stampa</button>
                 </div>
             </div>
         </section>
 
-        <!-- VISTA KDS CUCINA -->
-        <section id="view-kds" class="view-section" style="flex-direction: column;">
-            <div style="padding: 16px 16px 0 16px; display: flex; justify-content: space-between; align-items: center;">
-                <h2 style="font-size: 1.1rem; font-weight: 700;">Kitchen Display System (KDS)</h2>
-                <span style="font-size: 0.85rem; color: var(--text-muted);" id="kds-status-text">Nessuna comanda in preparazione</span>
+        <!-- VISTA ORDINI -->
+        <section id="view-orders" class="view-section" style="padding: 16px; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="font-size: 1.1rem; font-weight: 600;">Monitor Comande Attive</h2>
+                <span style="font-size: 0.85rem; color: var(--text-muted);" id="active-orders-count">Nessun ordine in corso</span>
             </div>
-            <div id="kds-container" class="kds-container"></div>
-        </section>
-
-        <!-- VISTA REPORT -->
-        <section id="view-reports" class="view-section report-layout">
-            <h2 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 4px;">Riepilogo Finanziario e Statistiche</h2>
-            <div class="report-cards-grid">
-                <div class="report-card">
-                    <span class="section-label">Fatturato Totale Giornaliero</span>
-                    <span class="report-value" id="rep-total-rev">€ 0.00</span>
-                </div>
-                <div class="report-card">
-                    <span class="section-label">Totale Ordini Gestiti</span>
-                    <span class="report-value" id="rep-total-orders">0</span>
-                </div>
-                <div class="report-card">
-                    <span class="section-label">Scontrino Medio</span>
-                    <span class="report-value" id="rep-avg-ticket">€ 0.00</span>
-                </div>
-            </div>
-            <div style="margin-top: 20px;">
-                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 10px;">Storico Ordini Completati Oggi</h3>
-                <div id="completed-orders-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            <div id="orders-container" class="orders-grid">
+                <!-- Storico ordini -->
             </div>
         </section>
     </main>
 
-    <!-- MODALE PERSONALIZZAZIONE & METÀ-METÀ -->
+    <!-- MODALE PERSONALIZZAZIONE PRODOTTO -->
     <div class="modal-overlay" id="product-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span id="modal-product-title" style="font-size: 1rem;">Personalizza Pizza</span>
-                <button onclick="chiudiModale()" style="background:none; border:none; color:white; font-size:1.4rem; cursor:pointer;">&times;</button>
+                <span id="modal-product-title">Personalizza</span>
+                <button onclick="chiudiModale()" style="background:none; border:none; color:white; font-size:1.4rem; cursor:pointer; padding: 0 4px;">&times;</button>
             </div>
-            <div class="modal-body" id="modal-product-body"></div>
+            <div class="modal-body" id="modal-product-body">
+                <!-- Opzioni dinamiche -->
+            </div>
             <div class="modal-footer">
-                <button class="btn-primary" style="flex:1;" id="modal-confirm-btn" onclick="salvaPersonalizzazione()">Conferma Articolo</button>
+                <button class="btn-primary" style="flex:1;" id="modal-confirm-btn" onclick="salvaPersonalizzazione()">Aggiungi alla Comanda</button>
             </div>
         </div>
     </div>
@@ -732,47 +536,39 @@
         const categories = [
             { id: 'rosse', name: 'Pizze Rosse' },
             { id: 'bianche', name: 'Pizze Bianche' },
-            { id: 'speciali', name: 'Pizze Speciali' },
-            { id: 'bevande', name: 'Bevande' },
-            { id: 'fritti', name: 'Fritti & Appetizers' }
+            { id: 'speciali', name: 'Speciali' },
+            { id: 'bevande', name: 'Bevande' }
         ];
 
         const products = [
-            { id: 1, cat: 'rosse', name: 'Margherita', price: 6.50, allowHalf: true },
-            { id: 2, cat: 'rosse', name: 'Diavola', price: 8.00, allowHalf: true },
-            { id: 3, cat: 'rosse', name: 'Capricciosa', price: 8.50, allowHalf: true },
-            { id: 4, cat: 'bianche', name: 'Quattro Formaggi', price: 8.00, allowHalf: true },
-            { id: 5, cat: 'bianche', name: 'Wurstel e Patatine', price: 7.50, allowHalf: true },
-            { id: 6, cat: 'speciali', name: 'Nerano', price: 9.50, allowHalf: true },
-            { id: 7, cat: 'speciali', name: 'Bufalina', price: 9.00, allowHalf: true },
-            { id: 8, cat: 'bevande', name: 'Coca Cola 33cl', price: 3.00, allowHalf: false },
-            { id: 9, cat: 'bevande', name: 'Acqua Naturale 50cl', price: 1.50, allowHalf: false },
-            { id: 10, cat: 'bevande', name: 'Birra Artigianale 33cl', price: 5.00, allowHalf: false },
-            { id: 11, cat: 'fritti', name: 'Patatine Fritte', price: 4.00, allowHalf: false },
-            { id: 12, cat: 'fritti', name: 'Olive Ascolane (6pz)', price: 5.00, allowHalf: false }
+            { id: 1, cat: 'rosse', name: 'Margherita', price: 6.50 },
+            { id: 2, cat: 'rosse', name: 'Diavola', price: 8.00 },
+            { id: 3, cat: 'rosse', name: 'Capricciosa', price: 8.50 },
+            { id: 4, cat: 'bianche', name: 'Quattro Formaggi', price: 8.00 },
+            { id: 5, cat: 'bianche', name: 'Wurstel e Patatine', price: 7.50 },
+            { id: 6, cat: 'speciali', name: 'Nerano', price: 9.50 },
+            { id: 7, cat: 'bevande', name: 'Coca Cola 33cl', price: 3.00 },
+            { id: 8, cat: 'bevande', name: 'Acqua Naturale 50cl', price: 1.50 },
+            { id: 9, cat: 'bevande', name: 'Birra Artigianale 33cl', price: 5.00 }
         ];
 
         const availableExtras = [
             { name: 'Mozzarella di Bufala', price: 2.00 },
-            { name: 'Doppio Salame / Wurstel', price: 1.50 },
+            { name: 'Doppio Salame', price: 1.50 },
             { name: 'Olio Piccante', price: 0.50 },
             { name: 'Funghi Freschi', price: 1.50 },
-            { name: 'Acciughe', price: 1.50 },
-            { name: 'Senza Lattosio / Impasto Integrale', price: 1.00 }
+            { name: 'Acciughe', price: 1.50 }
         ];
 
         let cart = [];
         let activeCategory = 'rosse';
         let activeOrders = [];
-        let completedOrders = [];
-        let editingUuid = null;
-        let currentOrderType = 'Tavolo';
+        let editingUuid = null; // Se non è null, stiamo modificando un elemento esistente nel carrello
 
         function init() {
             renderCategories();
             renderProducts(activeCategory);
             renderCart();
-            setInterval(updateKdsTimers, 30000); // Aggiorna i minuti trascorsi in cucina ogni 30s
         }
 
         function switchView(viewName) {
@@ -780,25 +576,13 @@
             document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
 
             if (viewName === 'pos') {
-                event.currentTarget.classList.add('active');
+                event.target.classList.add('active');
                 document.getElementById('view-pos').classList.add('active');
-            } else if (viewName === 'kds') {
-                event.currentTarget.classList.add('active');
-                document.getElementById('view-kds').classList.add('active');
-                renderKds();
-            } else if (viewName === 'reports') {
-                event.currentTarget.classList.add('active');
-                document.getElementById('view-reports').classList.add('active');
-                renderReports();
+            } else if (viewName === 'orders') {
+                event.target.classList.add('active');
+                document.getElementById('view-orders').classList.add('active');
+                renderOrders();
             }
-        }
-
-        function setOrderType(type) {
-            currentOrderType = type;
-            document.getElementById('type-tavolo').classList.toggle('active', type === 'Tavolo');
-            document.getElementById('type-domicilio').classList.toggle('active', type === 'Domicilio');
-            document.getElementById('client-phone').style.display = type === 'Domicilio' ? 'block' : 'none';
-            document.getElementById('client-name').placeholder = type === 'Domicilio' ? 'Indirizzo e Nome' : 'Nome Cliente / Tavolo (es. Tavolo 4)';
         }
 
         function renderCategories() {
@@ -848,7 +632,7 @@
 
         function handleProductClick(productId) {
             const product = products.find(p => p.id === productId);
-            if (product.cat === 'bevande' || product.cat === 'fritti') {
+            if (product.cat === 'bevande') {
                 aggiungiDirettoAlCarrello(product);
             } else {
                 apriModalePersonalizzazione(product);
@@ -856,56 +640,35 @@
         }
 
         function aggiungiDirettoAlCarrello(product) {
-            const existing = cart.find(item => item.id === product.id && (!item.modifiche || item.modifiche.length === 0) && !item.isHalf);
+            const existing = cart.find(item => item.id === product.id && (!item.modifiche || item.modifiche.length === 0));
             if (existing) {
                 existing.qty++;
             } else {
-                cart.push({ ...product, price: product.price, qty: 1, modifiche: [], uuid: Date.now() });
+                cart.push({ ...product, basePrice: product.price, qty: 1, modifiche: [], uuid: Date.now() });
             }
             renderCart();
         }
 
+        // Apre il modale sia per un NUOVO inserimento sia per MODIFICARE un articolo esistente nel carrello
         function apriModalePersonalizzazione(product, cartItemUuid = null) {
             editingUuid = cartItemUuid;
             const modalTitle = document.getElementById('modal-product-title');
             const confirmBtn = document.getElementById('modal-confirm-btn');
             
             let currentModifiche = [];
-            let isHalfActive = false;
-            let secondHalfId = null;
-
             if (editingUuid) {
                 const item = cart.find(i => i.uuid === editingUuid);
                 modalTitle.innerText = `Modifica: ${product.name}`;
                 confirmBtn.innerText = 'Aggiorna Articolo';
                 currentModifiche = item.modifiche || [];
-                isHalfActive = item.isHalf || false;
-                secondHalfId = item.secondHalfId || null;
             } else {
-                modalTitle.innerText = `Personalizza: ${product.name}`;
+                modalTitle.innerText = product.name;
                 confirmBtn.innerText = 'Aggiungi alla Comanda';
             }
-
-            const pizzaOptions = products.filter(p => p.cat === 'rosse' || p.cat === 'bianche' || p.cat === 'speciali');
             
             const body = document.getElementById('modal-product-body');
             body.innerHTML = `
                 <input type="hidden" id="modal-product-id" value="${product.id}">
-                ${product.allowHalf ? `
-                    <div>
-                        <div class="section-label">Gestione Metà & Metà</div>
-                        <label class="checkbox-label" style="background:#2a1b0c; border-color:var(--primary);">
-                            <input type="checkbox" id="half-pizza-check" ${isHalfActive ? 'checked' : ''} onchange="toggleHalfSelector(this.checked)">
-                            <span>Fai Metà & Metà con un'altra pizza</span>
-                        </label>
-                        <div id="half-selector-container" style="margin-top: 8px; display: ${isHalfActive ? 'block' : 'none'};">
-                            <select id="second-half-select" class="client-input" style="width:100%;">
-                                <option value="">-- Seleziona seconda metà --</option>
-                                ${pizzaOptions.map(p => `<option value="${p.id}" ${secondHalfId === p.id ? 'selected' : ''}>${p.name} (€${p.price.toFixed(2)})</option>`).join('')}
-                            </select>
-                        </div>
-                    </div>
-                ` : ''}
                 <div>
                     <div class="section-label">Aggiunte & Extra</div>
                     <div class="options-grid">
@@ -925,10 +688,6 @@
             document.getElementById('product-modal').classList.add('open');
         }
 
-        function toggleHalfSelector(checked) {
-            document.getElementById('half-selector-container').style.display = checked ? 'block' : 'none';
-        }
-
         function chiudiModale() {
             document.getElementById('product-modal').classList.remove('open');
             editingUuid = null;
@@ -937,26 +696,8 @@
         function salvaPersonalizzazione() {
             const productId = parseInt(document.getElementById('modal-product-id').value);
             const product = products.find(p => p.id === productId);
-            const isHalf = document.getElementById('half-pizza-check') ? document.getElementById('half-pizza-check').checked : false;
-            
-            let finalName = product.name;
-            let finalPrice = product.price;
-            let secondHalfId = null;
-
-            if (isHalf) {
-                const secondHalfSelect = document.getElementById('second-half-select');
-                if (secondHalfSelect && secondHalfSelect.value) {
-                    secondHalfId = parseInt(secondHalfSelect.value);
-                    const secondProduct = products.find(p => p.id === secondHalfId);
-                    if (secondProduct) {
-                        finalName = `Metà ${product.name} / Metà ${secondProduct.name}`;
-                        // Prezzo calcolato come media o prezzo massimo (standard pizzeria: il prezzo più alto)
-                        finalPrice = Math.max(product.price, secondProduct.price);
-                    }
-                }
-            }
-
             const checkboxes = document.querySelectorAll('#modal-product-body input[type="checkbox"]:checked');
+            
             let extraPrice = 0;
             let modificheList = [];
 
@@ -965,26 +706,23 @@
                 modificheList.push({ name: cb.value, price: parseFloat(cb.dataset.price) });
             });
 
-            const calculatedPrice = finalPrice + extraPrice;
+            const finalPrice = product.price + extraPrice;
 
             if (editingUuid) {
+                // Aggiorna l'elemento esistente nel carrello
                 const item = cart.find(i => i.uuid === editingUuid);
                 if (item) {
-                    item.name = finalName;
-                    item.price = calculatedPrice;
+                    item.price = finalPrice;
                     item.modifiche = modificheList;
-                    item.isHalf = isHalf;
-                    item.secondHalfId = secondHalfId;
                 }
             } else {
+                // Aggiunge un nuovo elemento
                 cart.push({
-                    id: product.id,
-                    name: finalName,
-                    price: calculatedPrice,
+                    ...product,
+                    basePrice: product.price,
+                    price: finalPrice,
                     qty: 1,
                     modifiche: modificheList,
-                    isHalf: isHalf,
-                    secondHalfId: secondHalfId,
                     uuid: Date.now()
                 });
             }
@@ -1001,7 +739,7 @@
             countEl.innerText = `${cart.reduce((acc, item) => acc + item.qty, 0)} articoli`;
             
             if (cart.length === 0) {
-                container.innerHTML = `<div style="color:var(--text-muted); text-align:center; margin-top:30px; font-size:0.9rem;">Carrello vuoto</div>`;
+                container.innerHTML = `<div style="color:var(--text-muted); text-align:center; margin-top:20px; font-size:0.9rem;">Carrello vuoto</div>`;
                 totalEl.innerText = `€ 0.00`;
                 return;
             }
@@ -1009,10 +747,10 @@
             container.innerHTML = cart.map(item => `
                 <div class="cart-item ${editingUuid === item.uuid ? 'editing' : ''}">
                     <div class="cart-item-row">
-                        <span class="cart-item-title" onclick="richiediModificaItem(${item.uuid})" title="Clicca per modificare">${item.name} ✏️</span>
+                        <span class="cart-item-title" style="cursor:pointer;" onclick="richiediModificaItem(${item.uuid})" title="Clicca per modificare">${item.name} ✏️</span>
                         <div class="cart-item-controls">
                             <button class="qty-btn" onclick="decrementQty(${item.uuid})">-</button>
-                            <span style="font-size:0.9rem; font-weight:700; min-width:18px; text-align:center;">${item.qty}</span>
+                            <span style="font-size:0.9rem; font-weight:600; min-width:16px; text-align:center;">${item.qty}</span>
                             <button class="qty-btn" onclick="incrementQty(${item.uuid})">+</button>
                         </div>
                     </div>
@@ -1022,8 +760,8 @@
                         </div>
                     ` : ''}
                     <div class="cart-item-row" style="margin-top: 4px;">
-                        <span style="font-size:0.85rem; font-weight:700; color:var(--primary-light);">€ ${(item.price * item.qty).toFixed(2)}</span>
-                        <button onclick="rimuoviItemCarrello(${item.uuid})" style="background:none; border:none; color:var(--danger); font-size:0.75rem; cursor:pointer; font-weight:700;">Rimuovi</button>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">€ ${(item.price * item.qty).toFixed(2)}</span>
+                        <button onclick="rimuoviItemCarrello(${item.uuid})" style="background:none; border:none; color:var(--danger); font-size:0.75rem; cursor:pointer; font-weight:600;">Rimuovi</button>
                     </div>
                 </div>
             `).join('');
@@ -1043,13 +781,20 @@
 
         function incrementQty(uuid) {
             const item = cart.find(i => i.uuid === uuid);
-            if (item) { item.qty++; renderCart(); }
+            if (item) {
+                item.qty++;
+                renderCart();
+            }
         }
 
         function decrementQty(uuid) {
             const index = cart.findIndex(i => i.uuid === uuid);
             if (index !== -1) {
-                if (cart[index].qty > 1) { cart[index].qty--; } else { cart.splice(index, 1); }
+                if (cart[index].qty > 1) {
+                    cart[index].qty--;
+                } else {
+                    cart.splice(index, 1);
+                }
                 renderCart();
             }
         }
@@ -1062,14 +807,8 @@
         function confermaOrdine() {
             if (cart.length === 0) return;
 
-            const clientNameInput = document.getElementById('client-name').value.trim();
-            const clientPhoneInput = document.getElementById('client-phone').value.trim();
-            
             const newOrder = {
                 id: Math.floor(100 + Math.random() * 900),
-                type: currentOrderType,
-                client: clientNameInput || (currentOrderType === 'Domicilio' ? 'Cliente Domicilio' : 'Banco / Tavolo Generico'),
-                phone: clientPhoneInput,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 timestamp: Date.now(),
                 items: [...cart],
@@ -1078,103 +817,58 @@
 
             activeOrders.unshift(newOrder);
             cart = [];
-            document.getElementById('client-name').value = '';
-            document.getElementById('client-phone').value = '';
             renderCart();
+            document.getElementById('orders-badge').innerText = activeOrders.length;
             
-            document.getElementById('kds-badge').innerText = activeOrders.length;
-            alert(`Comanda #${newOrder.id} inviata con successo in cucina!`);
+            // Segnale visivo o feedback rapido
+            alert(`Ordine #${newOrder.id} inviato correttamente in cucina!`);
         }
 
-        function renderKds() {
-            const container = document.getElementById('kds-container');
-            const statusText = document.getElementById('kds-status-text');
-            document.getElementById('kds-badge').innerText = activeOrders.length;
+        function renderOrders() {
+            const container = document.getElementById('orders-container');
+            const countEl = document.getElementById('active-orders-count');
+            document.getElementById('orders-badge').innerText = activeOrders.length;
 
             if (activeOrders.length === 0) {
-                statusText.innerText = `Nessuna comanda in preparazione`;
-                container.innerHTML = `<div style="color:var(--text-muted); text-align:center; margin-top:50px; grid-column: 1/-1;">Tutte le comande sono state evase! Ottimo lavoro 🚀</div>`;
+                countEl.innerText = `Nessun ordine in corso`;
+                container.innerHTML = `<div style="color:var(--text-muted); text-align:center; margin-top:40px; grid-column: 1/-1;">Nessuna comanda attiva al momento</div>`;
                 return;
             }
 
-            statusText.innerText = `${activeOrders.length} comande attive in cucina`;
+            countEl.innerText = `${activeOrders.length} ordini attivi`;
 
             container.innerHTML = activeOrders.map(o => {
                 const minutesElapsed = Math.floor((Date.now() - o.timestamp) / 60000);
                 const isUrgent = minutesElapsed > 25;
 
                 return `
-                    <div class="kds-card ${isUrgent ? 'urgent' : ''}">
-                        <div class="kds-header">
-                            <div>
-                                <span style="font-weight:800; color:var(--primary); font-size:1.1rem;">#${o.id} - ${o.client}</span>
-                                <div style="font-size:0.75rem; color:var(--text-muted);">${o.type} ${o.phone ? '• ' + o.phone : ''}</div>
+                    <div class="order-card ${isUrgent ? 'urgent' : ''}">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:700; color:var(--primary); font-size:1.05rem;">Ordine #${o.id}</span>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <span style="font-size:0.75rem; background:#333; padding:2px 6px; border-radius:4px; color:${isUrgent ? '#ff5252' : 'var(--text-muted)'};">${minutesElapsed} min fa</span>
                             </div>
-                            <span style="font-size:0.75rem; background:#333; padding:3px 8px; border-radius:4px; color:${isUrgent ? '#ff5252' : 'var(--text-muted)'}; font-weight:700;">${minutesElapsed} min fa</span>
                         </div>
-                        <div class="kds-items">
+                        <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid var(--border-color); border-bottom:1px solid var(--border-color); padding:8px 0;">
                             ${o.items.map(i => `
-                                <div style="font-size:0.9rem; display:flex; flex-direction:column; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">
+                                <div style="font-size:0.9rem; display:flex; justify-content:space-between;">
                                     <span><b>${i.qty}x</b> ${i.name}</span>
-                                    ${i.modifiche && i.modifiche.length > 0 ? `<span style="font-size:0.75rem; color:var(--primary-light); padding-left:14px;">+ ${i.modifiche.map(m => m.name).join(', ')}</span>` : ''}
                                 </div>
+                                ${i.modifiche && i.modifiche.length > 0 ? `<div style="font-size:0.75rem; color:var(--text-muted); padding-left:14px;">+ ${i.modifiche.map(m => m.name).join(', ')}</div>` : ''}
                             `).join('')}
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-weight:700;">Tot: € ${o.total.toFixed(2)}</span>
-                            <button onclick="completaOrdine(${o.id})" style="background:var(--success); color:white; border:none; padding:8px 14px; border-radius:6px; font-size:0.85rem; font-weight:700; cursor:pointer;">Completato 🏁</button>
+                            <button onclick="rimuoviOrdine(${o.id})" style="background:var(--success); color:white; border:none; padding:6px 12px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">Completato</button>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function updateKdsTimers() {
-            if (document.getElementById('view-kds').classList.contains('active')) {
-                renderKds();
-            }
-        }
-
-        function completaOrdine(orderId) {
-            const index = activeOrders.findIndex(o => o.id === orderId);
-            if (index !== -1) {
-                const completed = activeOrders.splice(index, 1)[0];
-                completedOrders.unshift(completed);
-                renderKds();
-                updateHeaderStats();
-            }
-        }
-
-        function updateHeaderStats() {
-            const totalRev = completedOrders.reduce((acc, o) => acc + o.total, 0);
-            document.getElementById('header-total-revenue').innerText = `€ ${totalRev.toFixed(2)}`;
-            document.getElementById('header-completed-count').innerText = completedOrders.length;
-        }
-
-        function renderReports() {
-            const totalRev = completedOrders.reduce((acc, o) => acc + o.total, 0);
-            const totalCount = completedOrders.length;
-            const avgTicket = totalCount > 0 ? totalRev / totalCount : 0;
-
-            document.getElementById('rep-total-rev').innerText = `€ ${totalRev.toFixed(2)}`;
-            document.getElementById('rep-total-orders').innerText = totalCount;
-            document.getElementById('rep-avg-ticket').innerText = `€ ${avgTicket.toFixed(2)}`;
-
-            const listContainer = document.getElementById('completed-orders-list');
-            if (totalCount === 0) {
-                listContainer.innerHTML = `<div style="color:var(--text-muted); font-size:0.9rem;">Nessun ordine completato nella sessione odierna.</div>`;
-                return;
-            }
-
-            listContainer.innerHTML = completedOrders.map(o => `
-                <div style="background:var(--surface-dark); border:1px solid var(--border-color); border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <span style="font-weight:700; color:var(--success);">#${o.id} - ${o.client}</span>
-                        <div style="font-size:0.75rem; color:var(--text-muted);">${o.items.length} articoli • ${o.time}</div>
-                    </div>
-                    <span style="font-weight:700;">€ ${o.total.toFixed(2)}</span>
-                </div>
-            `).join('');
+        function rimuoviOrdine(orderId) {
+            activeOrders = activeOrders.filter(o => o.id !== orderId);
+            renderOrders();
         }
 
         window.onload = init;
