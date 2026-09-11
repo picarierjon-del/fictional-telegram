@@ -61,6 +61,14 @@
             margin: 0 auto;
         }
 
+        .view-section {
+            display: none;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
         /* Navigazione inferiore */
         nav.bottom-nav {
             position: fixed;
@@ -97,7 +105,7 @@
             margin-bottom: 2px;
         }
 
-        /* Modali e Popup */
+        /* Modali */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -190,7 +198,6 @@
             border-color: var(--primary);
         }
 
-        /* Pulsanti */ dalla classe pulita
         .btn {
             padding: 10px 16px;
             border-radius: 8px;
@@ -210,7 +217,6 @@
         .btn-secondary { background: #e9ecef; color: var(--text-main); }
         .btn-block { width: 100%; }
 
-        /* Griglia fasce orarie */
         .time-slots-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -240,7 +246,6 @@
             display: block;
         }
 
-        /* Utility */
         .close-btn {
             background: none;
             border: none;
@@ -269,16 +274,42 @@
         <div id="syncStatus" style="font-size: 12px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px;">Salvato</div>
     </header>
 
-    <div class="container" id="mainContainer">
-        <!-- Contenuto dinamico principale -->
-        <div class="card">
-            <h3 style="margin-bottom: 8px;">Benvenuto nel gestionale</h3>
-            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">Usa la barra di navigazione in basso per gestire gli ordini, inserire comande o configurare le impostazioni.</p>
-            <button class="btn btn-primary btn-block" onclick="openCheckoutModal()">Apri Finestra Ordine</button>
+    <div class="container">
+        <!-- SEZIONE INSERIMENTO -->
+        <div id="view-inserimento" class="view-section">
+            <div class="card">
+                <h3 style="margin-bottom: 8px;">Inserimento Comanda</h3>
+                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">componi l'ordine e finalizzalo rapidamente.</p>
+                <button class="btn btn-primary btn-block" onclick="openCheckoutModal()">Apri Finestra Ordine</button>
+            </div>
+        </div>
+
+        <!-- SEZIONE ORDINI -->
+        <div id="view-ordini" class="view-section active">
+            <div class="card">
+                <h3 style="margin-bottom: 8px;">Ordini Attivi</h3>
+                <p style="color: var(--text-muted); font-size: 14px;">Nessun ordine attivo al momento.</p>
+            </div>
+        </div>
+
+        <!-- SEZIONE STORICO -->
+        <div id="view-storico" class="view-section">
+            <div class="card">
+                <h3 style="margin-bottom: 8px;">Storico Serata</h3>
+                <p style="color: var(--text-muted); font-size: 14px;">Nello storico vedrai il riepilogo delle serate chiuse.</p>
+            </div>
+        </div>
+
+        <!-- SEZIONE IMPOSTAZIONI -->
+        <div id="view-impostazioni" class="view-section">
+            <div class="card">
+                <h3 style="margin-bottom: 8px;">Impostazioni</h3>
+                <p style="color: var(--text-muted); font-size: 14px;">Configura stampanti, zone di consegna e listino.</p>
+            </div>
         </div>
     </div>
 
-    <!-- Modale Finalizza Ordine (Pulito da caratteri corrotti) -->
+    <!-- Modale Finalizza Ordine -->
     <div class="modal-overlay" id="checkoutModal">
         <div class="modal-card">
             <div class="modal-header">
@@ -329,13 +360,12 @@
 
                 <div class="form-group">
                     <label class="form-label">Orario di consegna (intervalli di 5 minuti)</label>
-                    <div class="time-slots-grid" id="timeSlotsContainer">
-                        <!-- Generato via JS o staticamente pulito -->
-                        <div class="time-slot-btn selected" onclick="selectTime('18:00')">18:00<span class="slot-count">7/7 pizze</span></div>
-                        <div class="time-slot-btn" onclick="selectTime('18:05')">18:05<span class="slot-count">7/7 pizze</span></div>
-                        <div class="time-slot-btn" onclick="selectTime('18:10')">18:10<span class="slot-count">7/7 pizze</span></div>
-                        <div class="time-slot-btn" onclick="selectTime('18:15')">18:15<span class="slot-count">7/7 pizze</span></div>
-                        <div class="time-slot-btn" onclick="selectTime('18:20')">18:20<span class="slot-count">7/7 pizze</span></div>
+                    <div class="time-slots-grid">
+                        <div class="time-slot-btn selected" onclick="selectTime('18:00', this)">18:00<span class="slot-count">7/7 pizze</span></div>
+                        <div class="time-slot-btn" onclick="selectTime('18:05', this)">18:05<span class="slot-count">7/7 pizze</span></div>
+                        <div class="time-slot-btn" onclick="selectTime('18:10', this)">18:10<span class="slot-count">7/7 pizze</span></div>
+                        <div class="time-slot-btn" onclick="selectTime('18:15', this)">18:15<span class="slot-count">7/7 pizze</span></div>
+                        <div class="time-slot-btn" onclick="selectTime('18:20', this)">18:20<span class="slot-count">7/7 pizze</span></div>
                     </div>
                 </div>
 
@@ -354,26 +384,25 @@
 
     <!-- Barra di navigazione inferiore pulita -->
     <nav class="bottom-nav">
-        <div class="nav-item" onclick="navigate('inserimento')">
+        <div class="nav-item" onclick="navigate('inserimento', this)">
             <span class="icon">&#128196;</span>
             <span>Inserimento</span>
         </div>
-        <div class="nav-item active" onclick="navigate('ordini')">
+        <div class="nav-item active" onclick="navigate('ordini', this)">
             <span class="icon">&#128221;</span>
             <span>Ordini</span>
         </div>
-        <div class="nav-item" onclick="navigate('storico')">
+        <div class="nav-item" onclick="navigate('storico', this)">
             <span class="icon">&#128200;</span>
             <span>Storico</span>
         </div>
-        <div class="nav-item" onclick="navigate('impostazioni')">
+        <div class="nav-item" onclick="navigate('impostazioni', this)">
             <span class="icon">&#9881;</span>
             <span>Impostazioni</span>
         </div>
     </nav>
 
     <script>
-        // Funzioni di gestione interfaccia e condivisione WhatsApp corretta (inclusa di aggiunte e varianti)
         function openCheckoutModal() {
             document.getElementById('checkoutModal').classList.add('open');
         }
@@ -383,45 +412,51 @@
         }
 
         function setOrderType(type) {
-            console.log("Tipo ordine selezionato:", type);
+            console.log("Tipo ordine:", type);
         }
 
-        function selectTime(time) {
+        function selectTime(time, element) {
             document.querySelectorAll('.time-slot-btn').forEach(el => el.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
+            element.classList.add('selected');
         }
 
-        function navigate(section) {
+        function navigate(sectionId, element) {
+            // Cambia vista attiva
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById('view-' + sectionId);
+            if(target) target.classList.add('active');
+
+            // Cambia tab attiva nella barra inferiore
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            if(element) element.classList.add('active');
         }
 
-        // Funzione di invio e formattazione testo WhatsApp con supporto completo a gusti multipli e aggiunte
         function submitOrder(print) {
             const clientName = document.getElementById('clientName').value || "Cliente";
             const clientPhone = document.getElementById('clientPhone').value || "";
             const clientAddress = document.getElementById('clientAddress').value || "";
             const notes = document.getElementById('orderNotes').value || "";
+            const zone = document.getElementById('deliveryZone').value;
             
-            // Esempio strutturato dei prodotti che assicura la presenza di gusti, metà/metà e aggiunte
+            // Prodotti di esempio strutturati con gusti multipli, varianti e aggiunte visibili su WhatsApp
             const items = [
-                { name: "Margherita", variant: "Doppia mozzarella", qty: 5, price: 6.00 },
+                { name: "Margherita", variant: "Doppia mozzarella, Senza glutine", qty: 3, price: 6.00 },
                 { name: "Diavola / Capricciosa (Metà e Metà)", variant: "Aggiunta cipolla e gorgonzola", qty: 2, price: 9.00 }
             ];
 
             let total = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
 
-            // Generazione testo pulito privo di caratteri illeggibili per WhatsApp
             let whatsappText = `Ordine #${Math.floor(Math.random() * 899 + 100)}\n`;
             whatsappText += `Cliente: ${clientName} (${clientPhone})\n`;
             if(clientAddress) whatsappText += `Indirizzo: ${clientAddress}\n`;
+            whatsappText += `Zona: ${zone}\n`;
             whatsappText += `Orario: 11/09/2026, 18:00\n\n`;
             
             whatsappText += `Dettaglio Prodotti:\n`;
             items.forEach(item => {
-                whatsappText +`• ${item.qty}x ${item.name}`;
+                whatsappText += `• ${item.qty}x ${item.name}`;
                 if(item.variant) {
-                    whatsappText += `\n  ↳ Note/Aggiunte: ${item.variant}`;
+                    whatsappText += `\n  ↳ Aggiunte/Var: ${item.variant}`;
                 }
                 whatsappText += `\n`;
             });
@@ -432,7 +467,6 @@
 
             whatsappText += `\nTotale: €${total.toFixed(2)}`;
 
-            // Codifica pulita per l'API di WhatsApp
             const encodedText = encodeURIComponent(whatsappText);
             const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
             
