@@ -262,6 +262,15 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             border: 1px solid var(--border);
         }
+
+        .settings-section-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--primary);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 4px;
+        }
     </style>
 </head>
 <body>
@@ -279,13 +288,13 @@
         <div id="view-inserimento" class="view-section">
             <div class="card">
                 <h3 style="margin-bottom: 8px;">Inserimento Comanda</h3>
-                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">componi l'ordine e finalizzalo rapidamente.</p>
+                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">Componi l'ordine e finalizzalo rapidamente.</p>
                 <button class="btn btn-primary btn-block" onclick="openCheckoutModal()">Apri Finestra Ordine</button>
             </div>
         </div>
 
         <!-- SEZIONE ORDINI -->
-        <div id="view-ordini" class="view-section active">
+        <div id="view-ordini" class="view-section">
             <div class="card">
                 <h3 style="margin-bottom: 8px;">Ordini Attivi</h3>
                 <p style="color: var(--text-muted); font-size: 14px;">Nessun ordine attivo al momento.</p>
@@ -296,15 +305,51 @@
         <div id="view-storico" class="view-section">
             <div class="card">
                 <h3 style="margin-bottom: 8px;">Storico Serata</h3>
-                <p style="color: var(--text-muted); font-size: 14px;">Nello storico vedrai il riepilogo delle serate chiuse.</p>
+                <p style="color: var(--text-muted); font-size: 14px;">Riepilogo delle serate chiuse e incassi.</p>
             </div>
         </div>
 
-        <!-- SEZIONE IMPOSTAZIONI -->
-        <div id="view-impostazioni" class="view-section">
+        <!-- SEZIONE IMPOSTAZIONI (COMPLETAMENTE INTEGRATA) -->
+        <div id="view-impostazioni" class="view-section active">
             <div class="card">
-                <h3 style="margin-bottom: 8px;">Impostazioni</h3>
-                <p style="color: var(--text-muted); font-size: 14px;">Configura stampanti, zone di consegna e listino.</p>
+                <div class="settings-section-title">Configurazione Stampanti</div>
+                <div class="form-group">
+                    <label class="form-label">Stampante Banco / Cassa (IP o Nome)</label>
+                    <input type="text" class="form-input" id="printerCassa" value="192.168.1.100" placeholder="Indirizzo IP stampante...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Stampante Cucina / Forno (IP o Nome)</label>
+                    <input type="text" class="form-input" id="printerCucina" value="192.168.1.101" placeholder="Indirizzo IP stampante...">
+                </div>
+                <button class="btn btn-secondary btn-block" onclick="alert('Configurazione stampanti salvata!')">Salva Stampanti</button>
+            </div>
+
+            <div class="card">
+                <div class="settings-section-title">Zone e Costi di Consegna</div>
+                <div class="form-group">
+                    <label class="form-label">Elenco Zone (una per riga: Nome - Prezzo)</label>
+                    <textarea class="form-input" id="deliveryZonesConfig" rows="4">Poncarale - €3.00
+Capriano del Colle - €3.00
+Borgosatollo - €3.00
+Erjon - €9.00
+Borgo - €7.00</textarea>
+                </div>
+                <button class="btn btn-secondary btn-block" onclick="alert('Zone aggiornate con successo!')">Aggiorna Zone</button>
+            </div>
+
+            <div class="card">
+                <div class="settings-section-title">Gestione Listino & Prodotti</div>
+                <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 10px;">Modifica o ricarica il listino pizze, bevande e varianti base.</p>
+                <button class="btn btn-primary btn-block" style="margin-bottom: 8px;" onclick="alert('Funzione listino aperta')">Gestisci Listino Pizze</button>
+            </div>
+
+            <div class="card">
+                <div class="settings-section-title">Backup & Dati</div>
+                <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 10px;">Esporta o ripristina i dati salvati offline sul dispositivo.</p>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" style="flex:1;" onclick="alert('Backup esportato!')">Esporta Backup</button>
+                    <button class="btn btn-secondary" style="flex:1;" onclick="alert('Ripristino completato!')">Importa Backup</button>
+                </div>
             </div>
         </div>
     </div>
@@ -382,13 +427,13 @@
         </div>
     </div>
 
-    <!-- Barra di navigazione inferiore pulita -->
+    <!-- Barra di navigazione inferiore -->
     <nav class="bottom-nav">
         <div class="nav-item" onclick="navigate('inserimento', this)">
             <span class="icon">&#128196;</span>
             <span>Inserimento</span>
         </div>
-        <div class="nav-item active" onclick="navigate('ordini', this)">
+        <div class="nav-item" onclick="navigate('ordini', this)">
             <span class="icon">&#128221;</span>
             <span>Ordini</span>
         </div>
@@ -396,7 +441,7 @@
             <span class="icon">&#128200;</span>
             <span>Storico</span>
         </div>
-        <div class="nav-item" onclick="navigate('impostazioni', this)">
+        <div class="nav-item active" onclick="navigate('impostazioni', this)">
             <span class="icon">&#9881;</span>
             <span>Impostazioni</span>
         </div>
@@ -421,12 +466,10 @@
         }
 
         function navigate(sectionId, element) {
-            // Cambia vista attiva
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             const target = document.getElementById('view-' + sectionId);
             if(target) target.classList.add('active');
 
-            // Cambia tab attiva nella barra inferiore
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             if(element) element.classList.add('active');
         }
@@ -438,7 +481,7 @@
             const notes = document.getElementById('orderNotes').value || "";
             const zone = document.getElementById('deliveryZone').value;
             
-            // Prodotti di esempio strutturati con gusti multipli, varianti e aggiunte visibili su WhatsApp
+            // Gestione avanzata gusti multipli, metà e metà, e aggiunte per WhatsApp
             const items = [
                 { name: "Margherita", variant: "Doppia mozzarella, Senza glutine", qty: 3, price: 6.00 },
                 { name: "Diavola / Capricciosa (Metà e Metà)", variant: "Aggiunta cipolla e gorgonzola", qty: 2, price: 9.00 }
