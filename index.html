@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V11.3 Definitiva Professionale</title>
+  <title>Pizzeria Smart V12 Professional Modular</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -46,7 +46,7 @@
   </style>
 </head>
 <body>
-  <header class="topbar"><div class="topbar-inner"><div><div class="brand" id="brandName">Pizzeria Smart</div><div class="sub">Gestionale V11.3 Definitiva &#183; Offline protetto</div></div><div class="save-state" id="saveState">Avvio&#8230;</div></div></header>
+  <header class="topbar"><div class="topbar-inner"><div><div class="brand" id="brandName">Pizzeria Smart</div><div class="sub">Gestionale V12 Professional &#183; Modulare &#183; Offline protetto</div></div><div class="save-state" id="saveState">Avvio&#8230;</div></div></header>
   <main>
     <section class="view active" data-view="entry" id="view-entry"></section>
     <section class="view" data-view="orders" id="view-orders"></section>
@@ -462,8 +462,111 @@
   const printModPriceV113=printMod;printMod=function(m){const html=printModPriceV113(m),p=ensurePrintPriceOptionsV113();if(!p.showModifierPrices)return html;const value=Number(m?.price)||0,label=`${value>0?'+':''}${money(value)}`;return html.replace('</span>',` <b class="print-mod-price">(${esc(label)})</b></span>`)};
   function addKitchenPricesV113(order){const p=ensurePrintPriceOptionsV113(),area=$('#print-area');if(!p.showKitchenPrices||!area)return;const lines=orderedPrintLinesV111(order?.lines||[]),blocks=$$('#print-area > div[style*="border-bottom:2px"]');blocks.forEach((block,i)=>{const row=$('.print-line',block);if(!row||row.querySelector('[data-kitchen-line-price]')||!lines[i])return;const price=document.createElement('b');price.dataset.kitchenLinePrice='1';price.textContent=money(lineTotal(lines[i]));row.append(price)});if(!area.querySelector('[data-kitchen-total]')){const total=document.createElement('div');total.className='print-total print-line';total.dataset.kitchenTotal='1';total.innerHTML=`<span>TOTALE</span><span>${money(order?.total)}</span>`;const cuts=$$('.cut',area),footerCut=p.showFooter&&cuts.length>1?cuts[cuts.length-1]:null;if(footerCut)area.insertBefore(total,footerCut);else area.append(total)}}
   const printOrderPricesV113=printOrder;printOrder=function(o,type){const out=printOrderPricesV113(o,type);if(type==='kitchen')addKitchenPricesV113(o);return out};
+
+  /* ================================================================
+     PIZZERIA SMART V12 PROFESSIONAL MODULAR
+     Facciata modulare, migrazioni versionate e supervisione centrale.
+     Mantiene la compatibilita completa con i dati delle versioni V2-V11.
+     ================================================================ */
+  const V12_VERSION='12.0.0',V12_SCHEMA=12,V12_MIGRATION='v12-professional-modular';
+
+  const V12Modules=(()=>{
+    const registry=new Map();
+    function define(name,label,dependencies,api,check){
+      if(registry.has(name))throw new Error(`Modulo duplicato: ${name}`);
+      registry.set(name,Object.freeze({name,label,dependencies:[...(dependencies||[])],api:Object.freeze(api||{}),check:check||(()=>true)}));
+    }
+    function get(name){return registry.get(name)?.api||null}
+    function inspect(){return [...registry.values()].map(m=>{const missing=m.dependencies.filter(x=>!registry.has(x));let ok=!missing.length,error='';if(ok)try{ok=m.check()!==false}catch(e){ok=false;error=String(e?.message||e)}return{name:m.name,label:m.label,dependencies:m.dependencies,ok,missing,error}})}
+    function healthy(){return inspect().every(x=>x.ok)}
+    return Object.freeze({define,get,inspect,healthy,names:()=>[...registry.keys()]});
+  })();
+
+  function ensureV12State(){
+    ensureV113Maintenance();
+    ensurePrintPriceOptionsV113();
+    state.schemaVersion=V12_SCHEMA;
+    state.appVersion=V12_VERSION;
+    state.migrations=Array.isArray(state.migrations)?state.migrations:[];
+    if(!state.migrations.includes(V12_MIGRATION))state.migrations.push(V12_MIGRATION);
+    state.v12={
+      installedAt:new Date().toISOString(),lastBootAt:null,lastFullCheckAt:null,lastFullCheck:null,
+      performance:{lastRenderMs:0,maxRenderMs:0,renderCount:0,slowRenders:0},
+      ...(state.v12||{})
+    };
+    state.v12.performance={lastRenderMs:0,maxRenderMs:0,renderCount:0,slowRenders:0,...(state.v12.performance||{})};
+    return state;
+  }
+
+  function v12ModuleReport(){
+    ensureV12State();
+    const modules=V12Modules.inspect(),info={
+      generatedAt:new Date().toISOString(),version:V12_VERSION,schema:V12_SCHEMA,
+      healthy:modules.every(x=>x.ok),modules,
+      counts:{categories:state.categories.length,products:state.categories.reduce((n,c)=>n+(c.items||[]).length,0),modifierGroups:state.modifierGroups.length,modifiers:state.modifierGroups.reduce((n,g)=>n+(g.items||[]).length,0),customers:state.customers.length,activeOrders:state.orders.length,quickArchive:state.archive.length,printQueue:state.printQueue.length},
+      health:clone(state.health||{}),performance:clone(state.v12.performance||{}),lastSavedAt:state.metaSavedAt||null
+    };
+    return info;
+  }
+
+  let v12CheckRunning=false;
+  async function runV12FullCheck(showResult=true){
+    if(v12CheckRunning)return state.v12?.lastFullCheck||null;
+    v12CheckRunning=true;
+    try{
+      ensureV12State();
+      const integrity=runSelfTest(true);ensureV12State();const modules=V12Modules.inspect(),storageOk=await persistStateNow('controllo completo V12');
+      let snapshotOk=false;try{snapshotOk=await SafetyDB.snapshot(state,'controllo completo V12')}catch(error){recordV11Error('snapshot V12',error)}
+      const report={at:new Date().toISOString(),ok:modules.every(x=>x.ok)&&integrity.status!=='warn'&&!!storageOk,storageOk:!!storageOk,snapshotOk:!!snapshotOk,modules:modules.map(x=>({name:x.name,ok:x.ok})),issues:[...(integrity.issues||[])]};
+      state.v12.lastFullCheckAt=report.at;state.v12.lastFullCheck=report;
+      await persistStateNow('esito controllo V12');ensureV12State();
+      if(showResult)toast(report.ok?'Tutti i moduli V12 sono operativi':'Controllo completato: verifica la diagnostica');
+      return report;
+    }catch(error){recordV11Error('controllo completo V12',error);if(showResult)toast('Controllo protetto: anomalia registrata');return{at:new Date().toISOString(),ok:false,error:String(error?.message||error)}}
+    finally{v12CheckRunning=false}
+  }
+
+  async function createV12Snapshot(){
+    ensureV12State();const ok=await SafetyDB.snapshot(state,'snapshot manuale V12');autoSnapshot('snapshot manuale V12');await persistStateNow('snapshot manuale V12');toast(ok?'Copia protetta V12 creata':'Copia locale creata');return ok;
+  }
+
+  function exportV12DiagnosticReport(){
+    const report=v12ModuleReport(),blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=`pizzeria-smart-v12-diagnostica-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Report diagnostico V12 esportato');
+  }
+
+  V12Modules.define('core','Nucleo',[],{uid,clone,checksum,repairText,money},()=>typeof uid==='function'&&typeof checksum==='function');
+  V12Modules.define('storage','Dati e sicurezza',['core'],{save:reason=>save(reason),saveNow:reason=>persistStateNow(reason),snapshot:createV12Snapshot,backup:()=>downloadVerifiedBackup()},()=>!!DB&&!!SafetyDB);
+  V12Modules.define('menu','Menu',['core','storage'],{categories:()=>state.categories,modifierGroups:()=>state.modifierGroups,usage:productUsage},()=>Array.isArray(state.categories)&&Array.isArray(state.modifierGroups));
+  V12Modules.define('orders','Ordini',['core','storage','menu'],{active:()=>state.orders,archive:()=>state.archive,draft:()=>state.draft,total:finalTotal,lineTotal,capacity:capacityInfo,nextId:nextOrderId},()=>Array.isArray(state.orders)&&Array.isArray(state.archive));
+  V12Modules.define('multitaste','Multigusto',['menu','orders'],{compose:(...args)=>composeMulti(...args),price:multiPrice,modifierTotal:slotModifierTotal},()=>typeof composeMulti==='function'&&typeof multiPrice==='function');
+  V12Modules.define('customers','Clienti',['storage','orders'],{list:()=>state.customers,recent:recentCustomers,remember:rememberQuick,upsert:upsertCustomer},()=>Array.isArray(state.customers));
+  V12Modules.define('delivery','Consegne',['orders','customers'],{zones:()=>state.zones,drivers:()=>state.drivers,matches:deliveryMatches,members:routeMembers,printRoute:(...args)=>printDeliveryRoute(...args)},()=>Array.isArray(state.zones)&&Array.isArray(state.drivers));
+  V12Modules.define('print','Stampa',['orders','menu'],{order:(...args)=>printOrder(...args),invoice:(...args)=>printInvoiceReminder(...args),route:(...args)=>printDeliveryRoute(...args),options:ensurePrintPriceOptionsV113,queue:()=>state.printQueue},()=>Array.isArray(state.printQueue)&&!!state.settings.print);
+  V12Modules.define('statistics','Statistiche',['orders'],{usage:productUsage,exportCsv:exportStatsCsv,html:historyStatsHtml},()=>typeof productUsage==='function');
+  V12Modules.define('maintenance','Manutenzione',['storage'],{run:runV113Maintenance,deepArchive:smartMaintenance,selfTest:runSelfTest},()=>!!state.settings.maintenance&&!!state.settings.professional);
+  V12Modules.define('ui','Interfaccia',['menu','orders','print'],{render:()=>renderAll(),view:showView,settings:renderSettings},()=>!!document.querySelector('#view-entry'));
+  V12Modules.define('diagnostics','Diagnostica',['core','storage','maintenance'],{inspect:v12ModuleReport,fullCheck:runV12FullCheck,export:exportV12DiagnosticReport},()=>V12Modules.names().length>=11);
+
+  const saveV12Base=save;save=function(reason='salvataggio V12'){ensureV12State();return saveV12Base(reason)};
+  const persistStateNowV12Base=persistStateNow;persistStateNow=async function(reason='salvataggio immediato V12'){ensureV12State();const out=await persistStateNowV12Base(reason);ensureV12State();return out};
+  const runMaintenanceV12Base=runV113Maintenance;runV113Maintenance=async function(force=false){ensureV12State();const out=await runMaintenanceV12Base(force);const row=(state.audit||[]).find(x=>x.action==='Manutenzione automatica V11.3');if(row)row.action='Manutenzione automatica V12';ensureV12State();if(row)save('manutenzione V12 completata');return out};
+  const applyThemeV12Base=applyTheme;applyTheme=function(){ensureV12State();const out=applyThemeV12Base();document.title=`${state.settings.businessName} - Gestionale V12 Professional`;return out};
+  const diagnosticsHtmlV12Base=diagnosticsHtml;diagnosticsHtml=function(){return diagnosticsHtmlV12Base().replace(/Gestionale V11\.3 Definitiva(?=<\/div>)/,'Gestionale V12 Professional')};
+  const printOrderV12Base=printOrder;printOrder=function(o,type){ensureV12State();try{return printOrderV12Base(o,type)}finally{ensureV12State()}};
+  const printDeliveryRouteV12Base=printDeliveryRoute;printDeliveryRoute=function(groupId){ensureV12State();try{return printDeliveryRouteV12Base(groupId)}finally{ensureV12State()}};
+  const printInvoiceReminderV12Base=printInvoiceReminder;printInvoiceReminder=function(o){ensureV12State();try{return printInvoiceReminderV12Base(o)}finally{ensureV12State()}};
+  const startupProtectionV12Base=startupProtection;startupProtection=async function(){ensureV12State();state.v12.lastBootAt=new Date().toISOString();await startupProtectionV12Base();ensureV12State();const modules=V12Modules.inspect();if(!modules.every(x=>x.ok))recordV11Error('avvio moduli V12',modules.filter(x=>!x.ok).map(x=>x.name).join(', '));await SafetyDB.snapshot(state,'avvio V12');return modules};
+  const renderAllV12Base=renderAll;renderAll=function(){ensureV12State();const start=window.performance?.now?window.performance.now():Date.now(),out=renderAllV12Base();ensureV12State();const elapsed=Math.max(0,(window.performance?.now?window.performance.now():Date.now())-start),p=state.v12.performance;p.lastRenderMs=Math.round(elapsed);p.maxRenderMs=Math.max(p.maxRenderMs,p.lastRenderMs);p.renderCount++;if(elapsed>250)p.slowRenders++;return out};
+  const renderSettingsV12Base=renderSettings;renderSettings=function(){ensureV12State();const out=renderSettingsV12Base();ensureV12State();if(ui.settingsTab==='data'){const panel=$('[data-panel="data"]',$('#view-settings')),modules=V12Modules.inspect(),ok=modules.filter(x=>x.ok).length,protection=$('#v10Reliability')?.closest('.card'),heading=protection?.querySelector('h2'),badge=protection?.querySelector('.page-head .badge');if(heading)heading.textContent='Protezione V12 Professional';if(badge)badge.textContent='V12';if(panel&&!$('#v12Modules'))panel.insertAdjacentHTML('afterbegin',`<div class="card ${ok===modules.length?'health-ok':'health-warn'}" id="v12Modules"><div class="page-head"><div><h2>Moduli V12</h2><div class="order-meta">Architettura controllata: ${ok}/${modules.length} moduli operativi.</div></div><span class="badge">V12.0</span></div><div class="diagnostic-grid">${modules.map(m=>`<div class="diagnostic-item ${m.ok?'health-ok':'health-warn'}"><b>${esc(m.label)}</b>${m.ok?'Operativo':'Da controllare'}</div>`).join('')}</div><div class="row" style="margin-top:10px"><button class="btn primary" data-action="v12-full-check">Controlla tutti i moduli</button><button class="btn ghost" data-action="v12-snapshot">Crea copia protetta</button><button class="btn ghost" data-action="v12-export-diagnostics">Esporta diagnostica</button></div><div class="order-meta" style="margin-top:8px">Ultimo controllo: ${state.v12.lastFullCheckAt?new Date(state.v12.lastFullCheckAt).toLocaleString('it-IT'):'non ancora eseguito'} - Render: ${state.v12.performance.lastRenderMs} ms</div></div>`);$$('.card h2',$('#view-settings')).forEach(h=>{if(h.textContent==='Registro anomalie V11.3')h.textContent='Registro anomalie V12'});const status=$('#v11Status .order-meta');if(status)status.textContent='Schema 12 - migrazione automatica - registro errori - scrittura verificata'}return out};
+
+  downloadVerifiedBackup=async function(){ensureV12State();const data=clone(state),payload={format:'PIZZERIA_SMART_BACKUP',schema:V12_SCHEMA,appVersion:V12_VERSION,createdAt:new Date().toISOString(),checksum:checksum(data),data},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pizzeria-smart-v12-backup-verificato-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);state.settings.safety.lastExternalBackup=payload.createdAt;await SafetyDB.snapshot(state,'backup esterno V12');await persistStateNow('backup verificato V12');toast('Backup V12 verificato creato')};
+
+  document.addEventListener('click',e=>{const b=e.target.closest('button[data-action="v12-full-check"],button[data-action="v12-snapshot"],button[data-action="v12-export-diagnostics"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();b.disabled=true;if(b.dataset.action==='v12-full-check')runV12FullCheck(true).then(()=>renderSettings());if(b.dataset.action==='v12-snapshot')createV12Snapshot().then(()=>renderSettings());if(b.dataset.action==='v12-export-diagnostics'){exportV12DiagnosticReport();b.disabled=false}},true);
+  window.addEventListener('online',()=>setSave('Online - dati protetti localmente'));window.addEventListener('offline',()=>setSave('Offline - dati protetti'));
+
   setInterval(()=>{if(state?.settings?.professional?.autoMaintenance!==false)runV113Maintenance(false).catch(error=>recordV11Error('manutenzione programmata',error))},30*60000);
-  if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js?v=19').then(r=>r.update()).catch(error=>recordV11Error('service worker',error));
+  if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js?v=20').then(r=>r.update()).catch(error=>recordV11Error('service worker',error));
   window.addEventListener('beforeunload',()=>{try{localStorage.setItem('pizzeria_smart_v2',JSON.stringify(state))}catch{}});
   load();
   </script>
