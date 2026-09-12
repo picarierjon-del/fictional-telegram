@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12 Professional Modular &#183; Print Pro Safe 12.2 TESTED</title>
+  <title>Pizzeria Smart V12 Professional Modular &#183; V12.3.2 FIELD RELEASE</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -721,7 +721,7 @@
   function v12PrintStressTest(count=5000,targetRevenue=10000){ensurePrintStationsV12();const n=Math.max(1,Math.min(10000,+count||5000)),each=targetRevenue/n,orders=[];for(let i=0;i<n;i++)orders.push({id:`T${i+1}`,dateTime:new Date(2026,8,12,17+(i%6),i%60).toISOString(),mode:i%3===0?'delivery':i%3===1?'pickup':'counter',customer:`Cliente ${i}`,phone:`3${String(i).padStart(9,'0')}`,address:`Via Test ${i}`,payment:i%2?'Contanti':'Carta',total:each,lines:[{productId:state.categories?.[0]?.items?.[0]?.id||'',name:'Pizza Test',qty:1,unitPrice:each,modifiers:i%5===0?[{name:'Aggiunta',price:.5}]:[]}]});const total=orders.reduce((a,o)=>a+o.total,0),jobs=orders.reduce((a,o)=>a+printPlanDefaults(o.mode).length,0),copies=orders.reduce((a,o)=>a+printPlanDefaults(o.mode).reduce((n,p)=>n+p.copies,0),0);return{ok:orders.length===n&&Math.abs(total-targetRevenue)<.01&&jobs>=0&&copies>=jobs,orders:n,revenue:+total.toFixed(2),jobs,copies,stations:ensurePrintStationsV12().length,at:new Date().toISOString()}}
   window.PizzeriaSmartV12Print={version:V12_PRINT_ROUTER_VERSION,stations:ensurePrintStationsV12,dispatch:dispatchConfiguredPrint,queue:()=>state.printQueue,stress:v12PrintStressTest};
 
-  load();
+  load().then(()=>{if(typeof v1232AfterLoad==='function')v1232AfterLoad()}).catch(err=>{console.error(err);setSave('Errore protetto - dati conservati')});
   
   /* V12.1 - FILTRI MODIFICATORI NELL'INSERIMENTO PRINCIPALE
      Mantiene separata la ricerca per ogni gruppo: Piu, Senza, Poco, Abbondante, ecc. */
@@ -799,6 +799,700 @@
     v121InstallMainModifierFilter();
     return out;
   };
+
+
+  /* =========================================================
+     V12.3 FINAL - BRIDGE REALE + PIN RUOLI + CHIUSURA GUIDATA
+     ========================================================= */
+
+  const V123_VERSION='12.3.1-field-fixed';
+
+  function ensureV123State(){
+    ensurePrintStationsV12();
+    state.settings.security={
+      operatorPin:'',
+      adminPin:'1234',
+      lockAfterMinutes:30,
+      ...(state.settings.security||{})
+    };
+    state.settings.bridge={
+      enabled:false,
+      mode:'local-http',
+      baseUrl:'http://127.0.0.1:17890',
+      timeoutMs:2500,
+      retryCount:1,
+      ...(state.settings.bridge||{})
+    };
+    state.settings.eveningClose={
+      requireBackup:true,
+      requireNoOpenOrders:true,
+      requireNoPendingPrints:true,
+      requireNoUnassignedDeliveries:false,
+      autoArchiveCompleted:false,
+      ...(state.settings.eveningClose||{})
+    };
+    state.auth=state.auth||{role:'operator',lastAuthAt:Date.now()};
+  }
+
+  function v123HashPin(pin){
+    /* Non e una funzione crittografica forte: serve per evitare PIN in chiaro nel file.
+       In locale offline resta comunque una protezione operativa, non bancaria. */
+    let h=2166136261>>>0;
+    const s=String(pin||'');
+    for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
+    return (h>>>0).toString(16).padStart(8,'0');
+  }
+
+  function v123EnsurePinHashes(){
+    ensureV123State();
+    const sec=state.settings.security;
+    if(sec.operatorPin && !sec.operatorPinHash){sec.operatorPinHash=v123HashPin(sec.operatorPin);delete sec.operatorPin}
+    if(sec.adminPin && !sec.adminPinHash){sec.adminPinHash=v123HashPin(sec.adminPin);delete sec.adminPin}
+    if(!sec.adminPinHash)sec.adminPinHash=v123HashPin('1234');
+  }
+
+  function v123RoleRank(role){return role==='admin'?2:1}
+  function v123IsAuthorized(role='operator'){ensureV123State();return v123RoleRank(state.auth?.role||'operator')>=v123RoleRank(role)}
+
+  function v123AskPin(requiredRole='admin',onOk=()=>{}){
+    ensureV123State();v123EnsurePinHashes();
+    const sec=state.settings.security;
+    const body=`<div class="stack">
+      <div class="notice"><b>Accesso ${requiredRole==='admin'?'Amministratore':'Operatore'}</b><br>Inserisci il PIN per continuare.</div>
+      <div class="field"><label>PIN</label><input class="input" name="v123pin" type="password" inputmode="numeric" autocomplete="off"></div>
+    </div>`;
+    openEditor('Autorizzazione',body,fd=>{
+      const pin=String(fd.get('v123pin')||'');
+      const hash=v123HashPin(pin);
+      const ok=requiredRole==='admin'
+        ? hash===sec.adminPinHash
+        : (hash===sec.operatorPinHash || hash===sec.adminPinHash);
+      if(!ok){toast('PIN non corretto');return false}
+      state.auth={role:hash===sec.adminPinHash?'admin':'operator',lastAuthAt:Date.now()};
+      save('autorizzazione ruolo');
+      onOk(); return true;
+    });
+  }
+
+  function v123Require(role,fn){
+    ensureV123State();
+    const elapsed=(Date.now()-(state.auth?.lastAuthAt||0))/60000;
+    if(elapsed>(state.settings.security.lockAfterMinutes||30)){state.auth={role:'operator',lastAuthAt:0}}
+    if(v123IsAuthorized(role)&&state.auth?.lastAuthAt){state.auth.lastAuthAt=Date.now();return fn()}
+    v123AskPin(role,fn);
+  }
+
+  function v123SecuritySettingsHtml(){
+    ensureV123State();v123EnsurePinHashes();
+    return `<div class="card"><h2>Sicurezza accessi</h2>
+      <div class="grid two">
+        <div class="field"><label>Nuovo PIN operatore</label><input class="input" name="v123-operatorPin" type="password" inputmode="numeric" placeholder="Lascia vuoto per non cambiare"></div>
+        <div class="field"><label>Nuovo PIN amministratore</label><input class="input" name="v123-adminPin" type="password" inputmode="numeric" placeholder="Lascia vuoto per non cambiare"></div>
+        ${numField('Blocco automatico dopo minuti','v123-lockMinutes',state.settings.security.lockAfterMinutes,1,240,1)}
+      </div>
+      <div class="order-meta">L'operatore usa il gestionale. L'amministratore puo cambiare prezzi, stampanti, PIN, importare/reset dati e fare la chiusura serale.</div>
+    </div>`;
+  }
+
+  function v123BridgeSettingsHtml(){
+    const b=state.settings.bridge;
+    return `<div class="card"><h2>Print Bridge locale</h2>
+      <div class="grid two">
+        ${check('Attiva Print Bridge','v123-bridgeEnabled',b.enabled)}
+        <div class="field"><label>URL Bridge</label><input class="input" name="v123-bridgeUrl" value="${esc(b.baseUrl)}"></div>
+        ${numField('Timeout ms','v123-bridgeTimeout',b.timeoutMs,500,15000,100)}
+        ${numField('Tentativi','v123-bridgeRetry',b.retryCount,0,5,1)}
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn ghost" data-action="v123-test-bridge">Test connessione Bridge</button></div>
+      <div class="order-meta">Protocollo previsto: HTTP locale JSON. Il Bridge riceve il job e lo inoltra alla stampante configurata sulla postazione.</div>
+    </div>`;
+  }
+
+  function v123EveningSettingsHtml(){
+    const e=state.settings.eveningClose;
+    return `<div class="card"><h2>Chiusura serale guidata</h2>
+      <div class="grid two">
+        ${check('Backup obbligatorio','v123-closeBackup',e.requireBackup)}
+        ${check('Blocca se ci sono ordini aperti','v123-closeOpenOrders',e.requireNoOpenOrders)}
+        ${check('Blocca se ci sono stampe pendenti','v123-closePendingPrints',e.requireNoPendingPrints)}
+        ${check('Blocca se ci sono delivery senza fattorino','v123-closeDrivers',e.requireNoUnassignedDeliveries)}
+        ${check('Archivia automaticamente ordini completati','v123-closeAutoArchive',e.autoArchiveCompleted)}
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn danger" data-action="v123-guided-close">Avvia chiusura serale guidata</button></div>
+    </div>`;
+  }
+
+  function v123SaveExtraSettings(){
+    ensureV123State();v123EnsurePinHashes();
+    const root=$('#view-settings');
+    if(!root)return;
+    const sec=state.settings.security,b=state.settings.bridge,e=state.settings.eveningClose;
+    const op=$('[name="v123-operatorPin"]',root)?.value?.trim();
+    const ad=$('[name="v123-adminPin"]',root)?.value?.trim();
+    if(op)sec.operatorPinHash=v123HashPin(op);
+    if(ad)sec.adminPinHash=v123HashPin(ad);
+    sec.lockAfterMinutes=Math.max(1,+$('[name="v123-lockMinutes"]',root)?.value||30);
+    b.enabled=!!$('[name="v123-bridgeEnabled"]',root)?.checked;
+    b.baseUrl=$('[name="v123-bridgeUrl"]',root)?.value?.trim()||'http://127.0.0.1:17890';
+    b.timeoutMs=Math.max(500,+$('[name="v123-bridgeTimeout"]',root)?.value||2500);
+    b.retryCount=Math.max(0,+$('[name="v123-bridgeRetry"]',root)?.value||1);
+    e.requireBackup=!!$('[name="v123-closeBackup"]',root)?.checked;
+    e.requireNoOpenOrders=!!$('[name="v123-closeOpenOrders"]',root)?.checked;
+    e.requireNoPendingPrints=!!$('[name="v123-closePendingPrints"]',root)?.checked;
+    e.requireNoUnassignedDeliveries=!!$('[name="v123-closeDrivers"]',root)?.checked;
+    e.autoArchiveCompleted=!!$('[name="v123-closeAutoArchive"]',root)?.checked;
+  }
+
+  async function v123FetchWithTimeout(url,options={},timeout=2500){
+    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),timeout);
+    try{return await fetch(url,{...options,signal:ctrl.signal})}finally{clearTimeout(timer)}
+  }
+
+  async function v123BridgeHealth(){
+    ensureV123State();
+    const b=state.settings.bridge;
+    try{
+      const r=await v123FetchWithTimeout(`${b.baseUrl.replace(/\/$/,'')}/health`,{method:'GET'},b.timeoutMs);
+      if(!r.ok)throw new Error(`HTTP ${r.status}`);
+      const data=await r.json().catch(()=>({ok:true}));
+      return {ok:true,data};
+    }catch(err){return {ok:false,error:String(err?.message||err)}}
+  }
+
+  async function v123BridgeSend(job){
+    ensureV123State();
+    const b=state.settings.bridge;
+    if(!b.enabled)throw new Error('Bridge disattivato');
+    let lastErr=null;
+    for(let attempt=0;attempt<=b.retryCount;attempt++){
+      try{
+        const r=await v123FetchWithTimeout(`${b.baseUrl.replace(/\/$/,'')}/print`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(job)
+        },b.timeoutMs);
+        if(!r.ok)throw new Error(`HTTP ${r.status}`);
+        return await r.json().catch(()=>({ok:true}));
+      }catch(err){lastErr=err}
+    }
+    throw lastErr||new Error('Errore Bridge');
+  }
+
+  async function v123ExecutePrintJob(job){
+    ensureV123State();
+    const station=(state.settings.printStations||[]).find(x=>x.id===job.stationId);
+    if(!station)throw new Error('Postazione non trovata');
+
+    if(state.settings.bridge.enabled && station.connection!=='browser'){
+      job.status='sending';job.attempts=(job.attempts||0)+1;save('invio bridge');
+      try{
+        const result=await v123BridgeSend({
+          id:job.id,
+          orderId:job.orderId,
+          station:{
+            id:station.id,name:station.name,role:station.role,
+            connection:station.connection,ip:station.ip||'',port:station.port||9100,
+            paperWidth:station.paperWidth||80
+          },
+          copies:job.copies||station.copies||1,
+          html:job.html||'',
+          text:job.text||'',
+          createdAt:job.createdAt
+        });
+        job.status='printed';job.printedAt=new Date().toISOString();job.bridgeResult=result;
+        save('bridge stampa completata');return true;
+      }catch(err){
+        job.status='error';job.error=String(err?.message||err);save('bridge stampa errore');return false;
+      }
+    }
+    return false;
+  }
+
+  function v123ClosingStatus(){
+    ensureV123State();
+    const openOrders=(state.orders||[]);
+    const pending=(state.printQueue||[]).filter(j=>!['printed','cancelled'].includes(j.status));
+    const unassigned=openOrders.filter(o=>o.mode==='delivery'&&!o.driverId);
+    const total=[...(state.orders||[]),...(state.archive||[])].filter(o=>(o.closedAt||o.dateTime||'').slice(0,10)===today()).reduce((s,o)=>s+(+o.total||0),0);
+    return {openOrders,pending,unassigned,total};
+  }
+
+  async function v123CreateVerifiedCloseBackup(){
+    ensureV123State();
+    try{
+      const payload={format:'PIZZERIA_SMART_V123_CLOSE_BACKUP',version:V123_VERSION,createdAt:new Date().toISOString(),data:clone(state)};
+      const raw=JSON.stringify(payload);
+      localStorage.setItem(`pizzeria_v123_close_${today()}`,raw);
+      if(typeof SafetyDB!=='undefined'&&SafetyDB?.snapshot)await SafetyDB.snapshot(state,'chiusura serale V12.3');
+      return true;
+    }catch{return false}
+  }
+
+  function v123OpenGuidedClose(){
+    v123Require('admin',()=>{
+      ensureV123State();
+      const s=v123ClosingStatus(),cfg=state.settings.eveningClose;
+      const blockers=[];
+      if(cfg.requireNoOpenOrders&&s.openOrders.length)blockers.push(`${s.openOrders.length} ordini ancora aperti`);
+      if(cfg.requireNoPendingPrints&&s.pending.length)blockers.push(`${s.pending.length} stampe non completate`);
+      if(cfg.requireNoUnassignedDeliveries&&s.unassigned.length)blockers.push(`${s.unassigned.length} consegne senza fattorino`);
+
+      const body=`<div class="stack">
+        <div class="card" style="box-shadow:none"><h3>Controllo pre-chiusura</h3>
+          <div class="setting-row"><span>Ordini aperti</span><b>${s.openOrders.length}</b></div>
+          <div class="setting-row"><span>Stampe pendenti/errore</span><b>${s.pending.length}</b></div>
+          <div class="setting-row"><span>Delivery senza fattorino</span><b>${s.unassigned.length}</b></div>
+          <div class="setting-row"><span>Incasso giornata</span><b>${money(s.total)}</b></div>
+        </div>
+        ${blockers.length?`<div class="notice" style="background:#fff0f0;border-color:#e27a7a;color:#8d1111"><b>Chiusura bloccata</b><br>${blockers.map(esc).join('<br>')}</div>`:
+        `<div class="notice capacity-ok"><b>Controlli superati.</b> Puoi procedere con backup e chiusura.</div>`}
+      </div>`;
+      openEditor('Chiusura serale guidata',body,async()=>{
+        const checkNow=v123ClosingStatus();
+        const stop=(cfg.requireNoOpenOrders&&checkNow.openOrders.length)||(cfg.requireNoPendingPrints&&checkNow.pending.length)||(cfg.requireNoUnassignedDeliveries&&checkNow.unassigned.length);
+        if(stop){toast('Risolvi prima le anomalie indicate');return false}
+        if(cfg.requireBackup){
+          const ok=await v123CreateVerifiedCloseBackup();
+          if(!ok){toast('Backup di chiusura non riuscito');return false}
+        }
+        if(cfg.autoArchiveCompleted){
+          const completedIds=new Set((state.orders||[]).filter(o=>['ready','closed','done'].includes(o.status)).map(o=>o.id));
+          for(const o of [...state.orders])if(completedIds.has(o.id))archiveOrder(o);
+        }
+        if(typeof closeEvening==='function')await closeEvening();
+        audit('Chiusura serale guidata V12.3',`Incasso ${money(checkNow.total)}`);
+        save('chiusura guidata V12.3');
+        toast('Chiusura serale completata');
+        return true;
+      });
+    });
+  }
+
+  const renderSettingsV123=renderSettings;
+  renderSettings=function(){
+    ensureV123State();v123EnsurePinHashes();
+    const out=renderSettingsV123();
+    if(ui.settingsTab==='print'){
+      const panel=$('[data-panel="print"]',$('#view-settings'));
+      if(panel&&!$('#v123BridgeCard'))panel.insertAdjacentHTML('afterbegin',`<div id="v123BridgeCard">${v123BridgeSettingsHtml()}</div>`);
+    }
+    if(ui.settingsTab==='general'){
+      const panel=$('[data-panel="general"]',$('#view-settings'));
+      if(panel&&!$('#v123SecurityCard'))panel.insertAdjacentHTML('beforeend',`<div id="v123SecurityCard">${v123SecuritySettingsHtml()}${v123EveningSettingsHtml()}</div>`);
+    }
+    return out;
+  };
+
+  const saveSettingsFormV123=saveSettingsForm;
+  saveSettingsForm=function(){
+    ensureV123State();v123SaveExtraSettings();
+    return saveSettingsFormV123();
+  };
+
+  /* Protegge le azioni amministrative piu pericolose */
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action]');
+    if(!b)return;
+    const a=b.dataset.action;
+    const adminActions=new Set([
+      'reset-all','reset-settings','import-data','close-evening',
+      'v12-add-station','v12-delete-station','v12-copy-station',
+      'v123-guided-close'
+    ]);
+    if(adminActions.has(a)&&a!=='v123-guided-close'&&!v123IsAuthorized('admin')){
+      e.preventDefault();e.stopImmediatePropagation();
+      return v123Require('admin',()=>b.click());
+    }
+  },true);
+
+  document.addEventListener('click',async e=>{
+    const b=e.target.closest('[data-action="v123-test-bridge"],[data-action="v123-guided-close"]');
+    if(!b)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(b.dataset.action==='v123-test-bridge'){
+      const r=await v123BridgeHealth();
+      toast(r.ok?'Bridge raggiungibile':'Bridge non raggiungibile: '+r.error);
+    }
+    if(b.dataset.action==='v123-guided-close')v123OpenGuidedClose();
+  },true);
+
+  /* Hook sulla coda: usa il bridge per le postazioni LAN/bridge. */
+  async function v123RunBridgeQueue(){
+    ensureV123State();
+    const jobs=(state.printQueue||[]).filter(j=>['queued','pending','retrying','error'].includes(j.status));
+    for(const job of jobs){
+      const st=(state.settings.printStations||[]).find(x=>x.id===job.stationId);
+      if(st && state.settings.bridge.enabled && st.connection!=='browser'){
+        await v123ExecutePrintJob(job);
+      }
+    }
+    save('coda bridge V12.3');
+  }
+
+  /* Se esiste il pulsante coda, prima prova il bridge e poi lascia il fallback browser. */
+  document.addEventListener('click',async e=>{
+    const b=e.target.closest('[data-action="v12-run-print-queue"]');
+    if(!b)return;
+    if(state.settings.bridge?.enabled){
+      e.preventDefault();e.stopImmediatePropagation();
+      await v123RunBridgeQueue();
+      renderSettings();toast('Coda Bridge elaborata');
+    }
+  },true);
+
+  /* V12.3.1: inizializzazione sicura, senza ricorsione su ensureV12State */
+  function v123InitSafe(){
+    try{ensureV123State();v123EnsurePinHashes();return true}
+    catch(err){console.error('V12.3 init error',err);return false}
+  }
+
+
+
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{v123InitSafe();},0)},{once:true});
+
+
+  /* =========================================================
+     V12.3.2 FIELD RELEASE
+     FIX: LOGIN ALL'AVVIO + PIN PERSISTENTI + BRIDGE REALE
+          + CHIUSURA SERALE GUIDATA DETERMINISTICA
+     ========================================================= */
+
+  const V1232_VERSION='12.3.2-field-release';
+  let v1232Session={role:null,loginAt:0,lastActivity:0};
+
+  function v1232EnsureSecurity(){
+    ensureV123State();
+    v123EnsurePinHashes();
+    const sec=state.settings.security;
+    if(typeof sec.requireLoginOnStart!=='boolean')sec.requireLoginOnStart=true;
+    if(typeof sec.lockAfterMinutes!=='number')sec.lockAfterMinutes=30;
+    if(!sec.adminPinHash)sec.adminPinHash=v123HashPin('1234');
+    delete sec.operatorPin;
+    delete sec.adminPin;
+    return sec;
+  }
+
+  function v1232RoleRank(role){return role==='admin'?2:role==='operator'?1:0}
+  function v1232SessionExpired(){
+    const sec=v1232EnsureSecurity(),last=v1232Session.lastActivity||0;
+    return !v1232Session.role || (Date.now()-last)>(Math.max(1,+sec.lockAfterMinutes||30)*60000);
+  }
+  function v1232Touch(){
+    if(v1232Session.role)v1232Session.lastActivity=Date.now();
+    v1232UpdateRoleBadge();
+  }
+  function v1232ValidatePin(pin,requiredRole='operator'){
+    const sec=v1232EnsureSecurity(),hash=v123HashPin(String(pin||''));
+    if(requiredRole==='admin')return hash===sec.adminPinHash?'admin':null;
+    if(hash===sec.adminPinHash)return'admin';
+    if(sec.operatorPinHash&&hash===sec.operatorPinHash)return'operator';
+    return null;
+  }
+
+  /* Override V12.3 authorization: sessione runtime, mai "ricordata" al riavvio. */
+  v123IsAuthorized=function(role='operator'){
+    if(v1232SessionExpired()){v1232Session={role:null,loginAt:0,lastActivity:0};return false}
+    return v1232RoleRank(v1232Session.role)>=v1232RoleRank(role);
+  };
+
+  function v1232LoginOverlay(){
+    v1232EnsureSecurity();
+    let old=document.getElementById('v1232LoginGate');if(old)old.remove();
+    const sec=state.settings.security,first=!sec.operatorPinHash&&sec.adminPinHash===v123HashPin('1234');
+    const gate=document.createElement('div');
+    gate.id='v1232LoginGate';
+    gate.setAttribute('role','dialog');
+    gate.setAttribute('aria-modal','true');
+    gate.innerHTML=`<div style="width:min(430px,calc(100% - 28px));background:#fff;border-radius:22px;padding:22px;box-shadow:0 28px 90px #0008;color:#17202a">
+      <div style="font-size:1.45rem;font-weight:900;color:var(--accent)">Pizzeria Smart</div>
+      <div style="font-size:.9rem;color:#647184;margin-top:2px">Accesso V12.3.2</div>
+      <h2 style="margin:18px 0 6px">Inserisci il PIN</h2>
+      <div style="color:#647184;margin-bottom:14px">Operatore o Amministratore</div>
+      ${first?'<div class="notice" style="margin-bottom:12px"><b>Primo accesso:</b> PIN amministratore iniziale <b>1234</b>. Cambialo subito in Impostazioni.</div>':''}
+      <input id="v1232StartupPin" class="input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" style="font-size:1.3rem;text-align:center;letter-spacing:.25em">
+      <div id="v1232LoginError" style="min-height:24px;color:#b91c1c;font-weight:750;margin-top:8px"></div>
+      <button id="v1232LoginButton" class="btn primary full" type="button">ENTRA</button>
+    </div>`;
+    Object.assign(gate.style,{position:'fixed',inset:'0',zIndex:'999999',display:'grid',placeItems:'center',background:'rgba(10,15,22,.78)',backdropFilter:'blur(12px)',padding:'14px'});
+    document.body.appendChild(gate);
+    const input=gate.querySelector('#v1232StartupPin'),button=gate.querySelector('#v1232LoginButton'),error=gate.querySelector('#v1232LoginError');
+    const login=()=>{
+      const role=v1232ValidatePin(input.value,'operator');
+      if(!role){error.textContent='PIN non corretto';input.value='';input.focus();return}
+      v1232Session={role,loginAt:Date.now(),lastActivity:Date.now()};
+      gate.remove();v1232UpdateRoleBadge();toast(`Accesso ${role==='admin'?'Amministratore':'Operatore'}`);
+    };
+    button.onclick=login;
+    input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();login()}});
+    setTimeout(()=>input.focus(),80);
+  }
+
+  function v1232PromptAdmin(onOk){
+    if(v123IsAuthorized('admin')){v1232Touch();return onOk?.()}
+    const body=`<div class="stack">
+      <div class="notice"><b>Autorizzazione Amministratore</b><br>Questa funzione e protetta.</div>
+      <div class="field"><label>PIN amministratore</label><input class="input" name="v1232AdminPin" type="password" inputmode="numeric" autocomplete="off"></div>
+    </div>`;
+    openEditor('Accesso amministratore',body,fd=>{
+      const role=v1232ValidatePin(fd.get('v1232AdminPin'),'admin');
+      if(role!=='admin'){toast('PIN amministratore non corretto');return false}
+      v1232Session={role:'admin',loginAt:Date.now(),lastActivity:Date.now()};
+      v1232UpdateRoleBadge();onOk?.();return true;
+    });
+  }
+
+  v123Require=function(role,fn){
+    if(v123IsAuthorized(role)){v1232Touch();return fn?.()}
+    if(role==='admin')return v1232PromptAdmin(fn);
+    v1232LoginOverlay();
+  };
+
+  function v1232UpdateRoleBadge(){
+    const bar=document.querySelector('.topbar-inner');if(!bar)return;
+    let badge=document.getElementById('v1232RoleBadge');
+    if(!badge){badge=document.createElement('button');badge.id='v1232RoleBadge';badge.className='btn small';badge.type='button';badge.style.cssText='background:rgba(255,255,255,.16);color:#fff;border:1px solid #ffffff55;min-height:34px;padding:5px 9px';bar.appendChild(badge)}
+    badge.textContent=v1232Session.role==='admin'?'ADMIN - BLOCCA':v1232Session.role==='operator'?'OPERATORE - BLOCCA':'BLOCCATO';
+    badge.onclick=()=>{v1232Session={role:null,loginAt:0,lastActivity:0};v1232LoginOverlay()};
+  }
+
+  /* La pagina Impostazioni e amministrativa. */
+  document.addEventListener('click',e=>{
+    const go=e.target.closest('[data-go="settings"]');
+    if(!go)return;
+    if(v123IsAuthorized('admin')){v1232Touch();return}
+    e.preventDefault();e.stopImmediatePropagation();
+    v1232PromptAdmin(()=>showView('settings'));
+  },true);
+
+  /* Timeout reale mentre l'app rimane aperta. */
+  ['click','touchstart','keydown'].forEach(evt=>document.addEventListener(evt,()=>{
+    if(v1232Session.role&&!v1232SessionExpired())v1232Session.lastActivity=Date.now();
+  },{capture:true,passive:true}));
+  setInterval(()=>{
+    if(v1232Session.role&&v1232SessionExpired()){
+      v1232Session={role:null,loginAt:0,lastActivity:0};
+      v1232LoginOverlay();
+    }
+  },15000);
+
+  /* UI sicurezza: salvataggio esplicito e conferma PIN. */
+  v123SecuritySettingsHtml=function(){
+    const sec=v1232EnsureSecurity();
+    return `<div class="card"><h2>Sicurezza accessi</h2>
+      <div class="notice"><b>Accesso all'avvio attivo.</b> Ogni nuova apertura richiede il PIN. Le Impostazioni richiedono sempre privilegi Amministratore.</div>
+      <div class="grid two" style="margin-top:12px">
+        <div class="field"><label>Nuovo PIN operatore</label><input class="input" name="v123-operatorPin" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 cifre"></div>
+        <div class="field"><label>Conferma PIN operatore</label><input class="input" name="v123-operatorPin2" type="password" inputmode="numeric" maxlength="8" placeholder="Ripeti PIN"></div>
+        <div class="field"><label>Nuovo PIN amministratore</label><input class="input" name="v123-adminPin" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 cifre"></div>
+        <div class="field"><label>Conferma PIN amministratore</label><input class="input" name="v123-adminPin2" type="password" inputmode="numeric" maxlength="8" placeholder="Ripeti PIN"></div>
+        ${numField('Blocco automatico dopo minuti','v123-lockMinutes',sec.lockAfterMinutes,1,240,1)}
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" type="button" data-action="v1232-save-security">Salva PIN e sicurezza</button>
+        <button class="btn ghost" type="button" data-action="v1232-lock-now">Blocca adesso</button>
+      </div>
+      <div id="v1232SecurityStatus" class="order-meta" style="margin-top:8px">PIN operatore: ${sec.operatorPinHash?'configurato':'non configurato'} - PIN amministratore: configurato</div>
+    </div>`;
+  };
+
+  async function v1232SaveSecurity(){
+    const root=$('#view-settings'),sec=v1232EnsureSecurity();
+    const op=String($('[name="v123-operatorPin"]',root)?.value||'').trim();
+    const op2=String($('[name="v123-operatorPin2"]',root)?.value||'').trim();
+    const ad=String($('[name="v123-adminPin"]',root)?.value||'').trim();
+    const ad2=String($('[name="v123-adminPin2"]',root)?.value||'').trim();
+    const valid=x=>/^\d{4,8}$/.test(x);
+    if(op||op2){if(op!==op2)return toast('I PIN operatore non coincidono');if(!valid(op))return toast('PIN operatore: usa 4-8 cifre')}
+    if(ad||ad2){if(ad!==ad2)return toast('I PIN amministratore non coincidono');if(!valid(ad))return toast('PIN amministratore: usa 4-8 cifre')}
+    if(op)sec.operatorPinHash=v123HashPin(op);
+    if(ad)sec.adminPinHash=v123HashPin(ad);
+    sec.requireLoginOnStart=true;
+    sec.lockAfterMinutes=Math.max(1,+$('[name="v123-lockMinutes"]',root)?.value||30);
+    delete sec.operatorPin;delete sec.adminPin;
+    audit('Sicurezza aggiornata',`Timeout ${sec.lockAfterMinutes} minuti`);
+    if(typeof persistStateNow==='function')await persistStateNow('PIN e sicurezza V12.3.2');else save('PIN e sicurezza V12.3.2');
+    ['v123-operatorPin','v123-operatorPin2','v123-adminPin','v123-adminPin2'].forEach(n=>{const el=$(`[name="${n}"]`,root);if(el)el.value=''});
+    const status=$('#v1232SecurityStatus',root);if(status)status.textContent=`PIN operatore: ${sec.operatorPinHash?'configurato':'non configurato'} - PIN amministratore: configurato - SALVATO`;
+    toast('PIN salvati e verificati');
+  }
+
+  /* Bridge: salvataggio esplicito, persistente. */
+  v123BridgeSettingsHtml=function(){
+    const b=state.settings.bridge;
+    return `<div class="card"><h2>Print Bridge locale</h2>
+      <div class="grid two">
+        ${check('Attiva Print Bridge','v123-bridgeEnabled',b.enabled)}
+        <div class="field"><label>URL Bridge</label><input class="input" name="v123-bridgeUrl" value="${esc(b.baseUrl)}"></div>
+        ${numField('Timeout ms','v123-bridgeTimeout',b.timeoutMs,500,15000,100)}
+        ${numField('Tentativi','v123-bridgeRetry',b.retryCount,0,5,1)}
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" type="button" data-action="v1232-save-bridge">Salva Bridge</button>
+        <button class="btn ghost" type="button" data-action="v123-test-bridge">Test connessione Bridge</button>
+      </div>
+      <div id="v1232BridgeStatus" class="order-meta" style="margin-top:8px">Per stampa diretta: postazione impostata su LAN/Bridge + IP stampante + servizio Bridge attivo sul POS.</div>
+    </div>`;
+  };
+
+  async function v1232SaveBridge(){
+    const root=$('#view-settings'),b=state.settings.bridge;
+    b.enabled=!!$('[name="v123-bridgeEnabled"]',root)?.checked;
+    b.baseUrl=String($('[name="v123-bridgeUrl"]',root)?.value||'http://127.0.0.1:17890').trim().replace(/\/$/,'');
+    b.timeoutMs=Math.max(500,+$('[name="v123-bridgeTimeout"]',root)?.value||2500);
+    b.retryCount=Math.max(0,Math.min(5,+$('[name="v123-bridgeRetry"]',root)?.value||1));
+    readStationSettingsFromDom();
+    if(typeof persistStateNow==='function')await persistStateNow('Bridge V12.3.2');else save('Bridge V12.3.2');
+    const st=$('#v1232BridgeStatus',root);if(st)st.textContent=`Bridge ${b.enabled?'ATTIVO':'DISATTIVO'} - ${b.baseUrl} - SALVATO`;
+    toast('Configurazione Bridge salvata');
+  }
+
+  function v1232HtmlToText(html){
+    const d=document.createElement('div');d.innerHTML=html||'';
+    return (d.innerText||d.textContent||'').replace(/\n{3,}/g,'\n\n').trim();
+  }
+
+  /* Routing stampa: LAN/Bridge passa DAVVERO dal Bridge anche in finalizzazione. */
+  const runNextPrintJobV1232Base=runNextPrintJob;
+  runNextPrintJob=async function(){
+    if(v12PrintBusy)return;
+    const job=state.printQueue.find(x=>x.status==='pending');
+    if(!job)return;
+    const order=findOrder(job.orderId)||state.archive.find(o=>o.id===job.orderId);
+    const st=ensurePrintStationsV12().find(x=>x.id===job.stationId);
+    if(!order||!st)return runNextPrintJobV1232Base();
+    if(state.settings.bridge?.enabled&&st.connection!=='browser'){
+      v12PrintBusy=true;
+      try{
+        job.html=stationOrderHtml(order,st,1);
+        job.text=v1232HtmlToText(job.html);
+        const ok=await v123ExecutePrintJob(job);
+        audit(ok?'Bridge stampa OK':'Bridge stampa ERRORE',`#${order.id} - ${st.name} - ${job.copies} copie`);
+      }finally{
+        delete job.html;delete job.text;
+        v12PrintBusy=false;
+        await (typeof persistStateNow==='function'?persistStateNow('esito Bridge V12.3.2'):Promise.resolve(save('esito Bridge V12.3.2')));
+        setTimeout(()=>{if(state.printQueue.some(x=>x.status==='pending'))runNextPrintJob()},120);
+      }
+      return;
+    }
+    return runNextPrintJobV1232Base();
+  };
+
+  v123RunBridgeQueue=async function(){
+    ensureV123State();
+    let guard=0;
+    while(state.printQueue.some(j=>j.status==='pending')&&guard<10000){guard++;await runNextPrintJob();await new Promise(r=>setTimeout(r,30))}
+    return guard;
+  };
+
+  /* Chiusura serale guidata senza callback async difettosa. */
+  async function v1232PerformGuidedClose(){
+    const cfg=state.settings.eveningClose,s=v123ClosingStatus();
+    const blockers=[];
+    if(cfg.requireNoOpenOrders&&s.openOrders.length)blockers.push(`${s.openOrders.length} ordini ancora aperti`);
+    if(cfg.requireNoPendingPrints&&s.pending.length)blockers.push(`${s.pending.length} stampe pendenti o in errore`);
+    if(cfg.requireNoUnassignedDeliveries&&s.unassigned.length)blockers.push(`${s.unassigned.length} consegne senza fattorino`);
+    if(blockers.length){toast('Chiusura bloccata: risolvi le anomalie');return{ok:false,blockers}}
+
+    if(cfg.requireBackup){
+      const ok=await v123CreateVerifiedCloseBackup();
+      if(!ok){toast('Backup pre-chiusura non riuscito');return{ok:false,blockers:['backup']}}
+    }
+
+    const now=new Date(),closed=[];
+    if((state.orders||[]).length){
+      for(const o of state.orders)closed.push({...o,closedAt:o.closedAt||now.toISOString()});
+      state.orders=[];
+      state.archive.push(...closed);
+      if(typeof ColdArchive!=='undefined'&&ColdArchive?.put&&closed.length)await ColdArchive.put('orders',closed.map(o=>({...o,archiveKey:`${o.id}_${o.closedAt}`})));
+    }
+
+    const day=today(),dayOrders=(state.archive||[]).filter(o=>(o.closedAt||o.dateTime||'').slice(0,10)===day);
+    const summary={
+      id:`night_${day}`,date:day,closedAt:now.toISOString(),
+      orders:dayOrders.length,
+      total:dayOrders.reduce((n,o)=>n+(+o.total||0),0),
+      deliveries:dayOrders.filter(o=>o.mode==='delivery').length,
+      pizzas:dayOrders.reduce((n,o)=>n+pizzaUnits(o.lines),0),
+      payments:{},drivers:{}
+    };
+    dayOrders.forEach(o=>{
+      summary.payments[o.payment||'Non indicato']=(summary.payments[o.payment||'Non indicato']||0)+(+o.total||0);
+      const dn=state.drivers.find(d=>d.id===o.driverId)?.name||'Non assegnato';
+      summary.drivers[dn]=(summary.drivers[dn]||0)+(+o.total||0);
+    });
+    state.eveningClosures=Array.isArray(state.eveningClosures)?state.eveningClosures:[];
+    state.eveningClosures=state.eveningClosures.filter(x=>x.date!==day);
+    state.eveningClosures.unshift(summary);
+    state.eveningClosures=state.eveningClosures.slice(0,400);
+    if(typeof ColdArchive!=='undefined'&&ColdArchive?.put)await ColdArchive.put('nights',[summary]);
+
+    /* Dopo una chiusura valida i job completati non servono piu nella coda operativa. */
+    state.printQueue=(state.printQueue||[]).filter(j=>!['printed','cancelled'].includes(j.status));
+    audit('Chiusura serale guidata V12.3.2',`${summary.orders} ordini - ${money(summary.total)}`);
+    if(typeof smartMaintenance==='function')await smartMaintenance(false);
+    if(typeof SafetyDB!=='undefined'&&SafetyDB?.snapshot)await SafetyDB.snapshot(state,'dopo chiusura guidata V12.3.2');
+    if(typeof persistStateNow==='function')await persistStateNow('chiusura guidata V12.3.2');else save('chiusura guidata V12.3.2');
+    renderAll();showView('history');toast(`Serata chiusa: ${summary.orders} ordini - ${money(summary.total)}`);
+    return{ok:true,summary};
+  }
+
+  v123OpenGuidedClose=function(){
+    v1232PromptAdmin(()=>{
+      const s=v123ClosingStatus(),cfg=state.settings.eveningClose,blockers=[];
+      if(cfg.requireNoOpenOrders&&s.openOrders.length)blockers.push(`${s.openOrders.length} ordini ancora aperti`);
+      if(cfg.requireNoPendingPrints&&s.pending.length)blockers.push(`${s.pending.length} stampe pendenti o in errore`);
+      if(cfg.requireNoUnassignedDeliveries&&s.unassigned.length)blockers.push(`${s.unassigned.length} delivery senza fattorino`);
+      const body=`<div class="stack">
+        <div class="card" style="box-shadow:none">
+          <div class="setting-row"><span>Ordini aperti</span><b>${s.openOrders.length}</b></div>
+          <div class="setting-row"><span>Stampe pendenti/errore</span><b>${s.pending.length}</b></div>
+          <div class="setting-row"><span>Delivery senza fattorino</span><b>${s.unassigned.length}</b></div>
+          <div class="setting-row"><span>Incasso rilevato oggi</span><b>${money(s.total)}</b></div>
+        </div>
+        ${blockers.length?`<div class="notice" style="background:#fff0f0;border-color:#e27a7a;color:#8d1111"><b>NON PUOI CHIUDERE</b><br>${blockers.map(esc).join('<br>')}</div>`:`<div class="notice capacity-ok"><b>Controlli superati.</b><br>Premendo Salva verranno eseguiti backup, riepilogo serata, archivio e manutenzione.</div>`}
+      </div>`;
+      openEditor('Chiusura serale guidata',body,()=>{
+        if(blockers.length){toast('Risolvi prima le anomalie');return false}
+        const btn=$('#editorSave');if(btn){btn.disabled=true;btn.textContent='Chiusura in corso...'}
+        v1232PerformGuidedClose().then(res=>{
+          if(res.ok)$('#editorDialog')?.close();
+          else if(btn){btn.disabled=false;btn.textContent='Salva'}
+        }).catch(err=>{
+          console.error(err);toast('Errore durante la chiusura');
+          if(btn){btn.disabled=false;btn.textContent='Salva'}
+        });
+        return false;
+      });
+    });
+  };
+
+  /* Pulsanti espliciti V12.3.2 */
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action]');
+    if(!b)return;
+    const a=b.dataset.action;
+    if(!['v1232-save-security','v1232-save-bridge','v1232-lock-now'].includes(a))return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(a==='v1232-lock-now'){v1232Session={role:null,loginAt:0,lastActivity:0};return v1232LoginOverlay()}
+    if(a==='v1232-save-security')return v1232PromptAdmin(()=>v1232SaveSecurity());
+    if(a==='v1232-save-bridge')return v1232PromptAdmin(()=>v1232SaveBridge());
+  },true);
+
+  /* L'avvio viene chiamato dopo load(), quindi i PIN letti da IndexedDB/localStorage sono gia disponibili. */
+  function v1232AfterLoad(){
+    try{
+      v1232EnsureSecurity();
+      /* Mai riutilizzare state.auth salvato da sessioni precedenti. */
+      state.auth={role:'operator',lastAuthAt:0};
+      v1232Session={role:null,loginAt:0,lastActivity:0};
+      v1232UpdateRoleBadge();
+      if(state.settings.security.requireLoginOnStart!==false)v1232LoginOverlay();
+    }catch(err){
+      console.error('V12.3.2 startup security error',err);
+      setSave('Errore sicurezza - dati conservati');
+    }
+  }
 
 </script>
 </body>
