@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12 Professional Modular &#183; Print Pro Safe</title>
+  <title>Pizzeria Smart V12 Professional Modular &#183; Print Pro Safe 12.1</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -715,6 +715,84 @@
   window.PizzeriaSmartV12Print={version:V12_PRINT_ROUTER_VERSION,stations:ensurePrintStationsV12,dispatch:dispatchConfiguredPrint,queue:()=>state.printQueue,stress:v12PrintStressTest};
 
   load();
-  </script>
+  
+  /* V12.1 - FILTRI MODIFICATORI NELL'INSERIMENTO PRINCIPALE
+     Mantiene separata la ricerca per ogni gruppo: Piu, Senza, Poco, Abbondante, ecc. */
+  ui.modSearchByGroup = ui.modSearchByGroup || {};
+
+  function v121InstallMainModifierFilter(){
+    const view = $('#view-entry');
+    if(!view || ui.selectedLine===null || ui.selectedLine===undefined) return;
+
+    const group = activeMods();
+    if(!group) return;
+
+    /* Individua la card "Modifica: ..." senza toccare il multigusto. */
+    const cards = $$('.card', view);
+    const card = cards.find(c => {
+      const h = c.querySelector('h3');
+      return h && /^Modifica:/.test(h.textContent || '');
+    });
+    if(!card) return;
+
+    const tabs = card.querySelector('.tabs');
+    const products = card.querySelector('.grid.products');
+    if(!tabs || !products) return;
+
+    let wrap = card.querySelector('.v121-main-mod-search');
+    if(!wrap){
+      wrap = document.createElement('div');
+      wrap.className = 'v121-main-mod-search search';
+      wrap.style.margin = '8px 0 10px';
+      tabs.insertAdjacentElement('afterend', wrap);
+    }
+
+    const q = ui.modSearchByGroup[group.id] || '';
+    wrap.innerHTML = `<input class="input" id="mainModifierSearchV121"
+      value="${esc(q)}"
+      placeholder="Cerca in ${esc(group.name)}..."
+      autocomplete="off"
+      aria-label="Cerca modificatore in ${esc(group.name)}">`;
+
+    const apply = value => {
+      const query = String(value || '').trim().toLowerCase();
+      ui.modSearchByGroup[group.id] = value || '';
+      let visible = 0;
+
+      $$('button.product[data-mod]', products).forEach(btn => {
+        const hay = (btn.textContent || '').toLowerCase();
+        const show = !query || hay.includes(query);
+        btn.style.display = show ? '' : 'none';
+        if(show) visible++;
+      });
+
+      let empty = products.querySelector('.v121-no-mod-results');
+      if(!visible && query){
+        if(!empty){
+          empty = document.createElement('div');
+          empty.className = 'empty v121-no-mod-results';
+          products.appendChild(empty);
+        }
+        empty.textContent = `Nessun modificatore trovato in ${group.name}`;
+      }else if(empty){
+        empty.remove();
+      }
+    };
+
+    const input = wrap.querySelector('#mainModifierSearchV121');
+    if(input){
+      input.oninput = () => apply(input.value);
+      apply(q);
+    }
+  }
+
+  const renderEntryV121MainModifierFilter = renderEntry;
+  renderEntry = function(){
+    const out = renderEntryV121MainModifierFilter();
+    v121InstallMainModifierFilter();
+    return out;
+  };
+
+</script>
 </body>
 </html>
