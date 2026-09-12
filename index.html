@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12 Professional Modular &#183; V12.3 FINAL TESTED</title>
+  <title>Pizzeria Smart V12 Professional Modular &#183; V12.3.1 FIELD FIXED</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -805,7 +805,7 @@
      V12.3 FINAL - BRIDGE REALE + PIN RUOLI + CHIUSURA GUIDATA
      ========================================================= */
 
-  const V123_VERSION='12.3-final-tested';
+  const V123_VERSION='12.3.1-field-fixed';
 
   function ensureV123State(){
     ensurePrintStationsV12();
@@ -1140,9 +1140,15 @@
     }
   },true);
 
-  const ensureV12StateV123=ensureV12State;
-  ensureV12State=function(){const out=ensureV12StateV123();ensureV123State();v123EnsurePinHashes();return out};
+  /* V12.3.1: inizializzazione sicura, senza ricorsione su ensureV12State */
+  function v123InitSafe(){
+    try{ensureV123State();v123EnsurePinHashes();return true}
+    catch(err){console.error('V12.3 init error',err);return false}
+  }
 
+
+
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{v123InitSafe();},0)},{once:true});
 
 </script>
 </body>
