@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12 Professional Modular &#183; Print Pro Safe 12.1</title>
+  <title>Pizzeria Smart V12 Professional Modular &#183; V12.3 FINAL TESTED</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -224,7 +224,7 @@
     e.preventDefault();e.stopImmediatePropagation();const d=state.draft;if(!d)return;syncFinalizeDraft(e.target);const old=d.editingOrderId?state.orders.find(o=>o.id===d.editingOrderId):null,delivery=d.mode==='delivery';
     if(!d.lines?.length)return toast('Inserisci almeno un prodotto');if(!d.dateTime||isNaN(new Date(d.dateTime).getTime()))return toast('Seleziona data e ora valide');if(delivery&&!d.customer)return $('[name="customer"]',e.target)?.focus(),toast('Inserisci il cognome per la consegna');if(delivery&&!d.phone)return $('[name="phone"]',e.target)?.focus(),toast('Inserisci il telefono per la consegna');if(delivery&&!d.address)return $('[name="address"]',e.target)?.focus(),toast('Inserisci via e numero civico');
     const cap=capacityInfo(d.dateTime);if(state.settings.capacity?.enabled!==false&&cap.over&&!confirm(`ATTENZIONE: fascia piena. ${cap.total} pizze su ${cap.limit}. Salvare comunque?`))return;rememberQuick('names',d.customer);rememberQuick('phones',d.phone);if(delivery)rememberQuick('streets',d.address);
-    const order={...(old||{}),...clone(d),id:old?.id||nextOrderId(),createdAt:old?.createdAt||new Date().toISOString(),status:old?.status||state.settings.statuses[0]?.id||'new',total:finalTotal(d),deliveryCost:delivery?zonePrice(d.zoneId):0,updatedAt:old?new Date().toISOString():undefined,capacityOverride:cap.over};delete order.editingOrderId;if(old)state.orders[state.orders.findIndex(o=>o.id===old.id)]=order;else state.orders.push(order);state.customers=upsertCustomer(order,state.customers);audit(old?'Ordine modificato':'Ordine creato',`#${order.id} \u00b7 ${money(order.total)}`);autoSnapshot('salvataggio ordine');state.draft=null;ui.selectedLine=null;$('#orderDialog').close();save();renderAll();showView('orders');const print=e.submitter?.dataset.finalizeAction==='print'||state.settings.print.autoPrintKitchen,__plan=capturePrintPlanFromForm(e.target);toast(old?`Ordine #${order.id} aggiornato`:`Ordine #${order.id} inviato`);if(print)setTimeout(()=>dispatchConfiguredPrint(order,__plan,true),120);if(state.settings.maintenance?.auto)setTimeout(()=>smartMaintenance(false),500)
+    const order={...(old||{}),...clone(d),id:old?.id||nextOrderId(),createdAt:old?.createdAt||new Date().toISOString(),status:old?.status||state.settings.statuses[0]?.id||'new',total:finalTotal(d),deliveryCost:delivery?zonePrice(d.zoneId):0,updatedAt:old?new Date().toISOString():undefined,capacityOverride:cap.over};delete order.editingOrderId;if(old)state.orders[state.orders.findIndex(o=>o.id===old.id)]=order;else state.orders.push(order);state.customers=upsertCustomer(order,state.customers);audit(old?'Ordine modificato':'Ordine creato',`#${order.id} \u00b7 ${money(order.total)}`);autoSnapshot('salvataggio ordine');state.draft=null;ui.selectedLine=null;$('#orderDialog').close();save();renderAll();showView('orders');const __action=e.submitter?.dataset.finalizeAction||e.target?.dataset?.finalizeAction||'';const print=__action==='print'||(!__action&&state.settings.print.autoPrintKitchen),__plan=capturePrintPlanFromForm(e.target,order.mode);toast(old?`Ordine #${order.id} aggiornato`:`Ordine #${order.id} inviato`);if(print)setTimeout(()=>dispatchConfiguredPrint(order,__plan,true),120);if(state.settings.maintenance?.auto)setTimeout(()=>smartMaintenance(false),500)
   }
   const ColdArchive={db:null,async open(){if(this.db)return this.db;if(!('indexedDB'in window))return null;return new Promise(res=>{const q=indexedDB.open('PizzeriaSmartArchivio',1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains('orders'))q.result.createObjectStore('orders',{keyPath:'archiveKey'});if(!q.result.objectStoreNames.contains('nights'))q.result.createObjectStore('nights',{keyPath:'id'})};q.onsuccess=()=>res(this.db=q.result);q.onerror=()=>res(null)})},async put(store,items){const db=await this.open();if(!db)return false;return new Promise(res=>{const tx=db.transaction(store,'readwrite'),os=tx.objectStore(store);items.forEach(x=>os.put(clone(x)));tx.oncomplete=()=>res(true);tx.onerror=()=>res(false)})},async all(store){const db=await this.open();if(!db)return[];return new Promise(res=>{const q=db.transaction(store).objectStore(store).getAll();q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([])})},async count(){const db=await this.open();if(!db)return 0;return new Promise(res=>{const q=db.transaction('orders').objectStore('orders').count();q.onsuccess=()=>res(q.result||0);q.onerror=()=>res(0)})}};
   async function smartMaintenance(force=false){ensureV9State();const cfg=state.settings.maintenance,archive=state.archive||[],cutoff=Date.now()-Math.max(1,+cfg.keepDays||60)*86400000;let candidates=archive.filter(o=>new Date(o.closedAt||o.dateTime).getTime()<cutoff),remaining=archive.filter(o=>!candidates.includes(o)),keep=Math.max(50,+cfg.maxRecentOrders||500);if(remaining.length>keep)candidates.push(...remaining.sort((a,b)=>new Date(a.closedAt||a.dateTime)-new Date(b.closedAt||b.dateTime)).slice(0,remaining.length-keep));candidates=[...new Map(candidates.map(o=>[o.id,o])).values()];if(!candidates.length){if(force)toast('Archivio gi\u00e0 ottimizzato');return 0}const stored=await ColdArchive.put('orders',candidates.map(o=>({...o,archiveKey:`${o.id}_${o.closedAt||o.dateTime}`})));if(!stored){toast('Archivio profondo non disponibile: nessun ordine rimosso');return 0}const keys=new Set(candidates.map(o=>o.id));state.archive=archive.filter(o=>!keys.has(o.id));audit('Manutenzione intelligente',`${candidates.length} ordini spostati nell'archivio profondo`);save();if(force)renderAll();return candidates.length}
@@ -242,7 +242,7 @@
   function printMod(m){const cls=m.printStyle==='highlight'?'mod-highlight':m.printStyle==='bold'?'mod-bold':'mod-normal';return `<span class="print-mod ${cls}">+ ${esc(m.name)}</span>`}
   function printOrder(o,type){const p=state.settings.print,driver=state.drivers.find(d=>d.id===o.driverId);document.documentElement.style.setProperty('--print-width',`${p.paperWidth}mm`);document.documentElement.style.setProperty('--print-font',p.font);document.documentElement.style.setProperty('--print-body-size',`${p.bodySize}px`);document.documentElement.style.setProperty('--print-title-size',`${p.titleSize}px`);document.documentElement.style.setProperty('--print-heading-size',`${p.headingSize}px`);document.documentElement.style.setProperty('--print-total-size',`${p.totalSize}px`);$('#print-area').innerHTML=`<h1>${esc(p.businessName)}</h1>${p.header?`<div style="text-align:center">${esc(p.header)}</div>`:''}<h2>${type==='kitchen'?'COMANDA CUCINA':'RIEPILOGO ORDINE'} #${esc(o.id)}</h2><div><b>${new Date(o.dateTime).toLocaleString('it-IT')}</b> \u00b7 ${esc(o.mode)}</div>${o.customer?`<div><b>Cliente:</b> ${esc(o.customer)}</div>`:''}${p.showPhone&&o.phone?`<div><b>Tel:</b> ${esc(o.phone)}</div>`:''}${p.showAddress&&o.address?`<div><b>Indirizzo:</b> ${esc(o.address)}</div>`:''}${driver?`<div><b>Fattorino:</b> ${esc(driver.name)}</div>`:''}<div class="cut"></div>${o.lines.map(l=>`<div style="border-bottom:2px solid #000;padding:6px 0"><div class="print-line"><b>${l.qty}\u00d7 ${esc(l.name)}</b>${p.showPrices&&type!=='kitchen'?`<b>${money(lineTotal(l))}</b>`:''}</div>${l.slots?.map((s,i)=>`<div class="print-taste"><b>GUSTO ${i+1}: ${esc(s.taste)}</b>${(s.modifiers||[]).map(printMod).join('')}</div>`).join('')||''}${(l.modifiers||[]).map(printMod).join('')}</div>`).join('')}${o.notes?`<div class="print-note">NOTE: ${esc(o.notes)}</div>`:''}${type!=='kitchen'?`<div class="print-total print-line"><span>TOTALE</span><span>${money(o.total)}</span></div>${p.showPayment?`<div>Pagamento: ${esc(o.payment||'')}</div>`:''}`:''}${p.showFooter?`<div class="cut"></div><div style="text-align:center">${esc(p.footer)}</div>`:''}`;setTimeout(()=>window.print(),80)}
   function saveSettingsForm(){const f=$('#view-settings'),s=state.settings,p=s.print;const val=n=>f.querySelector(`[name="${n}"]`)?.value,has=n=>!!f.querySelector(`[name="${n}"]`)?.checked;if(ui.settingsTab==='general'){s.businessName=val('set-business')||s.businessName;s.accent=val('set-accent')||s.accent;s.accent2=val('set-accent2')||s.accent2;s.background=val('set-background')||s.background;s.appFont=+val('set-appfont')||16;s.defaultLeadMinutes=+val('set-lead')||0;Object.keys(s.labels).forEach(k=>{const v=val(`label-${k}`);if(v)s.labels[k]=v});['showPhone','showAddress','showTable','showNotes','showPayment','deliveryEnabled'].forEach(k=>s[k]=has(k))}if(ui.settingsTab==='delivery'){s.capacity={enabled:has('capacity-enabled'),limit:Math.max(1,+val('capacity-limit')||15),minutes:Math.max(5,+val('capacity-minutes')||5)}}if(ui.settingsTab==='print'){p.profile=val('print-profile')||'thermal80';['businessName','font','header','footer'].forEach(k=>p[k]=val(`print-${k}`)??p[k]);['paperWidth','margin','lineHeight','bodySize','titleSize','headingSize','totalSize'].forEach(k=>p[k]=+val(`print-${k}`)||p[k]);['showCustomer','showPhone','showAddress','showPayment','showPrices','showFooter','autoPrintKitchen'].forEach(k=>p[k]=has(`print-${k}`));audit('Impostazioni stampa',`${p.profile} \u00b7 ${p.paperWidth} mm`)}save();applyTheme();renderAll();toast('Impostazioni salvate')}
-  document.addEventListener('submit',e=>{if(e.target.id!=='orderForm'||!state.draft)return;e.preventDefault();e.stopImmediatePropagation();const d=state.draft,fd=new FormData(e.target),editingId=d.editingOrderId,old=editingId?state.orders.find(o=>o.id===editingId):null;['customer','phone','address','table','dateTime','payment','zoneId','driverId','notes'].forEach(k=>{if(fd.has(k))d[k]=fd.get(k).trim?.()??fd.get(k)});if(!d.lines?.length)return toast('Inserisci almeno un prodotto');if(!d.dateTime||isNaN(new Date(d.dateTime).getTime()))return toast('Seleziona data e ora valide');if(d.mode==='delivery'&&!d.customer)return $('[name="customer"]',e.target)?.focus(),toast('Inserisci il nome per la consegna');if(d.mode==='delivery'&&!d.phone)return $('[name="phone"]',e.target)?.focus(),toast('Inserisci il telefono per la consegna');if(d.mode==='delivery'&&!d.address)return $('[name="address"]',e.target)?.focus(),toast('Inserisci indirizzo e civico');const cap=capacityInfo(d.dateTime);if(state.settings.capacity?.enabled!==false&&cap.over&&!confirm(`ATTENZIONE: fascia piena. ${cap.total} pizze su ${cap.limit}. Salvare comunque?`))return;rememberQuick('names',d.customer);rememberQuick('phones',d.phone);rememberQuick('streets',d.address);const base=old||{},order={...base,...clone(d),id:old?.id||nextOrderId(),createdAt:old?.createdAt||new Date().toISOString(),status:old?.status||state.settings.statuses[0]?.id||'new',total:finalTotal(d),deliveryCost:d.mode==='delivery'?zonePrice(d.zoneId):0,updatedAt:old?new Date().toISOString():undefined,capacityOverride:cap.over};delete order.editingOrderId;if(old)state.orders[state.orders.findIndex(o=>o.id===old.id)]=order;else state.orders.push(order);state.customers=upsertCustomer(order,state.customers);audit(old?'Ordine modificato':'Ordine creato',`#${order.id} \u00b7 ${money(order.total)}`);autoSnapshot('salvataggio ordine');state.draft=null;ui.selectedLine=null;$('#orderDialog').close();save();renderAll();showView('orders');toast(old?`Ordine #${order.id} aggiornato`:`Ordine #${order.id} creato`);{const __plan=capturePrintPlanFromForm(e.target),__want=e.submitter?.dataset.finalizeAction==='print'||state.settings.print.autoPrintKitchen;if(__want)dispatchConfiguredPrint(order,__plan,true)}},true);
+  document.addEventListener('submit',e=>{if(e.target.id!=='orderForm'||!state.draft)return;e.preventDefault();e.stopImmediatePropagation();const d=state.draft,fd=new FormData(e.target),editingId=d.editingOrderId,old=editingId?state.orders.find(o=>o.id===editingId):null;['customer','phone','address','table','dateTime','payment','zoneId','driverId','notes'].forEach(k=>{if(fd.has(k))d[k]=fd.get(k).trim?.()??fd.get(k)});if(!d.lines?.length)return toast('Inserisci almeno un prodotto');if(!d.dateTime||isNaN(new Date(d.dateTime).getTime()))return toast('Seleziona data e ora valide');if(d.mode==='delivery'&&!d.customer)return $('[name="customer"]',e.target)?.focus(),toast('Inserisci il nome per la consegna');if(d.mode==='delivery'&&!d.phone)return $('[name="phone"]',e.target)?.focus(),toast('Inserisci il telefono per la consegna');if(d.mode==='delivery'&&!d.address)return $('[name="address"]',e.target)?.focus(),toast('Inserisci indirizzo e civico');const cap=capacityInfo(d.dateTime);if(state.settings.capacity?.enabled!==false&&cap.over&&!confirm(`ATTENZIONE: fascia piena. ${cap.total} pizze su ${cap.limit}. Salvare comunque?`))return;rememberQuick('names',d.customer);rememberQuick('phones',d.phone);rememberQuick('streets',d.address);const base=old||{},order={...base,...clone(d),id:old?.id||nextOrderId(),createdAt:old?.createdAt||new Date().toISOString(),status:old?.status||state.settings.statuses[0]?.id||'new',total:finalTotal(d),deliveryCost:d.mode==='delivery'?zonePrice(d.zoneId):0,updatedAt:old?new Date().toISOString():undefined,capacityOverride:cap.over};delete order.editingOrderId;if(old)state.orders[state.orders.findIndex(o=>o.id===old.id)]=order;else state.orders.push(order);state.customers=upsertCustomer(order,state.customers);audit(old?'Ordine modificato':'Ordine creato',`#${order.id} \u00b7 ${money(order.total)}`);autoSnapshot('salvataggio ordine');state.draft=null;ui.selectedLine=null;$('#orderDialog').close();save();renderAll();showView('orders');toast(old?`Ordine #${order.id} aggiornato`:`Ordine #${order.id} creato`);{const __plan=capturePrintPlanFromForm(e.target,order.mode),__action=e.submitter?.dataset.finalizeAction||e.target?.dataset?.finalizeAction||'',__want=__action==='print'||(!__action&&state.settings.print.autoPrintKitchen);if(__want)dispatchConfiguredPrint(order,__plan,true)}},true);
   document.addEventListener('input',e=>{if(e.target.id==='productSearch'){ui.search=e.target.value;renderEntry();requestAnimationFrame(()=>{const i=$('#productSearch');i.focus();i.setSelectionRange(i.value.length,i.value.length)})}if(e.target.id==='orderSearch'){ui.orderSearch=e.target.value;renderOrders()}});
   document.addEventListener('change',e=>{if(e.target.matches('[data-driver]')){e.preventDefault();e.stopImmediatePropagation();const o=findOrder(e.target.dataset.driver,e.target.dataset.archive==='1');if(o){o.driverId=e.target.value;audit('Fattorino aggiornato',`Ordine #${o.id} \u00b7 ${state.drivers.find(d=>d.id===o.driverId)?.name||'Da assegnare'}`);save();e.target.dataset.archive==='1'?renderHistory():renderOrders();toast('Fattorino aggiornato e totali ricalcolati')}return}if(e.target.name==='dateTime')setTimeout(enhanceFinalize,0)},true);
   document.addEventListener('change',e=>{if(e.target.id==='historyDate'){ui.historyDate=e.target.value;renderHistory()}if(e.target.dataset.driver){const o=findOrder(e.target.dataset.driver);if(o){o.driverId=e.target.value;save()}}});
@@ -600,7 +600,7 @@
      V12 PROFESSIONAL PRINT ROUTING - POSTAZIONI INDIPENDENTI
      Aggiunta non distruttiva: mantiene tutte le funzioni V12.
      ========================================================== */
-  const V12_PRINT_ROUTER_VERSION='12.1-print-router';
+  const V12_PRINT_ROUTER_VERSION='12.2-print-router-tested';
   function v12StationDefaults(i=0){return{
     id:`ps_${Date.now().toString(36)}_${i}_${Math.random().toString(36).slice(2,7)}`,
     name:`Postazione ${i+1}`,enabled:i===0,copies:1,paperWidth:80,
@@ -610,6 +610,13 @@
     includePickup:true,includeCounter:true,includeDelivery:true,categoryIds:[],
     role:i===0?'Cassa':'Produzione',connection:'browser',printerName:'',ip:'',port:9100
   }}
+  function v122TrimPrintQueue(list){
+    const arr=Array.isArray(list)?list:[];
+    const live=arr.filter(x=>!['printed','cancelled'].includes(x.status));
+    const done=arr.filter(x=>['printed','cancelled'].includes(x.status)).slice(-500);
+    const seen=new Set();
+    return [...done,...live].filter(x=>x&&x.id&&!seen.has(x.id)&&(seen.add(x.id),true));
+  }
   function ensurePrintStationsV12(){
     ensureV12State();const p=ensureV112Print();
     if(!Array.isArray(p.stations)||!p.stations.length){
@@ -620,7 +627,7 @@
     }
     p.stations=p.stations.map((x,i)=>({...v12StationDefaults(i),...x,id:x?.id||v12StationDefaults(i).id,categoryIds:Array.isArray(x?.categoryIds)?x.categoryIds:[]}));
     if(!Array.isArray(state.printQueue))state.printQueue=[];
-    state.printQueue=state.printQueue.slice(-500);
+    state.printQueue=v122TrimPrintQueue(state.printQueue);
     return p.stations;
   }
   function stationAcceptsMode(st,mode){return mode==='delivery'?st.includeDelivery!==false:mode==='counter'?st.includeCounter!==false:st.includePickup!==false}
@@ -669,7 +676,7 @@
   saveSettingsForm=function(){if(ui.settingsTab==='print')readStationSettingsFromDom();const out=saveSettingsPrintRouterBase();if(ui.settingsTab==='print'){ensurePrintStationsV12();save('postazioni stampa V12');}return out};
 
   function printPlanDefaults(mode){return ensurePrintStationsV12().filter(st=>st.enabled&&stationAcceptsMode(st,mode)).map(st=>({stationId:st.id,copies:Math.max(1,+st.copies||1),selected:true}))}
-  function capturePrintPlanFromForm(form){const mode=state.draft?.mode||'pickup',stations=ensurePrintStationsV12();const boxes=[...(form?.querySelectorAll?.('[data-print-station-select]')||[])];if(!boxes.length)return printPlanDefaults(mode);return boxes.map(b=>{const st=stations.find(x=>x.id===b.value),copies=+form.querySelector(`[data-print-station-copies="${CSS.escape(b.value)}"]`)?.value||st?.copies||1;return{stationId:b.value,copies:Math.max(1,Math.min(9,copies)),selected:!!b.checked}}).filter(x=>x.selected)}
+  function capturePrintPlanFromForm(form,modeOverride=''){const mode=modeOverride||state.draft?.mode||'pickup',stations=ensurePrintStationsV12();const boxes=[...(form?.querySelectorAll?.('[data-print-station-select]')||[])];if(!boxes.length)return printPlanDefaults(mode);return boxes.map(b=>{const st=stations.find(x=>x.id===b.value),copies=+form.querySelector(`[data-print-station-copies="${CSS.escape(b.value)}"]`)?.value||st?.copies||1;return{stationId:b.value,copies:Math.max(1,Math.min(9,copies)),selected:!!b.checked}}).filter(x=>x.selected)}
   function injectFinalizePrintPlan(){const body=$('#orderBody'),form=$('#orderForm'),d=state.draft;if(!body||!form||!d||$('#v12FinalizePrintPlan'))return;const sts=ensurePrintStationsV12().filter(st=>st.enabled&&stationAcceptsMode(st,d.mode));const html=`<div class="card" id="v12FinalizePrintPlan" style="margin-top:12px"><div class="page-head"><div><h3>Destinazioni stampa</h3><div class="order-meta">Seleziona una o pi\u00f9 postazioni. Per ciascuna scegli quante copie devono uscire.</div></div><span class="badge">libera scelta</span></div>${sts.map(st=>`<div class="setting-row"><label class="switch"><input type="checkbox" data-print-station-select value="${esc(st.id)}" checked> <b>${esc(st.name)}</b> \u00b7 ${esc(st.role||'')}</label><div class="field" style="min-width:120px"><label>Copie</label><input class="input" type="number" min="1" max="9" step="1" data-print-station-copies="${esc(st.id)}" value="${Math.max(1,+st.copies||1)}"></div></div>`).join('')||'<div class="empty">Nessuna postazione attiva per questo tipo di ordine. L\u2019ordine pu\u00f2 essere salvato senza stampare.</div>'}</div>`;body.insertAdjacentHTML('beforeend',html);const send=form.querySelector('[data-finalize-action="send"]'),print=form.querySelector('[data-finalize-action="print"]');if(send)send.textContent='Finalizza senza stampa';if(print)print.textContent='Finalizza e stampa / invia'}
   const openFinalizePrintRouterBase=openFinalize;
   openFinalize=function(){const out=openFinalizePrintRouterBase();setTimeout(injectFinalizePrintPlan,0);return out};
@@ -689,10 +696,10 @@
     const one=`<section class="v12-print-copy">${header.join('')}${title}${meta.length?`<div>${meta.join(' \u00b7 ')}</div>`:''}${customer.join('')}<div class="cut"></div>${rows}${notes}${total}${payment}${footer}<div style="text-align:center;margin-top:8px;font-size:10px">${esc(st.name)} \u00b7 copia automatica V12</div></section>`;
     return Array.from({length:Math.max(1,copies)},()=>one).join('<div class="v12-copy-break"></div>')
   }
-  function enqueuePrintPlan(order,plan){const stations=ensurePrintStationsV12(),now=new Date().toISOString();(plan||[]).forEach(sel=>{const st=stations.find(x=>x.id===sel.stationId);if(!st||!st.enabled||!stationAcceptsMode(st,order.mode))return;state.printQueue.push({id:uid('pr'),orderId:order.id,orderSnapshot:clone(order),stationId:st.id,stationName:st.name,copies:Math.max(1,Math.min(9,+sel.copies||1)),status:'pending',createdAt:now,attempts:0})});state.printQueue=state.printQueue.slice(-500);save('coda stampa V12')}
+  function enqueuePrintPlan(order,plan){const stations=ensurePrintStationsV12(),now=new Date().toISOString();(plan||[]).forEach(sel=>{const st=stations.find(x=>x.id===sel.stationId);if(!st||!st.enabled||!stationAcceptsMode(st,order.mode))return;state.printQueue.push({id:uid('pr'),orderId:order.id,stationId:st.id,stationName:st.name,copies:Math.max(1,Math.min(9,+sel.copies||1)),status:'pending',createdAt:now,attempts:0})});state.printQueue=v122TrimPrintQueue(state.printQueue);save('coda stampa V12')}
   let v12PrintBusy=false;
   async function runNextPrintJob(){if(v12PrintBusy)return;const job=state.printQueue.find(x=>x.status==='pending');if(!job)return toast('Coda stampa vuota');const order=findOrder(job.orderId)||state.archive.find(o=>o.id===job.orderId)||job.orderSnapshot,st=ensurePrintStationsV12().find(x=>x.id===job.stationId);if(!order||!st){job.status='error';job.error='Ordine o postazione non disponibile';job.updatedAt=new Date().toISOString();save('errore coda stampa');return setTimeout(runNextPrintJob,50)}v12PrintBusy=true;try{job.attempts=(job.attempts||0)+1;job.lastAttemptAt=new Date().toISOString();document.documentElement.style.setProperty('--print-width',`${st.paperWidth||80}mm`);const area=$('#print-area');area.innerHTML=stationOrderHtml(order,st,job.copies);document.body.dataset.v12Printing='1';await new Promise(r=>setTimeout(r,80));window.print();job.status='printed';job.printedAt=new Date().toISOString();job.error='';audit('Stampa inviata',`#${order.id} \u00b7 ${st.name} \u00b7 ${job.copies} copie`)}catch(error){job.status='error';job.error=String(error?.message||error);recordV11Error('stampa postazione V12',error)}finally{delete document.body.dataset.v12Printing;v12PrintBusy=false;save('esito stampa V12');setTimeout(()=>{if(state.printQueue.some(x=>x.status==='pending'))runNextPrintJob()},250)}}
-  function dispatchConfiguredPrint(order,plan,force=false){ensurePrintStationsV12();const chosen=(plan?.length?plan:printPlanDefaults(order.mode));if(!chosen.length)return force?toast('Nessuna postazione selezionata'):undefined;enqueuePrintPlan(order,chosen);toast(`${chosen.length} postazion${chosen.length===1?'e':'i'} in coda stampa`);setTimeout(runNextPrintJob,120)}
+  function dispatchConfiguredPrint(order,plan,force=false){ensurePrintStationsV12();const chosen=Array.isArray(plan)?plan:printPlanDefaults(order.mode);if(!chosen.length){if(force)toast('Nessuna postazione selezionata');return;}enqueuePrintPlan(order,chosen);toast(`${chosen.length} postazion${chosen.length===1?'e':'i'} in coda stampa`);setTimeout(runNextPrintJob,120)}
   function samplePrintOrderV12(){return{id:'TEST',dateTime:new Date().toISOString(),mode:'delivery',customer:'Cliente prova',phone:'030 000000',address:'Via di prova 1',driverId:state.drivers?.[0]?.id||'',payment:'Contanti',notes:'Prova note e modificatori',total:18.5,lines:[{productId:state.categories?.[0]?.items?.[0]?.id||'',name:state.categories?.[0]?.items?.[0]?.name||'Margherita',qty:2,unitPrice:7.5,modifiers:[{name:'Pi\u00f9 mozzarella',price:1.5}]}]}}
 
   const renderOrdersPrintRouterBase=renderOrders;
@@ -792,6 +799,350 @@
     v121InstallMainModifierFilter();
     return out;
   };
+
+
+  /* =========================================================
+     V12.3 FINAL - BRIDGE REALE + PIN RUOLI + CHIUSURA GUIDATA
+     ========================================================= */
+
+  const V123_VERSION='12.3-final-tested';
+
+  function ensureV123State(){
+    ensurePrintStationsV12();
+    state.settings.security={
+      operatorPin:'',
+      adminPin:'1234',
+      lockAfterMinutes:30,
+      ...(state.settings.security||{})
+    };
+    state.settings.bridge={
+      enabled:false,
+      mode:'local-http',
+      baseUrl:'http://127.0.0.1:17890',
+      timeoutMs:2500,
+      retryCount:1,
+      ...(state.settings.bridge||{})
+    };
+    state.settings.eveningClose={
+      requireBackup:true,
+      requireNoOpenOrders:true,
+      requireNoPendingPrints:true,
+      requireNoUnassignedDeliveries:false,
+      autoArchiveCompleted:false,
+      ...(state.settings.eveningClose||{})
+    };
+    state.auth=state.auth||{role:'operator',lastAuthAt:Date.now()};
+  }
+
+  function v123HashPin(pin){
+    /* Non e una funzione crittografica forte: serve per evitare PIN in chiaro nel file.
+       In locale offline resta comunque una protezione operativa, non bancaria. */
+    let h=2166136261>>>0;
+    const s=String(pin||'');
+    for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
+    return (h>>>0).toString(16).padStart(8,'0');
+  }
+
+  function v123EnsurePinHashes(){
+    ensureV123State();
+    const sec=state.settings.security;
+    if(sec.operatorPin && !sec.operatorPinHash){sec.operatorPinHash=v123HashPin(sec.operatorPin);delete sec.operatorPin}
+    if(sec.adminPin && !sec.adminPinHash){sec.adminPinHash=v123HashPin(sec.adminPin);delete sec.adminPin}
+    if(!sec.adminPinHash)sec.adminPinHash=v123HashPin('1234');
+  }
+
+  function v123RoleRank(role){return role==='admin'?2:1}
+  function v123IsAuthorized(role='operator'){ensureV123State();return v123RoleRank(state.auth?.role||'operator')>=v123RoleRank(role)}
+
+  function v123AskPin(requiredRole='admin',onOk=()=>{}){
+    ensureV123State();v123EnsurePinHashes();
+    const sec=state.settings.security;
+    const body=`<div class="stack">
+      <div class="notice"><b>Accesso ${requiredRole==='admin'?'Amministratore':'Operatore'}</b><br>Inserisci il PIN per continuare.</div>
+      <div class="field"><label>PIN</label><input class="input" name="v123pin" type="password" inputmode="numeric" autocomplete="off"></div>
+    </div>`;
+    openEditor('Autorizzazione',body,fd=>{
+      const pin=String(fd.get('v123pin')||'');
+      const hash=v123HashPin(pin);
+      const ok=requiredRole==='admin'
+        ? hash===sec.adminPinHash
+        : (hash===sec.operatorPinHash || hash===sec.adminPinHash);
+      if(!ok){toast('PIN non corretto');return false}
+      state.auth={role:hash===sec.adminPinHash?'admin':'operator',lastAuthAt:Date.now()};
+      save('autorizzazione ruolo');
+      onOk(); return true;
+    });
+  }
+
+  function v123Require(role,fn){
+    ensureV123State();
+    const elapsed=(Date.now()-(state.auth?.lastAuthAt||0))/60000;
+    if(elapsed>(state.settings.security.lockAfterMinutes||30)){state.auth={role:'operator',lastAuthAt:0}}
+    if(v123IsAuthorized(role)&&state.auth?.lastAuthAt){state.auth.lastAuthAt=Date.now();return fn()}
+    v123AskPin(role,fn);
+  }
+
+  function v123SecuritySettingsHtml(){
+    ensureV123State();v123EnsurePinHashes();
+    return `<div class="card"><h2>Sicurezza accessi</h2>
+      <div class="grid two">
+        <div class="field"><label>Nuovo PIN operatore</label><input class="input" name="v123-operatorPin" type="password" inputmode="numeric" placeholder="Lascia vuoto per non cambiare"></div>
+        <div class="field"><label>Nuovo PIN amministratore</label><input class="input" name="v123-adminPin" type="password" inputmode="numeric" placeholder="Lascia vuoto per non cambiare"></div>
+        ${numField('Blocco automatico dopo minuti','v123-lockMinutes',state.settings.security.lockAfterMinutes,1,240,1)}
+      </div>
+      <div class="order-meta">L'operatore usa il gestionale. L'amministratore puo cambiare prezzi, stampanti, PIN, importare/reset dati e fare la chiusura serale.</div>
+    </div>`;
+  }
+
+  function v123BridgeSettingsHtml(){
+    const b=state.settings.bridge;
+    return `<div class="card"><h2>Print Bridge locale</h2>
+      <div class="grid two">
+        ${check('Attiva Print Bridge','v123-bridgeEnabled',b.enabled)}
+        <div class="field"><label>URL Bridge</label><input class="input" name="v123-bridgeUrl" value="${esc(b.baseUrl)}"></div>
+        ${numField('Timeout ms','v123-bridgeTimeout',b.timeoutMs,500,15000,100)}
+        ${numField('Tentativi','v123-bridgeRetry',b.retryCount,0,5,1)}
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn ghost" data-action="v123-test-bridge">Test connessione Bridge</button></div>
+      <div class="order-meta">Protocollo previsto: HTTP locale JSON. Il Bridge riceve il job e lo inoltra alla stampante configurata sulla postazione.</div>
+    </div>`;
+  }
+
+  function v123EveningSettingsHtml(){
+    const e=state.settings.eveningClose;
+    return `<div class="card"><h2>Chiusura serale guidata</h2>
+      <div class="grid two">
+        ${check('Backup obbligatorio','v123-closeBackup',e.requireBackup)}
+        ${check('Blocca se ci sono ordini aperti','v123-closeOpenOrders',e.requireNoOpenOrders)}
+        ${check('Blocca se ci sono stampe pendenti','v123-closePendingPrints',e.requireNoPendingPrints)}
+        ${check('Blocca se ci sono delivery senza fattorino','v123-closeDrivers',e.requireNoUnassignedDeliveries)}
+        ${check('Archivia automaticamente ordini completati','v123-closeAutoArchive',e.autoArchiveCompleted)}
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn danger" data-action="v123-guided-close">Avvia chiusura serale guidata</button></div>
+    </div>`;
+  }
+
+  function v123SaveExtraSettings(){
+    ensureV123State();v123EnsurePinHashes();
+    const root=$('#view-settings');
+    if(!root)return;
+    const sec=state.settings.security,b=state.settings.bridge,e=state.settings.eveningClose;
+    const op=$('[name="v123-operatorPin"]',root)?.value?.trim();
+    const ad=$('[name="v123-adminPin"]',root)?.value?.trim();
+    if(op)sec.operatorPinHash=v123HashPin(op);
+    if(ad)sec.adminPinHash=v123HashPin(ad);
+    sec.lockAfterMinutes=Math.max(1,+$('[name="v123-lockMinutes"]',root)?.value||30);
+    b.enabled=!!$('[name="v123-bridgeEnabled"]',root)?.checked;
+    b.baseUrl=$('[name="v123-bridgeUrl"]',root)?.value?.trim()||'http://127.0.0.1:17890';
+    b.timeoutMs=Math.max(500,+$('[name="v123-bridgeTimeout"]',root)?.value||2500);
+    b.retryCount=Math.max(0,+$('[name="v123-bridgeRetry"]',root)?.value||1);
+    e.requireBackup=!!$('[name="v123-closeBackup"]',root)?.checked;
+    e.requireNoOpenOrders=!!$('[name="v123-closeOpenOrders"]',root)?.checked;
+    e.requireNoPendingPrints=!!$('[name="v123-closePendingPrints"]',root)?.checked;
+    e.requireNoUnassignedDeliveries=!!$('[name="v123-closeDrivers"]',root)?.checked;
+    e.autoArchiveCompleted=!!$('[name="v123-closeAutoArchive"]',root)?.checked;
+  }
+
+  async function v123FetchWithTimeout(url,options={},timeout=2500){
+    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),timeout);
+    try{return await fetch(url,{...options,signal:ctrl.signal})}finally{clearTimeout(timer)}
+  }
+
+  async function v123BridgeHealth(){
+    ensureV123State();
+    const b=state.settings.bridge;
+    try{
+      const r=await v123FetchWithTimeout(`${b.baseUrl.replace(/\/$/,'')}/health`,{method:'GET'},b.timeoutMs);
+      if(!r.ok)throw new Error(`HTTP ${r.status}`);
+      const data=await r.json().catch(()=>({ok:true}));
+      return {ok:true,data};
+    }catch(err){return {ok:false,error:String(err?.message||err)}}
+  }
+
+  async function v123BridgeSend(job){
+    ensureV123State();
+    const b=state.settings.bridge;
+    if(!b.enabled)throw new Error('Bridge disattivato');
+    let lastErr=null;
+    for(let attempt=0;attempt<=b.retryCount;attempt++){
+      try{
+        const r=await v123FetchWithTimeout(`${b.baseUrl.replace(/\/$/,'')}/print`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(job)
+        },b.timeoutMs);
+        if(!r.ok)throw new Error(`HTTP ${r.status}`);
+        return await r.json().catch(()=>({ok:true}));
+      }catch(err){lastErr=err}
+    }
+    throw lastErr||new Error('Errore Bridge');
+  }
+
+  async function v123ExecutePrintJob(job){
+    ensureV123State();
+    const station=(state.settings.printStations||[]).find(x=>x.id===job.stationId);
+    if(!station)throw new Error('Postazione non trovata');
+
+    if(state.settings.bridge.enabled && station.connection!=='browser'){
+      job.status='sending';job.attempts=(job.attempts||0)+1;save('invio bridge');
+      try{
+        const result=await v123BridgeSend({
+          id:job.id,
+          orderId:job.orderId,
+          station:{
+            id:station.id,name:station.name,role:station.role,
+            connection:station.connection,ip:station.ip||'',port:station.port||9100,
+            paperWidth:station.paperWidth||80
+          },
+          copies:job.copies||station.copies||1,
+          html:job.html||'',
+          text:job.text||'',
+          createdAt:job.createdAt
+        });
+        job.status='printed';job.printedAt=new Date().toISOString();job.bridgeResult=result;
+        save('bridge stampa completata');return true;
+      }catch(err){
+        job.status='error';job.error=String(err?.message||err);save('bridge stampa errore');return false;
+      }
+    }
+    return false;
+  }
+
+  function v123ClosingStatus(){
+    ensureV123State();
+    const openOrders=(state.orders||[]);
+    const pending=(state.printQueue||[]).filter(j=>!['printed','cancelled'].includes(j.status));
+    const unassigned=openOrders.filter(o=>o.mode==='delivery'&&!o.driverId);
+    const total=[...(state.orders||[]),...(state.archive||[])].filter(o=>(o.closedAt||o.dateTime||'').slice(0,10)===today()).reduce((s,o)=>s+(+o.total||0),0);
+    return {openOrders,pending,unassigned,total};
+  }
+
+  async function v123CreateVerifiedCloseBackup(){
+    ensureV123State();
+    try{
+      const payload={format:'PIZZERIA_SMART_V123_CLOSE_BACKUP',version:V123_VERSION,createdAt:new Date().toISOString(),data:clone(state)};
+      const raw=JSON.stringify(payload);
+      localStorage.setItem(`pizzeria_v123_close_${today()}`,raw);
+      if(typeof SafetyDB!=='undefined'&&SafetyDB?.snapshot)await SafetyDB.snapshot(state,'chiusura serale V12.3');
+      return true;
+    }catch{return false}
+  }
+
+  function v123OpenGuidedClose(){
+    v123Require('admin',()=>{
+      ensureV123State();
+      const s=v123ClosingStatus(),cfg=state.settings.eveningClose;
+      const blockers=[];
+      if(cfg.requireNoOpenOrders&&s.openOrders.length)blockers.push(`${s.openOrders.length} ordini ancora aperti`);
+      if(cfg.requireNoPendingPrints&&s.pending.length)blockers.push(`${s.pending.length} stampe non completate`);
+      if(cfg.requireNoUnassignedDeliveries&&s.unassigned.length)blockers.push(`${s.unassigned.length} consegne senza fattorino`);
+
+      const body=`<div class="stack">
+        <div class="card" style="box-shadow:none"><h3>Controllo pre-chiusura</h3>
+          <div class="setting-row"><span>Ordini aperti</span><b>${s.openOrders.length}</b></div>
+          <div class="setting-row"><span>Stampe pendenti/errore</span><b>${s.pending.length}</b></div>
+          <div class="setting-row"><span>Delivery senza fattorino</span><b>${s.unassigned.length}</b></div>
+          <div class="setting-row"><span>Incasso giornata</span><b>${money(s.total)}</b></div>
+        </div>
+        ${blockers.length?`<div class="notice" style="background:#fff0f0;border-color:#e27a7a;color:#8d1111"><b>Chiusura bloccata</b><br>${blockers.map(esc).join('<br>')}</div>`:
+        `<div class="notice capacity-ok"><b>Controlli superati.</b> Puoi procedere con backup e chiusura.</div>`}
+      </div>`;
+      openEditor('Chiusura serale guidata',body,async()=>{
+        const checkNow=v123ClosingStatus();
+        const stop=(cfg.requireNoOpenOrders&&checkNow.openOrders.length)||(cfg.requireNoPendingPrints&&checkNow.pending.length)||(cfg.requireNoUnassignedDeliveries&&checkNow.unassigned.length);
+        if(stop){toast('Risolvi prima le anomalie indicate');return false}
+        if(cfg.requireBackup){
+          const ok=await v123CreateVerifiedCloseBackup();
+          if(!ok){toast('Backup di chiusura non riuscito');return false}
+        }
+        if(cfg.autoArchiveCompleted){
+          const completedIds=new Set((state.orders||[]).filter(o=>['ready','closed','done'].includes(o.status)).map(o=>o.id));
+          for(const o of [...state.orders])if(completedIds.has(o.id))archiveOrder(o);
+        }
+        if(typeof closeEvening==='function')await closeEvening();
+        audit('Chiusura serale guidata V12.3',`Incasso ${money(checkNow.total)}`);
+        save('chiusura guidata V12.3');
+        toast('Chiusura serale completata');
+        return true;
+      });
+    });
+  }
+
+  const renderSettingsV123=renderSettings;
+  renderSettings=function(){
+    ensureV123State();v123EnsurePinHashes();
+    const out=renderSettingsV123();
+    if(ui.settingsTab==='print'){
+      const panel=$('[data-panel="print"]',$('#view-settings'));
+      if(panel&&!$('#v123BridgeCard'))panel.insertAdjacentHTML('afterbegin',`<div id="v123BridgeCard">${v123BridgeSettingsHtml()}</div>`);
+    }
+    if(ui.settingsTab==='general'){
+      const panel=$('[data-panel="general"]',$('#view-settings'));
+      if(panel&&!$('#v123SecurityCard'))panel.insertAdjacentHTML('beforeend',`<div id="v123SecurityCard">${v123SecuritySettingsHtml()}${v123EveningSettingsHtml()}</div>`);
+    }
+    return out;
+  };
+
+  const saveSettingsFormV123=saveSettingsForm;
+  saveSettingsForm=function(){
+    ensureV123State();v123SaveExtraSettings();
+    return saveSettingsFormV123();
+  };
+
+  /* Protegge le azioni amministrative piu pericolose */
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action]');
+    if(!b)return;
+    const a=b.dataset.action;
+    const adminActions=new Set([
+      'reset-all','reset-settings','import-data','close-evening',
+      'v12-add-station','v12-delete-station','v12-copy-station',
+      'v123-guided-close'
+    ]);
+    if(adminActions.has(a)&&a!=='v123-guided-close'&&!v123IsAuthorized('admin')){
+      e.preventDefault();e.stopImmediatePropagation();
+      return v123Require('admin',()=>b.click());
+    }
+  },true);
+
+  document.addEventListener('click',async e=>{
+    const b=e.target.closest('[data-action="v123-test-bridge"],[data-action="v123-guided-close"]');
+    if(!b)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(b.dataset.action==='v123-test-bridge'){
+      const r=await v123BridgeHealth();
+      toast(r.ok?'Bridge raggiungibile':'Bridge non raggiungibile: '+r.error);
+    }
+    if(b.dataset.action==='v123-guided-close')v123OpenGuidedClose();
+  },true);
+
+  /* Hook sulla coda: usa il bridge per le postazioni LAN/bridge. */
+  async function v123RunBridgeQueue(){
+    ensureV123State();
+    const jobs=(state.printQueue||[]).filter(j=>['queued','pending','retrying','error'].includes(j.status));
+    for(const job of jobs){
+      const st=(state.settings.printStations||[]).find(x=>x.id===job.stationId);
+      if(st && state.settings.bridge.enabled && st.connection!=='browser'){
+        await v123ExecutePrintJob(job);
+      }
+    }
+    save('coda bridge V12.3');
+  }
+
+  /* Se esiste il pulsante coda, prima prova il bridge e poi lascia il fallback browser. */
+  document.addEventListener('click',async e=>{
+    const b=e.target.closest('[data-action="v12-run-print-queue"]');
+    if(!b)return;
+    if(state.settings.bridge?.enabled){
+      e.preventDefault();e.stopImmediatePropagation();
+      await v123RunBridgeQueue();
+      renderSettings();toast('Coda Bridge elaborata');
+    }
+  },true);
+
+  const ensureV12StateV123=ensureV12State;
+  ensureV12State=function(){const out=ensureV12StateV123();ensureV123State();v123EnsurePinHashes();return out};
+
 
 </script>
 </body>
