@@ -498,6 +498,25 @@
     return state;
   }
 
+  /* V12: un'unica sorgente per gli orari configurati, valida anche per oggi. */
+  function configuredScheduleV12(day=today()){
+    ensureV12State();
+    const schedule=state.settings.schedule||{},step=Math.max(5,+schedule.slotMinutes||5),open=schedule.open||'17:00',close=schedule.close||'22:00',start=minuteOfDay(open),rawEnd=minuteOfDay(close),end=rawEnd<=start?rawEnd+1440:rawEnd,slots=[];
+    for(let minute=start;minute<=end;minute+=step)slots.push(dateTimeValue(day,minute));
+    return{day,step,open,close,start,end,slots};
+  }
+
+  slotChoices=function(day,selected){
+    const configured=configuredScheduleV12(day),now=Date.now(),zoneId=state.draft?.mode==='delivery'?state.draft.zoneId:'';
+    const html=configured.slots.map(iso=>{const cap=capacityInfo(iso),ratio=cap.total/cap.limit,kind=cap.over?'full':ratio>=.8?'warn':'ok',past=new Date(iso).getTime()<now-60000,routeCount=zoneId?state.orders.filter(o=>!o.cancelled&&o.mode==='delivery'&&o.zoneId===zoneId&&Math.abs(new Date(o.dateTime)-new Date(iso))<configured.step*60000).length:0;return `<button type="button" class="time-choice ${kind} ${selected===iso?'selected':''}" data-time-slot="${esc(iso)}" ${past?'disabled':''}>${esc(timeOf(iso))}<small>${cap.total}/${cap.limit} pizze${routeCount?` &middot; ${routeCount} consegn${routeCount===1?'a':'e'} zona`:''}</small></button>`}).join('');
+    return html||'<div class="empty">Nessun orario configurato</div>';
+  };
+
+  capacityDashboard=function(){
+    const configured=configuredScheduleV12(today()),cfg=state.settings.capacity||{limit:15},now=Date.now();
+    return `<div class="card" style="margin-top:12px"><div class="page-head"><div><h2>Fasce di oggi: ${esc(configured.open)}-${esc(configured.close)}</h2><div class="order-meta">Sono mostrati esclusivamente gli orari configurati. Tocca una fascia disponibile per preparare un nuovo ordine.</div></div><span class="badge">Max ${cfg.limit||15}/${configured.step} min</span></div><div class="capacity-strip">${configured.slots.map(iso=>{const load=slotLoadAt(iso),ratio=load.count/load.limit,kind=ratio>=1?'full':ratio>=.7?'warn':'ok',past=new Date(iso).getTime()<now-60000;return `<button class="slot-card ${kind}" data-slot-time="${esc(iso)}" ${past?'disabled':''}><b>${esc(timeOf(iso))}</b><span>${load.count}/${load.limit} pizze</span></button>`}).join('')}</div></div>`;
+  };
+
   function v12ModuleReport(){
     ensureV12State();
     const modules=V12Modules.inspect(),info={
@@ -566,7 +585,7 @@
   window.addEventListener('online',()=>setSave('Online - dati protetti localmente'));window.addEventListener('offline',()=>setSave('Offline - dati protetti'));
 
   setInterval(()=>{if(state?.settings?.professional?.autoMaintenance!==false)runV113Maintenance(false).catch(error=>recordV11Error('manutenzione programmata',error))},30*60000);
-  if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js?v=20').then(r=>r.update()).catch(error=>recordV11Error('service worker',error));
+  if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js?v=21').then(r=>r.update()).catch(error=>recordV11Error('service worker',error));
   window.addEventListener('beforeunload',()=>{try{localStorage.setItem('pizzeria_smart_v2',JSON.stringify(state))}catch{}});
   load();
   </script>
