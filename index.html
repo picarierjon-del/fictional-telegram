@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12 Professional Modular &#183; V12.3.2 FIELD RELEASE</title>
+  <title>Pizzeria Smart V12.3.3 STABLE RESPONSIVE</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -51,6 +51,33 @@
     #print-area .v12-print-copy{break-inside:avoid;page-break-inside:avoid;padding-bottom:2mm}
     #print-area .v12-copy-break{border-top:1px dashed #000;margin:3mm 0;break-after:auto;page-break-after:auto}
   }
+
+  /* V12.3.2 STABLE RESPONSIVE - MULTI DEVICE LAYOUT */
+  :root{--v1232-order-col:clamp(310px,31vw,430px);--v1232-product-min:138px;--v1232-gap:14px}
+  html,body{max-width:100%;overflow-x:hidden}
+  main,.view,.layout,.layout>*,.card,.stack,.grid,.tabs,.product-wrap,.sticky-card{min-width:0;max-width:100%}
+  .tabs{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+  .tabs .chip{flex:0 0 auto;max-width:min(72vw,440px);overflow:hidden;text-overflow:ellipsis}
+  #view-entry .layout{grid-template-columns:minmax(0,1fr) minmax(280px,var(--v1232-order-col));gap:var(--v1232-gap);align-items:start}
+  #view-entry .layout>div,#view-entry .layout>aside{min-width:0}
+  #view-entry .sticky-card{width:100%;max-width:100%;justify-self:stretch;overflow:hidden}
+  #view-entry .grid.products{grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--v1232-product-min)),1fr));width:100%}
+  #view-entry .product,#view-entry .product-wrap{min-width:0;overflow:hidden}
+  #view-entry .product strong,#view-entry .order-name{overflow-wrap:anywhere;word-break:normal}
+  .topbar-inner{flex-wrap:wrap;min-width:0}
+  .topbar-inner>div:first-child{flex:1 1 260px;min-width:0}
+  .brand,.sub{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  #v1232RoleBadge,.save-state{flex:0 0 auto}
+  body[data-display-profile="wide169"]{--v1232-order-col:clamp(320px,30vw,450px);--v1232-product-min:145px;--v1232-gap:14px}
+  body[data-display-profile="wide1610"]{--v1232-order-col:clamp(320px,32vw,440px);--v1232-product-min:140px}
+  body[data-display-profile="classic43"]{--v1232-order-col:clamp(300px,36vw,410px);--v1232-product-min:132px;--v1232-gap:11px}
+  body[data-display-profile="tablet32"]{--v1232-order-col:clamp(290px,35vw,390px);--v1232-product-min:128px;--v1232-gap:10px}
+  body[data-display-profile="compact"]{--v1232-order-col:clamp(270px,38vw,360px);--v1232-product-min:118px;--v1232-gap:9px}
+  @media(min-width:781px) and (max-width:1050px){#view-entry .layout{grid-template-columns:minmax(0,1fr) minmax(275px,34vw);gap:10px}#view-entry .grid.products{grid-template-columns:repeat(auto-fill,minmax(min(100%,124px),1fr))}}
+  @media(max-width:780px){#view-entry .layout{grid-template-columns:minmax(0,1fr)!important}#view-entry .sticky-card{position:static!important;width:100%!important}#view-entry .grid.products{grid-template-columns:repeat(2,minmax(0,1fr))!important}.topbar-inner{gap:7px}.topbar-inner>div:first-child{flex:1 1 100%;width:100%}.brand{font-size:1.05rem;white-space:nowrap}.sub{font-size:.72rem;white-space:nowrap}.save-state{font-size:.68rem;padding:6px 8px}#v1232RoleBadge{font-size:.68rem;min-height:34px;padding:6px 8px}.page-head,.page-head>*{min-width:0}}
+  @media(max-width:430px){#view-entry .grid.products{grid-template-columns:repeat(2,minmax(0,1fr))!important}#view-entry .product{padding:10px;min-height:82px}#view-entry .product-wrap>.product{padding-right:39px}.favorite-btn{width:29px;height:29px}.tabs .chip{padding:8px 11px;font-size:.88rem}}
+  @media(orientation:landscape) and (min-width:700px) and (max-height:560px){main{padding:8px}#view-entry .layout{grid-template-columns:minmax(0,1fr) minmax(270px,34vw)!important;gap:9px!important}#view-entry .grid.products{grid-template-columns:repeat(auto-fill,minmax(min(100%,116px),1fr))!important}#view-entry .sticky-card{top:72px}.topbar{padding:7px 10px}.brand{font-size:1rem}.sub{font-size:.68rem}.bottom-nav{padding-top:3px}}
+
 </style>
 </head>
 <body>
@@ -1493,6 +1520,236 @@
       setSave('Errore sicurezza - dati conservati');
     }
   }
+
+
+  /* V12.3.2 STABLE RESPONSIVE - DISPLAY PROFILES + COMPACT ERRORS */
+  function v1232EnsureDisplaySettings(){state.settings.display={profile:'auto',...(state.settings.display||{})};const valid=new Set(['auto','wide169','wide1610','classic43','tablet32','compact']);if(!valid.has(state.settings.display.profile))state.settings.display.profile='auto';return state.settings.display}
+  function v1232DetectedProfile(){const w=Math.max(document.documentElement.clientWidth||0,window.innerWidth||0),h=Math.max(document.documentElement.clientHeight||0,window.innerHeight||0);if(!w||!h)return'auto';if(w<=780)return'compact';const r=w/h;if(r>=1.68)return'wide169';if(r>=1.52)return'wide1610';if(r>=1.40)return'tablet32';return'classic43'}
+  function v1232ApplyDisplayProfile(){const d=v1232EnsureDisplaySettings(),applied=d.profile==='auto'?v1232DetectedProfile():d.profile;document.body.dataset.displayProfile=applied;document.body.dataset.displayProfileChoice=d.profile;return applied}
+  function v1232DisplaySettingsHtml(){const d=v1232EnsureDisplaySettings(),applied=d.profile==='auto'?v1232DetectedProfile():d.profile,labels={auto:'Automatico (consigliato)',wide169:'16:9 - PC / POS widescreen',wide1610:'16:10 - PC / monitor professionale',classic43:'4:3 - POS classico',tablet32:'3:2 - tablet / iPad',compact:'Compatto - iPhone / piccolo tablet'};return `<div class="card" id="v1232DisplayCard"><div class="page-head"><div><h2>Schermo e disposizione</h2><div class="order-meta">Adatta prodotti, categorie e Ordine corrente senza sovrapposizioni.</div></div><span class="badge">${esc(labels[applied]||applied)}</span></div><div class="grid two"><div class="field"><label>Profilo schermo</label><select class="input" name="v1232-displayProfile">${Object.entries(labels).map(([k,n])=>`<option value="${k}" ${d.profile===k?'selected':''}>${esc(n)}</option>`).join('')}</select></div><div class="notice">Con <b>Automatico</b> il gestionale riconosce la forma dello schermo. Puoi forzare 16:9, 16:10, 4:3, 3:2 o Compatto.</div></div><div class="row" style="margin-top:10px"><button class="btn primary" type="button" data-action="v1232-save-display">Applica e salva layout</button><button class="btn ghost" type="button" data-action="v1232-display-auto">Usa Automatico</button></div></div>`}
+  async function v1232SaveDisplayProfile(forceAuto=false){const root=$('#view-settings'),d=v1232EnsureDisplaySettings();d.profile=forceAuto?'auto':($('[name="v1232-displayProfile"]',root)?.value||'auto');v1232ApplyDisplayProfile();if(typeof persistStateNow==='function')await persistStateNow('profilo schermo V12.3.2');else save('profilo schermo V12.3.2');renderAll();showView('settings');ui.settingsTab='general';renderSettings();toast(`Layout ${d.profile==='auto'?'automatico':d.profile} salvato`)}
+  function v1232ErrorKey(x){const source=String(x?.source||'errore').trim().toLowerCase();let message=String(x?.message||'').trim();if(source==='service worker'){message=message.replace(/https?:\/\/\S*\/sw\.js(?:\?\S*)?/ig,'sw.js').replace(/\s+/g,' ').trim();if(/load failed|failed to fetch|network/i.test(message))message='Service Worker non disponibile'}return `${source}|${message.toLowerCase()}`}
+  function v1232CompactSystemErrors(){if(!Array.isArray(state.systemErrors))state.systemErrors=[];const map=new Map();for(const x of state.systemErrors){const key=v1232ErrorKey(x),at=x.lastAt||x.at||new Date().toISOString();if(!map.has(key)){const source=String(x.source||'errore');let message=String(x.message||'Errore sconosciuto');if(source.toLowerCase()==='service worker'&&/load failed|failed to fetch|network|sw\.js/i.test(message))message='Service Worker non disponibile';map.set(key,{...x,source,message,count:+x.count||1,firstAt:x.firstAt||x.at||at,lastAt:at,at})}else{const g=map.get(key);g.count+=(+x.count||1);const t=new Date(at).getTime(),gt=new Date(g.lastAt).getTime();if(t>gt){g.lastAt=at;g.at=at}const ft=new Date(x.firstAt||x.at||at).getTime(),gft=new Date(g.firstAt).getTime();if(ft<gft)g.firstAt=x.firstAt||x.at||at}}state.systemErrors=[...map.values()].sort((a,b)=>new Date(b.lastAt||b.at)-new Date(a.lastAt||a.at)).slice(0,Math.max(30,state.settings.professional?.errorLogLimit||80));return state.systemErrors}
+  const recordV11ErrorV1232ResponsiveBase=recordV11Error;recordV11Error=function(source,error){try{ensureV11State();const raw=String(error?.message||error||'Errore sconosciuto').slice(0,500);let message=raw;if(String(source).toLowerCase()==='service worker'&&/load failed|failed to fetch|network|sw\.js/i.test(raw))message='Service Worker non disponibile';const key=v1232ErrorKey({source,message}),existing=state.systemErrors.find(x=>v1232ErrorKey(x)===key),now=new Date().toISOString();if(existing){existing.count=(+existing.count||1)+1;existing.lastAt=now;existing.at=now;state.systemErrors=state.systemErrors.filter(x=>x!==existing);state.systemErrors.unshift(existing);localStorage.setItem('pizzeria_smart_v2',JSON.stringify(state));if(String(source).toLowerCase()!=='service worker')setSave('Errore protetto - dati conservati');return existing}}catch{}const out=recordV11ErrorV1232ResponsiveBase(source,error);try{v1232CompactSystemErrors()}catch{}return out};
+  function v1232RenderGroupedErrors(){if(ui.settingsTab!=='data')return;v1232CompactSystemErrors();const root=$('#view-settings'),heading=[...root.querySelectorAll('.card h2')].find(h=>/^Registro anomalie/.test(h.textContent||'')),card=heading?.closest('.card');if(!card)return;const list=state.systemErrors.slice(0,30);card.innerHTML=`<div class="page-head"><div><h2>Registro anomalie V12</h2><div class="order-meta">Le anomalie uguali vengono raggruppate per mantenere il registro leggibile.</div></div><span class="badge">${list.length}</span></div>${list.map(x=>{const count=Math.max(1,+x.count||1),sw=String(x.source||'').toLowerCase()==='service worker';return `<div class="audit-row"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><b>${sw?'Service Worker':esc(x.source)}</b>${sw?'<span class="badge" style="margin-left:6px">non critico</span>':''}</div>${count>1?`<span class="badge">x${count}</span>`:''}</div><div class="order-meta">${esc(x.message)}</div><div class="order-meta">Ultimo: ${new Date(x.lastAt||x.at).toLocaleString('it-IT')}${count>1?` - Primo: ${new Date(x.firstAt||x.at).toLocaleString('it-IT')}`:''}</div></div>`}).join('')||'<div class="empty">Nessuna anomalia registrata</div>'}`}
+  const renderSettingsV1232ResponsiveBase=renderSettings;renderSettings=function(){v1232EnsureDisplaySettings();const out=renderSettingsV1232ResponsiveBase();if(ui.settingsTab==='general'){const panel=$('[data-panel="general"]',$('#view-settings'));if(panel&&!$('#v1232DisplayCard'))panel.insertAdjacentHTML('afterbegin',v1232DisplaySettingsHtml())}v1232RenderGroupedErrors();return out};
+  const applyThemeV1232ResponsiveBase=applyTheme;applyTheme=function(){const out=applyThemeV1232ResponsiveBase();v1232ApplyDisplayProfile();return out};
+  const v1232AfterLoadResponsiveBase=v1232AfterLoad;v1232AfterLoad=function(){try{v1232CompactSystemErrors();v1232ApplyDisplayProfile()}catch{}return v1232AfterLoadResponsiveBase()};
+  let v1232ResizeTimer;window.addEventListener('resize',()=>{clearTimeout(v1232ResizeTimer);v1232ResizeTimer=setTimeout(()=>{if(v1232EnsureDisplaySettings().profile==='auto')v1232ApplyDisplayProfile()},120)});window.addEventListener('orientationchange',()=>{setTimeout(()=>{if(v1232EnsureDisplaySettings().profile==='auto')v1232ApplyDisplayProfile()},180)});
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-action="v1232-save-display"],[data-action="v1232-display-auto"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();v1232PromptAdmin(()=>v1232SaveDisplayProfile(b.dataset.action==='v1232-display-auto'))},true);
+
+
+  /* =========================================================
+     V12.3.3 STABLE ADMIN SESSION
+     FIX CRITICO:
+     - il prompt PIN amministratore non lancia piu la nuova azione
+       mentre il dialog di autenticazione e ancora aperto;
+     - dopo il PIN admin la sessione resta ADMIN durante tutto il lavoro;
+     - categorie/prodotti/modificatori/postazioni possono essere aggiunti
+       in sequenza senza uscire e rientrare;
+     - uscita admin solo con BLOCCA/Torna operatore/timeout/app restart.
+     ========================================================= */
+
+  const V1233_VERSION='12.3.3-stable-admin-session';
+
+  function v1233SetSession(role){
+    v1232Session={
+      role:role||null,
+      loginAt:role?Date.now():0,
+      lastActivity:role?Date.now():0
+    };
+    v1232UpdateRoleBadge();
+    return v1232Session;
+  }
+
+  function v1233RunAfterDialogClose(fn){
+    /* openEditor chiude il dialog SOLO dopo che onSave ritorna true.
+       Qualsiasi azione che apre un altro editor deve quindi partire
+       nel task successivo, quando il dialog PIN e gia chiuso. */
+    setTimeout(()=>{
+      try{fn?.()}catch(err){
+        console.error('V12.3.3 admin callback error',err);
+        toast('Operazione amministratore non completata');
+      }
+    },0);
+  }
+
+  /* Override definitivo del prompt amministratore. */
+  v1232PromptAdmin=function(onOk){
+    if(v123IsAuthorized('admin')){
+      v1232Touch();
+      return onOk?.();
+    }
+
+    const body=`<div class="stack">
+      <div class="notice"><b>Autorizzazione Amministratore</b><br>
+      Inserisci il PIN una sola volta. Dopo l'accesso puoi lavorare liberamente
+      nelle Impostazioni finche non premi BLOCCA, torni Operatore o scade il timeout.</div>
+      <div class="field">
+        <label>PIN amministratore</label>
+        <input class="input" name="v1233AdminPin" type="password"
+          inputmode="numeric" autocomplete="off" autofocus>
+      </div>
+    </div>`;
+
+    openEditor('Accesso amministratore',body,fd=>{
+      const role=v1232ValidatePin(fd.get('v1233AdminPin'),'admin');
+      if(role!=='admin'){
+        toast('PIN amministratore non corretto');
+        return false;
+      }
+
+      v1233SetSession('admin');
+      audit('Accesso amministratore','Sessione amministratore sbloccata');
+      save('sessione amministratore');
+      toast('Modalita Amministratore attiva');
+
+      /* IMPORTANTISSIMO: prima lascia chiudere editorDialog,
+         poi esegue showView / click / apertura nuovo editor. */
+      v1233RunAfterDialogClose(onOk);
+      return true;
+    });
+  };
+
+  /* Anche v123Require usa il nuovo flusso persistente. */
+  v123Require=function(role,fn){
+    if(v123IsAuthorized(role)){
+      v1232Touch();
+      return fn?.();
+    }
+    if(role==='admin')return v1232PromptAdmin(fn);
+    return v1232LoginOverlay();
+  };
+
+  /* Entrata Impostazioni: dopo PIN, render completo e permanenza nella pagina. */
+  document.addEventListener('click',e=>{
+    const go=e.target.closest('[data-go="settings"]');
+    if(!go)return;
+
+    if(v123IsAuthorized('admin')){
+      v1232Touch();
+      return;
+    }
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    v1232PromptAdmin(()=>{
+      ui.view='settings';
+      renderSettings();
+      showView('settings');
+      window.scrollTo({top:0,left:0,behavior:'auto'});
+    });
+  },true);
+
+  /* Stato amministratore esplicito nelle Impostazioni. */
+  function v1233AdminSessionCard(){
+    const mins=Math.max(1,+state.settings.security?.lockAfterMinutes||30);
+    return `<div class="card" id="v1233AdminSessionCard">
+      <div class="page-head">
+        <div>
+          <h2>Sessione Amministratore</h2>
+          <div class="order-meta">Puoi aggiungere e modificare piu categorie, prodotti,
+          modificatori e postazioni senza reinserire il PIN a ogni operazione.</div>
+        </div>
+        <span class="badge green">ADMIN ATTIVO</span>
+      </div>
+      <div class="notice capacity-ok">
+        La sessione resta attiva mentre lavori. Il timeout (${mins} min) si rinnova
+        ad ogni tocco/click/tasto.
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn warn" type="button" data-action="v1233-back-operator">Torna Operatore</button>
+        <button class="btn ghost" type="button" data-action="v1232-lock-now">Blocca gestionale</button>
+      </div>
+    </div>`;
+  }
+
+  const renderSettingsV1233Base=renderSettings;
+  renderSettings=function(){
+    const out=renderSettingsV1233Base();
+
+    if(v123IsAuthorized('admin')){
+      const active=$('[data-panel].active',$('#view-settings')) ||
+                   $('[data-panel="general"]',$('#view-settings'));
+      if(active&&!$('#v1233AdminSessionCard')){
+        active.insertAdjacentHTML('afterbegin',v1233AdminSessionCard());
+      }
+    }
+    return out;
+  };
+
+  /* Torna Operatore senza dover chiudere il file. */
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v1233-back-operator"]');
+    if(!b)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    v1233SetSession('operator');
+    ui.view='entry';
+    showView('entry');
+    renderEntry();
+    toast('Modalita Operatore attiva');
+  },true);
+
+  /* Riutilizzo dei pulsanti protetti:
+     dopo il primo PIN il click riparte quando il dialog e gia chiuso. */
+  function v1233ReplayAdminAction(button){
+    if(!button||!document.body.contains(button))return;
+    v1233RunAfterDialogClose(()=>button.click());
+  }
+
+  /* Patch della protezione V12.3: evita b.click() sincrono dal dialog PIN. */
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action]');
+    if(!b)return;
+    const a=b.dataset.action;
+    const protectedActions=new Set([
+      'reset-all','reset-settings','import-data','close-evening',
+      'v12-add-station','v12-delete-station','v12-copy-station',
+      'v123-guided-close'
+    ]);
+
+    if(!protectedActions.has(a)||a==='v123-guided-close')return;
+    if(v123IsAuthorized('admin')){v1232Touch();return}
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    v1232PromptAdmin(()=>v1233ReplayAdminAction(b));
+  },true);
+
+  /* Salvataggi ripetuti di menu/prodotti/modificatori:
+     mantengono attiva la sessione admin e non cambiano view/tab. */
+  document.addEventListener('click',e=>{
+    if(!v123IsAuthorized('admin'))return;
+    const b=e.target.closest('button,[data-action]');
+    if(!b)return;
+
+    const adminWork =
+      b.matches('[data-action="add-category"],[data-action="edit-category"],[data-action="delete-category"],'+
+                '[data-action="manage-products"],[data-action="add-product"],[data-action="edit-product"],'+
+                '[data-action="delete-product"],[data-action="add-modgroup"],[data-action="edit-modgroup"],'+
+                '[data-action="delete-modgroup"],[data-action="manage-moditems"],[data-action="add-moditem"],'+
+                '[data-action="edit-moditem"],[data-action="delete-moditem"],[data-action="save-settings"]');
+
+    if(adminWork)v1232Touch();
+  },true);
+
+  /* Il badge ora esplicita che ADMIN resta attivo finche non lo blocchi. */
+  const v1232UpdateRoleBadgeV1233Base=v1232UpdateRoleBadge;
+  v1232UpdateRoleBadge=function(){
+    v1232UpdateRoleBadgeV1233Base();
+    const badge=document.getElementById('v1232RoleBadge');
+    if(!badge)return;
+    if(v1232Session.role==='admin'){
+      badge.textContent='ADMIN ATTIVO - BLOCCA';
+      badge.title='Sessione amministratore attiva';
+    }else if(v1232Session.role==='operator'){
+      badge.textContent='OPERATORE - BLOCCA';
+      badge.title='Sessione operatore attiva';
+    }
+  };
 
 </script>
 </body>
