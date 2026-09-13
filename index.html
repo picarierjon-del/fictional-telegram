@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12.3.3 STABLE RESPONSIVE</title>
+  <title>Pizzeria Smart V12.3.4 STABLE ALPHABET</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -77,6 +77,81 @@
   @media(max-width:780px){#view-entry .layout{grid-template-columns:minmax(0,1fr)!important}#view-entry .sticky-card{position:static!important;width:100%!important}#view-entry .grid.products{grid-template-columns:repeat(2,minmax(0,1fr))!important}.topbar-inner{gap:7px}.topbar-inner>div:first-child{flex:1 1 100%;width:100%}.brand{font-size:1.05rem;white-space:nowrap}.sub{font-size:.72rem;white-space:nowrap}.save-state{font-size:.68rem;padding:6px 8px}#v1232RoleBadge{font-size:.68rem;min-height:34px;padding:6px 8px}.page-head,.page-head>*{min-width:0}}
   @media(max-width:430px){#view-entry .grid.products{grid-template-columns:repeat(2,minmax(0,1fr))!important}#view-entry .product{padding:10px;min-height:82px}#view-entry .product-wrap>.product{padding-right:39px}.favorite-btn{width:29px;height:29px}.tabs .chip{padding:8px 11px;font-size:.88rem}}
   @media(orientation:landscape) and (min-width:700px) and (max-height:560px){main{padding:8px}#view-entry .layout{grid-template-columns:minmax(0,1fr) minmax(270px,34vw)!important;gap:9px!important}#view-entry .grid.products{grid-template-columns:repeat(auto-fill,minmax(min(100%,116px),1fr))!important}#view-entry .sticky-card{top:72px}.topbar{padding:7px 10px}.brand{font-size:1rem}.sub{font-size:.68rem}.bottom-nav{padding-top:3px}}
+
+
+  /* =========================================================
+     V12.3.4 ALPHABET COLOR MAP
+     Ordine alfabetico + barre lettera colorate
+     ========================================================= */
+  .alpha-letter-bar{
+    grid-column:1/-1;
+    min-width:0;
+    border-radius:12px;
+    padding:7px 12px;
+    margin:3px 0 1px;
+    color:#fff;
+    font-weight:950;
+    font-size:.92rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    box-shadow:0 3px 10px rgba(0,0,0,.10);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .alpha-letter-bar small{
+    font-size:.68rem;
+    font-weight:750;
+    letter-spacing:0;
+    opacity:.88;
+    text-transform:none;
+  }
+  #view-entry .product-wrap.alpha-colored,
+  #view-entry button.product.alpha-colored{
+    --alpha-color:#c41424;
+  }
+  #view-entry .product-wrap.alpha-colored>.product,
+  #view-entry button.product.alpha-colored{
+    box-shadow:inset 0 5px 0 var(--alpha-color),0 2px 8px rgba(0,0,0,.04);
+  }
+  #view-entry .product-wrap.alpha-soft>.product,
+  #view-entry button.product.alpha-soft{
+    background:color-mix(in srgb,var(--alpha-color) 8%,white);
+  }
+  .alpha-color-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(112px,1fr));
+    gap:8px;
+    margin-top:10px;
+  }
+  .alpha-color-cell{
+    border:1px solid var(--line);
+    border-radius:11px;
+    background:#fff;
+    padding:8px;
+    display:grid;
+    grid-template-columns:auto 1fr;
+    align-items:center;
+    gap:8px;
+  }
+  .alpha-color-cell b{
+    width:26px;
+    height:26px;
+    display:grid;
+    place-items:center;
+    border-radius:8px;
+    background:var(--surface2);
+  }
+  .alpha-color-cell input[type="color"]{
+    width:100%;
+    min-width:0;
+    height:34px;
+    padding:1px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+  }
 
 </style>
 </head>
@@ -1750,6 +1825,214 @@
       badge.title='Sessione operatore attiva';
     }
   };
+
+
+  /* =========================================================
+     V12.3.4 ALPHABET COLOR MAP
+     ========================================================= */
+
+  const V1234_VERSION='12.3.4-alpha-colors';
+
+  const V1234_ALPHA_DEFAULTS={
+    A:'#c41424', B:'#e67e22', C:'#d4a017', D:'#2e8b57', E:'#168a52',
+    F:'#008b8b', G:'#2471a3', H:'#4169e1', I:'#5b5bd6', J:'#6c5ce7',
+    K:'#7d3c98', L:'#9b59b6', M:'#b03a2e', N:'#a04000', O:'#ca6f1e',
+    P:'#b7950b', Q:'#7d6608', R:'#117864', S:'#148f77', T:'#1f618d',
+    U:'#2e86c1', V:'#6c3483', W:'#884ea0', X:'#922b21', Y:'#af601a',
+    Z:'#616a6b', '#':'#566573'
+  };
+
+  function v1234EnsureAlphabetSettings(){
+    state.settings.alphabet={
+      enabled:true,
+      showBars:true,
+      colorCards:true,
+      softBackground:false,
+      colors:{},
+      ...(state.settings.alphabet||{})
+    };
+    state.settings.alphabet.colors={
+      ...V1234_ALPHA_DEFAULTS,
+      ...(state.settings.alphabet.colors||{})
+    };
+    return state.settings.alphabet;
+  }
+
+  function v1234InitialLetter(name){
+    const raw=String(name||'').trim();
+    if(!raw)return'#';
+    const normalized=raw.normalize
+      ? raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      : raw;
+    const first=(normalized[0]||'#').toUpperCase();
+    return /^[A-Z]$/.test(first)?first:'#';
+  }
+
+  function v1234ProductNameFromNode(node){
+    const btn=node?.matches?.('button[data-product]')
+      ? node
+      : node?.querySelector?.('button[data-product]');
+    const id=btn?.dataset?.product;
+    if(!id)return'';
+    const item=state.categories.flatMap(c=>c.items||[]).find(p=>p.id===id);
+    return item?.name||btn.querySelector('strong')?.textContent||'';
+  }
+
+  function v1234ContrastText(hex){
+    const h=String(hex||'').replace('#','');
+    if(!/^[0-9a-f]{6}$/i.test(h))return'#fff';
+    const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+    const lum=(0.299*r+0.587*g+0.114*b);
+    return lum>170?'#17202a':'#fff';
+  }
+
+  function v1234ApplyAlphabetToEntry(){
+    const cfg=v1234EnsureAlphabetSettings();
+    if(!cfg.enabled)return;
+
+    const cat=activeCat();
+    if(!cat||cat.type!=='standard')return;
+
+    const grid=$('#view-entry .grid.products');
+    if(!grid)return;
+
+    /* Elimina barre di un render precedente. */
+    $$('.alpha-letter-bar',grid).forEach(x=>x.remove());
+
+    const productNodes=[...grid.children].filter(node=>{
+      return node.matches?.('button[data-product],.product-wrap') &&
+             (node.matches?.('button[data-product]') || node.querySelector?.('button[data-product]'));
+    });
+
+    if(!productNodes.length)return;
+
+    /* Ordine alfabetico italiano rigoroso. I preferiti restano marcati ma non rompono l'alfabeto. */
+    productNodes.sort((a,b)=>{
+      const an=v1234ProductNameFromNode(a),bn=v1234ProductNameFromNode(b);
+      return an.localeCompare(bn,'it',{sensitivity:'base',numeric:true});
+    });
+
+    let currentLetter=null,countForLetter=0,bar=null;
+    const frag=document.createDocumentFragment();
+
+    productNodes.forEach(node=>{
+      const name=v1234ProductNameFromNode(node);
+      const letter=v1234InitialLetter(name);
+      const color=cfg.colors[letter]||V1234_ALPHA_DEFAULTS[letter]||'#566573';
+
+      if(letter!==currentLetter){
+        currentLetter=letter;
+        countForLetter=0;
+        if(cfg.showBars){
+          bar=document.createElement('div');
+          bar.className='alpha-letter-bar';
+          bar.dataset.alphaLetter=letter;
+          bar.style.background=color;
+          bar.style.color=v1234ContrastText(color);
+          bar.innerHTML=`<span>${esc(letter)}</span><small data-alpha-count="${esc(letter)}">0 prodotti</small>`;
+          frag.appendChild(bar);
+        }else bar=null;
+      }
+
+      countForLetter++;
+      if(bar){
+        const small=bar.querySelector('small');
+        if(small)small.textContent=`${countForLetter} ${countForLetter===1?'prodotto':'prodotti'}`;
+      }
+
+      node.classList.add('alpha-colored');
+      node.classList.toggle('alpha-soft',!!cfg.softBackground);
+      node.style.setProperty('--alpha-color',color);
+      node.dataset.alphaLetter=letter;
+      frag.appendChild(node);
+    });
+
+    /* Rimuove solo i nodi prodotto originali, preservando eventuali messaggi empty non-prodotto. */
+    productNodes.forEach(x=>x.remove());
+    grid.appendChild(frag);
+  }
+
+  function v1234AlphabetSettingsHtml(){
+    const cfg=v1234EnsureAlphabetSettings();
+    const letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+    return `<div class="card" id="v1234AlphabetCard">
+      <div class="page-head">
+        <div>
+          <h2>Ordine alfabetico e colori lettere</h2>
+          <div class="order-meta">I prodotti delle categorie normali vengono ordinati A-Z. Ogni lettera ha una striscia colore personalizzabile.</div>
+        </div>
+        <span class="badge">${cfg.enabled?'ATTIVO':'DISATTIVO'}</span>
+      </div>
+      <div class="grid three">
+        ${check('Ordina prodotti A-Z','v1234-alphaEnabled',cfg.enabled)}
+        ${check('Mostra striscia lettera','v1234-alphaBars',cfg.showBars)}
+        ${check('Colora bordo schede','v1234-alphaCards',cfg.colorCards)}
+        ${check('Sfondo scheda leggermente colorato','v1234-alphaSoft',cfg.softBackground)}
+      </div>
+      <div class="notice" style="margin-top:10px">
+        L'ordine alfabetico prevale sull'ordinamento dei Preferiti. La stella resta visibile e utilizzabile.
+        Le lettere accentate (A, E, ecc.) vengono ricondotte alla lettera base.
+      </div>
+      <div class="alpha-color-grid">
+        ${letters.map(letter=>`<label class="alpha-color-cell">
+          <b>${esc(letter)}</b>
+          <input type="color" name="v1234-alpha-${esc(letter==='#'?'hash':letter)}"
+            data-alpha-color="${esc(letter)}"
+            value="${esc(cfg.colors[letter]||V1234_ALPHA_DEFAULTS[letter]||'#566573')}">
+        </label>`).join('')}
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" type="button" data-action="v1234-save-alpha">Salva colori e ordine</button>
+        <button class="btn ghost" type="button" data-action="v1234-reset-alpha">Ripristina colori</button>
+      </div>
+    </div>`;
+  }
+
+  async function v1234SaveAlphabet(reset=false){
+    const cfg=v1234EnsureAlphabetSettings(),root=$('#view-settings');
+    if(reset){
+      cfg.colors={...V1234_ALPHA_DEFAULTS};
+      cfg.enabled=true;cfg.showBars=true;cfg.colorCards=true;cfg.softBackground=false;
+    }else{
+      cfg.enabled=!!$('[name="v1234-alphaEnabled"]',root)?.checked;
+      cfg.showBars=!!$('[name="v1234-alphaBars"]',root)?.checked;
+      cfg.colorCards=!!$('[name="v1234-alphaCards"]',root)?.checked;
+      cfg.softBackground=!!$('[name="v1234-alphaSoft"]',root)?.checked;
+      $$('[data-alpha-color]',root).forEach(input=>{
+        const letter=input.dataset.alphaColor;
+        if(letter)cfg.colors[letter]=input.value;
+      });
+    }
+    if(typeof persistStateNow==='function')await persistStateNow('alfabeto colori V12.3.4');
+    else save('alfabeto colori V12.3.4');
+    renderAll();showView('settings');ui.settingsTab='menu';renderSettings();
+    toast(reset?'Colori alfabetici ripristinati':'Ordine alfabetico e colori salvati');
+  }
+
+  const renderEntryV1234Base=renderEntry;
+  renderEntry=function(){
+    const out=renderEntryV1234Base();
+    v1234ApplyAlphabetToEntry();
+    return out;
+  };
+
+  const renderSettingsV1234Base=renderSettings;
+  renderSettings=function(){
+    v1234EnsureAlphabetSettings();
+    const out=renderSettingsV1234Base();
+    if(ui.settingsTab==='menu'){
+      const panel=$('[data-panel="menu"]',$('#view-settings'));
+      if(panel&&!$('#v1234AlphabetCard'))panel.insertAdjacentHTML('afterbegin',v1234AlphabetSettingsHtml());
+    }
+    return out;
+  };
+
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v1234-save-alpha"],[data-action="v1234-reset-alpha"]');
+    if(!b)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    v1232PromptAdmin(()=>v1234SaveAlphabet(b.dataset.action==='v1234-reset-alpha'));
+  },true);
 
 </script>
 </body>
