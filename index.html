@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12.3.8 FINAL FORMAT VERIFIED</title>
+  <title>Pizzeria Smart V12.4.0 FORMAT REPLACE VERIFIED</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -3142,7 +3142,7 @@
       <div class="grid two">
         <div class="field"><label>Tipo gruppo</label>
           <select class="input" name="selectionMode">
-            <option value="multiple" ${current.selectionMode!=='single'?'selected':''}>Scelta multipla (PiÃ¹/Senza/Poco...)</option>
+            <option value="multiple" ${current.selectionMode!=='single'?'selected':''}>Scelta multipla (Pi\u00f9/Senza/Poco...)</option>
             <option value="single" ${current.selectionMode==='single'?'selected':''}>Scelta singola / Formato</option>
           </select>
         </div>
@@ -3164,7 +3164,7 @@
       </div>
       <div class="notice" style="margin-top:10px">
         <b>Formato / scelta singola:</b> scegli una sola voce alla volta. Esempio:
-        Baby -1,00 â¬ Â· Normale 0,00 â¬ Â· Schiacciata +2,00 â¬ Â· Famiglia +6,50 â¬.
+        Baby -1,00 \u20ac \u00b7 Normale 0,00 \u20ac \u00b7 Schiacciata +2,00 \u20ac \u00b7 Famiglia +6,50 \u20ac.
         La scelta si applica alla pizza intera, anche nel multigusto.
       </div>
       ${v1238CategoryScopeHtml(current)}
@@ -3236,18 +3236,18 @@
   manageModItems=function(groupId){
     const g=state.modifierGroups.find(x=>x.id===groupId);
     if(!g)return;
-    managerDialog(`Modificatori Â· ${g.name}`,
+    managerDialog(`Modificatori \u00b7 ${g.name}`,
       `<div class="notice">${g.selectionMode==='single'
         ?'<b>Scelta singola / Formato.</b> Una sola voce alla volta. Sono ammessi prezzi negativi, zero e positivi.'
-        :'Aggiungi tutte le voci che desideri. Ogni voce ha prezzo, disponibilitÃ  e stile indipendenti.'}</div>
+        :'Aggiungi tutte le voci che desideri. Ogni voce ha prezzo, disponibilit\u00e0 e stile indipendenti.'}</div>
       <button type="button" class="btn primary full" id="addModInEditor" style="margin-top:10px">+ Nuovo modificatore</button>
       <div class="stack" style="margin-top:10px">
         ${(g.items||[]).map(m=>`<div class="setting-row">
           <div><b>${esc(m.name)}</b>
-            <div class="order-meta">${v1238Delta(m.price)} Â·
-              <span class="badge ${m.soldOut?'red':'green'}">${m.soldOut?'NON DISPONIBILE':'DISPONIBILE'}</span> Â·
+            <div class="order-meta">${v1238Delta(m.price)} \u00b7
+              <span class="badge ${m.soldOut?'red':'green'}">${m.soldOut?'NON DISPONIBILE':'DISPONIBILE'}</span> \u00b7
               ${m.printStyle==='highlight'?'Evidenziato':m.printStyle==='bold'?'Grassetto':'Normale'}
-              ${g.defaultModifierId===m.id?' Â· PREDEFINITO':''}
+              ${g.defaultModifierId===m.id?' \u00b7 PREDEFINITO':''}
             </div>
           </div>
           <div class="row">
@@ -3262,7 +3262,7 @@
     $$('.edit-m').forEach(b=>b.onclick=()=>closeManager(()=>editMod(g,g.items.find(x=>x.id===b.dataset.id))));
     $$('.toggle-m').forEach(b=>b.onclick=()=>{
       const m=g.items.find(x=>x.id===b.dataset.id);
-      if(m){m.soldOut=!m.soldOut;save('disponibilitÃ  modificatore');manageModItems(groupId)}
+      if(m){m.soldOut=!m.soldOut;save('disponibilit\u00e0 modificatore');manageModItems(groupId)}
     });
   };
 
@@ -3310,6 +3310,161 @@
     }
     h.issues=issues.slice(0,50);
     if(repair)save('self-test formato V12.3.8');
+    return h;
+  };
+
+
+  /* =========================================================
+     V12.3.9 ASCII SAFE
+     Sorgente intenzionalmente solo ASCII per evitare mojibake
+     su iOS/POS/server con Content-Type errato.
+     ========================================================= */
+  const V1239_VERSION='12.3.9-ascii-safe';
+
+
+  /* =========================================================
+     V12.4.0 FORMAT REPLACE FIX
+     Il Formato e' veramente esclusivo: sostituisce il precedente
+     senza accumulare prezzi o righe duplicate.
+     ========================================================= */
+
+  const V1240_VERSION='12.4.0-format-replace-fix';
+
+  function v1240Normalize(s){
+    return String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+  }
+
+  function v1240IsSameFormatModifier(mod,group){
+    if(!mod||!group)return false;
+
+    /* Match moderno e affidabile */
+    if(mod.groupId && mod.groupId===group.id)return true;
+
+    /* Compatibilita' con righe create da versioni precedenti */
+    const prefix=v1240Normalize(group.name)+':';
+    const name=v1240Normalize(mod.name);
+    if(name.startsWith(prefix))return true;
+
+    /* Fallback legacy selectionMode */
+    if(mod.selectionMode==='single' && !mod.groupId){
+      const known=(group.items||[]).some(item=>{
+        const candidate=v1240Normalize(`${group.name}: ${item.name}`);
+        return candidate===name;
+      });
+      if(known)return true;
+    }
+    return false;
+  }
+
+  function v1240ReplaceSingleChoice(line,group,item){
+    if(!line||!group||!item)return false;
+
+    line.modifiers=Array.isArray(line.modifiers)?line.modifiers:[];
+
+    /* Elimina OGNI scelta precedente appartenente a questo gruppo,
+       comprese eventuali duplicazioni legacy. */
+    line.modifiers=line.modifiers.filter(mod=>!v1240IsSameFormatModifier(mod,group));
+
+    line.modifiers.push({
+      id:uid('lm'),
+      modifierId:item.id,
+      groupId:group.id,
+      selectionMode:'single',
+      name:`${group.name}: ${item.name}`,
+      price:+item.price||0,
+      printStyle:item.printStyle||'normal'
+    });
+
+    return true;
+  }
+
+  function v1240CleanupSingleChoiceDuplicates(line){
+    if(!line||!Array.isArray(line.modifiers))return false;
+    let changed=false;
+
+    for(const group of state.modifierGroups||[]){
+      if(group.selectionMode!=='single')continue;
+
+      const matches=line.modifiers.filter(m=>v1240IsSameFormatModifier(m,group));
+      if(matches.length<=1)continue;
+
+      /* Tiene l'ultima scelta effettuata. */
+      const keep=matches[matches.length-1];
+      line.modifiers=line.modifiers.filter(m=>!v1240IsSameFormatModifier(m,group));
+      line.modifiers.push(keep);
+      changed=true;
+    }
+    return changed;
+  }
+
+  function v1240CleanupDraftFormats(){
+    let changed=false;
+    for(const line of state.draft?.lines||[]){
+      if(v1240CleanupSingleChoiceDuplicates(line))changed=true;
+    }
+    if(changed)save('pulizia formati duplicati V12.4.0');
+    return changed;
+  }
+
+  /* Intercetta PRIMA di tutti gli handler storici. */
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest('button[data-mod]');
+    if(!btn)return;
+
+    const line=state.draft?.lines?.[ui.selectedLine];
+    const group=state.modifierGroups.find(g=>g.id===ui.modGroup);
+    if(!line||!group||group.selectionMode!=='single')return;
+
+    const item=(group.items||[]).find(m=>m.id===btn.dataset.mod);
+    if(!item||item.soldOut)return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    v1240ReplaceSingleChoice(line,group,item);
+
+    audit(
+      'Formato sostituito',
+      `${line.name} - ${group.name}: ${item.name} (${v1238Delta(item.price)})`
+    );
+
+    save('sostituzione formato V12.4.0');
+    renderEntry();
+  },true);
+
+  /* Prima di ogni render pulisce eventuali duplicati gia' presenti
+     nell'ordine corrente creati da versioni precedenti. */
+  const renderEntryV1240Base=renderEntry;
+  renderEntry=function(){
+    v1240CleanupDraftFormats();
+    return renderEntryV1240Base();
+  };
+
+  /* Anche al caricamento ripulisce il draft senza toccare ordini chiusi. */
+  const v1232AfterLoadV1240Base=v1232AfterLoad;
+  v1232AfterLoad=function(){
+    const out=v1232AfterLoadV1240Base?.();
+    try{v1240CleanupDraftFormats()}catch(err){console.warn('cleanup formato',err)}
+    return out;
+  };
+
+  /* Self-test specifico */
+  const runSelfTestV1240Base=runSelfTest;
+  runSelfTest=function(repair=true){
+    const h=runSelfTestV1240Base(repair);
+    const issues=h.issues||[];
+    for(const line of state.draft?.lines||[]){
+      for(const g of state.modifierGroups||[]){
+        if(g.selectionMode!=='single')continue;
+        const matches=(line.modifiers||[]).filter(m=>v1240IsSameFormatModifier(m,g));
+        if(matches.length>1){
+          issues.push(`Duplicati formato ${g.name} su ${line.name}`);
+          if(repair)v1240CleanupSingleChoiceDuplicates(line);
+        }
+      }
+    }
+    h.issues=issues.slice(0,50);
+    if(repair)save('self-test formato V12.4.0');
     return h;
   };
 
