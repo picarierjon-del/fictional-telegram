@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12.3.5 STABLE ALPHABET FIXED</title>
+  <title>Pizzeria Smart V12.3.6 STABLE VERIFIED</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -2162,6 +2162,417 @@
     }
     return out;
   };
+
+
+  /* =========================================================
+     V12.3.6 STABLE UI/SETTINGS FIX
+     FIX COMPLETO DIALOG + CHIUSURA GUIDATA + SALVATAGGI
+     ========================================================= */
+
+  const V1236_VERSION='12.3.6-stable-ui-settings-fix';
+
+  /* ---------------------------------------------------------
+     1) Editor sempre pulito: nessun bottone "fantasma" ereditato
+        da una funzione precedente.
+     --------------------------------------------------------- */
+  const openEditorV1236Base=openEditor;
+  openEditor=function(title,html,onSave){
+    const saveBtn=$('#editorSave');
+    if(saveBtn){
+      saveBtn.disabled=false;
+      saveBtn.style.display='';
+      saveBtn.textContent='Salva';
+      saveBtn.classList.remove('danger','warn','success');
+      saveBtn.classList.add('primary');
+    }
+
+    const d=$('#editorDialog');
+    if(d?.open){
+      try{d.close()}catch{}
+    }
+
+    return openEditorV1236Base(title,html,fd=>{
+      const result=onSave(fd);
+      return result;
+    });
+  };
+
+  /* Ogni chiusura dialog ripristina SEMPRE il pulsante Salva. */
+  $('#editorDialog')?.addEventListener('close',()=>{
+    const b=$('#editorSave');
+    if(!b)return;
+    b.disabled=false;
+    b.style.display='';
+    b.textContent='Salva';
+    b.classList.remove('danger','warn','success');
+    b.classList.add('primary');
+  });
+
+  /* ---------------------------------------------------------
+     2) Gestori prodotti/modificatori: editor secondario sempre
+        con Salva visibile, senza dover uscire/rientrare.
+     --------------------------------------------------------- */
+  const manageItemsV1236Base=manageItems;
+  manageItems=function(catId){
+    const out=manageItemsV1236Base(catId);
+    const add=$('#addItemInEditor');
+    if(add){
+      add.onclick=()=>{
+        const c=state.categories.find(x=>x.id===catId);
+        try{$('#editorDialog')?.close()}catch{}
+        setTimeout(()=>editItem(c),0);
+      };
+    }
+    $$('.edit-i').forEach(b=>{
+      b.onclick=()=>{
+        const c=state.categories.find(x=>x.id===catId);
+        const p=c?.items?.find(x=>x.id===b.dataset.id);
+        try{$('#editorDialog')?.close()}catch{}
+        setTimeout(()=>editItem(c,p),0);
+      };
+    });
+    return out;
+  };
+
+  const manageModItemsV1236Base=manageModItems;
+  manageModItems=function(groupId){
+    const out=manageModItemsV1236Base(groupId);
+    const add=$('#addModInEditor');
+    if(add){
+      add.onclick=()=>{
+        const g=state.modifierGroups.find(x=>x.id===groupId);
+        try{$('#editorDialog')?.close()}catch{}
+        setTimeout(()=>editMod(g),0);
+      };
+    }
+    $$('.edit-m').forEach(b=>{
+      b.onclick=()=>{
+        const g=state.modifierGroups.find(x=>x.id===groupId);
+        const m=g?.items?.find(x=>x.id===b.dataset.id);
+        try{$('#editorDialog')?.close()}catch{}
+        setTimeout(()=>editMod(g,m),0);
+      };
+    });
+    return out;
+  };
+
+  /* Dopo il salvataggio di prodotto/modificatore torna alla lista,
+     ma solo DOPO che il dialog corrente si e chiuso. */
+  const editItemV1236Base=editItem;
+  editItem=function(c,p){
+    openEditor(p?'Modifica prodotto':'Nuovo prodotto',
+      `${field('Nome prodotto','name',p?.name||'')}${numField('Prezzo','price',p?.price??0,0,9999,.1)}${check('Disponibile','available',!p?.soldOut)}`,
+      fd=>{
+        const name=fd.get('name').trim();
+        if(!name)return toast('Inserisci il nome'),false;
+        const obj=p||{id:uid('p')};
+        obj.name=name;
+        obj.price=Math.max(0,+fd.get('price')||0);
+        obj.soldOut=!fd.has('available');
+        if(!p)c.items.push(obj);
+        save('prodotto');
+        setTimeout(()=>manageItems(c.id),25);
+        return true;
+      });
+  };
+
+  const editModV1236Base=editMod;
+  editMod=function(g,m){
+    openEditor(m?'Modifica modificatore':'Nuovo modificatore',
+      `${field('Nome modificatore','name',m?.name||'')}${numField('Supplemento','price',m?.price??0,0,9999,.1)}<div class="field"><label>Stile in comanda</label><select class="input" name="printStyle"><option value="normal" ${(m?.printStyle||'normal')==='normal'?'selected':''}>Normale</option><option value="bold" ${m?.printStyle==='bold'?'selected':''}>Grassetto</option><option value="highlight" ${m?.printStyle==='highlight'?'selected':''}>Evidenziato</option></select></div>${check('Disponibile','available',!m?.soldOut)}`,
+      fd=>{
+        const name=fd.get('name').trim();
+        if(!name)return toast('Inserisci il nome modificatore'),false;
+        const obj=m||{id:uid('m')};
+        obj.name=name;
+        obj.price=Math.max(0,+fd.get('price')||0);
+        obj.printStyle=fd.get('printStyle')||'normal';
+        obj.soldOut=!fd.has('available');
+        if(!m)g.items.push(obj);
+        save('modificatore');
+        setTimeout(()=>manageModItems(g.id),25);
+        return true;
+      });
+  };
+
+  /* ---------------------------------------------------------
+     3) Chiusura guidata: impostazioni con salvataggio dedicato
+        e immediato.
+     --------------------------------------------------------- */
+  v123EveningSettingsHtml=function(){
+    const e=state.settings.eveningClose;
+    return `<div class="card" id="v1236EveningCloseCard"><h2>Chiusura serale guidata</h2>
+      <div class="grid two">
+        ${check('Backup obbligatorio','v123-closeBackup',e.requireBackup)}
+        ${check('Blocca se ci sono ordini aperti','v123-closeOpenOrders',e.requireNoOpenOrders)}
+        ${check('Blocca se ci sono stampe pendenti','v123-closePendingPrints',e.requireNoPendingPrints)}
+        ${check('Blocca se ci sono delivery senza fattorino','v123-closeDrivers',e.requireNoUnassignedDeliveries)}
+        ${check('Archivia automaticamente ordini completati','v123-closeAutoArchive',e.autoArchiveCompleted)}
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" type="button" data-action="v1236-save-evening-close">Salva configurazione chiusura</button>
+        <button class="btn danger" type="button" data-action="v123-guided-close">Avvia chiusura serale guidata</button>
+      </div>
+      <div id="v1236EveningCloseStatus" class="order-meta" style="margin-top:8px">Configurazione caricata.</div>
+    </div>`;
+  };
+
+  function v1236ReadEveningCloseFromDom(){
+    const root=$('#view-settings'),card=$('#v1236EveningCloseCard',root);
+    if(!card)return false;
+    const e=state.settings.eveningClose;
+    e.requireBackup=!!$('[name="v123-closeBackup"]',card)?.checked;
+    e.requireNoOpenOrders=!!$('[name="v123-closeOpenOrders"]',card)?.checked;
+    e.requireNoPendingPrints=!!$('[name="v123-closePendingPrints"]',card)?.checked;
+    e.requireNoUnassignedDeliveries=!!$('[name="v123-closeDrivers"]',card)?.checked;
+    e.autoArchiveCompleted=!!$('[name="v123-closeAutoArchive"]',card)?.checked;
+    return true;
+  }
+
+  async function v1236SaveEveningClose(){
+    v1236ReadEveningCloseFromDom();
+    if(typeof persistStateNow==='function')await persistStateNow('config chiusura guidata V12.3.6');
+    else save('config chiusura guidata V12.3.6');
+    const status=$('#v1236EveningCloseStatus');
+    if(status)status.textContent='Configurazione chiusura SALVATA';
+    toast('Configurazione chiusura salvata');
+  }
+
+  /* Salva tutto deve includere anche la chiusura guidata. */
+  const saveSettingsFormV1236Base=saveSettingsForm;
+  saveSettingsForm=function(){
+    if(ui.settingsTab==='general')v1236ReadEveningCloseFromDom();
+    const out=saveSettingsFormV1236Base();
+    if(ui.settingsTab==='general'){
+      if(typeof persistStateNow==='function')persistStateNow('salva tutto + chiusura V12.3.6');
+      else save('salva tutto + chiusura V12.3.6');
+    }
+    return out;
+  };
+
+  /* ---------------------------------------------------------
+     4) Promise con timeout: nessuna chiusura puo restare bloccata
+        indefinitamente sull'iPhone.
+     --------------------------------------------------------- */
+  function v1236WithTimeout(promise,ms,label){
+    return Promise.race([
+      Promise.resolve(promise),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error(`${label||'Operazione'}: timeout ${ms} ms`)),ms))
+    ]);
+  }
+
+  async function v1236PersistCloseState(reason){
+    if(typeof persistStateNow==='function'){
+      return v1236WithTimeout(persistStateNow(reason),7000,'Salvataggio');
+    }
+    save(reason);
+    return true;
+  }
+
+  async function v1236SafeSnapshot(reason){
+    if(typeof SafetyDB!=='undefined'&&SafetyDB?.snapshot){
+      return v1236WithTimeout(SafetyDB.snapshot(state,reason),6000,'Snapshot');
+    }
+    return true;
+  }
+
+  async function v1236SafeColdArchive(store,rows){
+    if(!rows?.length)return true;
+    if(typeof ColdArchive!=='undefined'&&ColdArchive?.put){
+      return v1236WithTimeout(ColdArchive.put(store,rows),6000,'Archivio');
+    }
+    return true;
+  }
+
+  /* Backup chiusura reso robusto. */
+  v123CreateVerifiedCloseBackup=async function(){
+    ensureV123State();
+    try{
+      const payload={
+        format:'PIZZERIA_SMART_V1236_CLOSE_BACKUP',
+        version:V1236_VERSION,
+        createdAt:new Date().toISOString(),
+        data:clone(state)
+      };
+      localStorage.setItem(`pizzeria_v123_close_${today()}`,JSON.stringify(payload));
+      await v1236SafeSnapshot('prima chiusura guidata V12.3.6');
+      return true;
+    }catch(err){
+      console.error('Backup chiusura',err);
+      return false;
+    }
+  };
+
+  /* Versione definitiva della chiusura guidata. */
+  v1232PerformGuidedClose=async function(){
+    const cfg=state.settings.eveningClose,s=v123ClosingStatus();
+    const blockers=[];
+    if(cfg.requireNoOpenOrders&&s.openOrders.length)blockers.push(`${s.openOrders.length} ordini ancora aperti`);
+    if(cfg.requireNoPendingPrints&&s.pending.length)blockers.push(`${s.pending.length} stampe pendenti o in errore`);
+    if(cfg.requireNoUnassignedDeliveries&&s.unassigned.length)blockers.push(`${s.unassigned.length} consegne senza fattorino`);
+    if(blockers.length)return{ok:false,blockers};
+
+    if(cfg.requireBackup){
+      const ok=await v123CreateVerifiedCloseBackup();
+      if(!ok)return{ok:false,blockers:['backup']};
+    }
+
+    const now=new Date(),closed=[];
+    const activeOrders=[...(state.orders||[])];
+
+    if(cfg.autoArchiveCompleted){
+      const completed=new Set(activeOrders.filter(o=>['ready','closed','done'].includes(o.status)).map(o=>o.id));
+      for(const o of activeOrders.filter(o=>completed.has(o.id))){
+        closed.push({...o,closedAt:o.closedAt||now.toISOString()});
+      }
+      state.orders=activeOrders.filter(o=>!completed.has(o.id));
+    }else{
+      for(const o of activeOrders)closed.push({...o,closedAt:o.closedAt||now.toISOString()});
+      state.orders=[];
+    }
+
+    if(closed.length){
+      state.archive.push(...closed);
+      await v1236SafeColdArchive('orders',closed.map(o=>({...o,archiveKey:`${o.id}_${o.closedAt}`})));
+    }
+
+    const day=today();
+    const dayOrders=(state.archive||[]).filter(o=>(o.closedAt||o.dateTime||'').slice(0,10)===day);
+    const summary={
+      id:`night_${day}`,
+      date:day,
+      closedAt:now.toISOString(),
+      orders:dayOrders.length,
+      total:dayOrders.reduce((n,o)=>n+(+o.total||0),0),
+      deliveries:dayOrders.filter(o=>o.mode==='delivery').length,
+      pizzas:dayOrders.reduce((n,o)=>n+pizzaUnits(o.lines),0),
+      payments:{},
+      drivers:{}
+    };
+
+    dayOrders.forEach(o=>{
+      summary.payments[o.payment||'Non indicato']=(summary.payments[o.payment||'Non indicato']||0)+(+o.total||0);
+      const dn=state.drivers.find(d=>d.id===o.driverId)?.name||'Non assegnato';
+      summary.drivers[dn]=(summary.drivers[dn]||0)+(+o.total||0);
+    });
+
+    state.eveningClosures=Array.isArray(state.eveningClosures)?state.eveningClosures:[];
+    state.eveningClosures=state.eveningClosures.filter(x=>x.date!==day);
+    state.eveningClosures.unshift(summary);
+    state.eveningClosures=state.eveningClosures.slice(0,400);
+    await v1236SafeColdArchive('nights',[summary]);
+
+    state.printQueue=(state.printQueue||[]).filter(j=>!['printed','cancelled'].includes(j.status));
+    audit('Chiusura serale guidata V12.3.6',`${summary.orders} ordini - ${money(summary.total)}`);
+
+    /* Manutenzione non puo piu bloccare la chiusura. */
+    if(typeof smartMaintenance==='function'){
+      try{await v1236WithTimeout(smartMaintenance(false),5000,'Manutenzione')}catch(err){console.warn(err)}
+    }
+
+    await v1236SafeSnapshot('dopo chiusura guidata V12.3.6');
+    await v1236PersistCloseState('chiusura guidata V12.3.6');
+
+    renderAll();
+    showView('history');
+    return{ok:true,summary};
+  };
+
+  /* Dialog chiusura: try/finally e ripristino sempre garantito. */
+  v123OpenGuidedClose=function(){
+    v1232PromptAdmin(()=>{
+      /* Salva eventuali checkbox modificate prima di aprire il dialog. */
+      v1236ReadEveningCloseFromDom();
+
+      const s=v123ClosingStatus(),cfg=state.settings.eveningClose,blockers=[];
+      if(cfg.requireNoOpenOrders&&s.openOrders.length)blockers.push(`${s.openOrders.length} ordini ancora aperti`);
+      if(cfg.requireNoPendingPrints&&s.pending.length)blockers.push(`${s.pending.length} stampe pendenti o in errore`);
+      if(cfg.requireNoUnassignedDeliveries&&s.unassigned.length)blockers.push(`${s.unassigned.length} delivery senza fattorino`);
+
+      const body=`<div class="stack">
+        <div class="card" style="box-shadow:none">
+          <div class="setting-row"><span>Ordini aperti</span><b>${s.openOrders.length}</b></div>
+          <div class="setting-row"><span>Stampe pendenti/errore</span><b>${s.pending.length}</b></div>
+          <div class="setting-row"><span>Delivery senza fattorino</span><b>${s.unassigned.length}</b></div>
+          <div class="setting-row"><span>Incasso rilevato oggi</span><b>${money(s.total)}</b></div>
+        </div>
+        ${blockers.length
+          ? `<div class="notice" style="background:#fff0f0;border-color:#e27a7a;color:#8d1111"><b>NON PUOI CHIUDERE</b><br>${blockers.map(esc).join('<br>')}</div>`
+          : `<div class="notice capacity-ok"><b>Controlli superati.</b><br>Conferma per eseguire backup, archivio, riepilogo e salvataggio.</div>`}
+      </div>`;
+
+      openEditor('Chiusura serale guidata',body,()=>{
+        if(blockers.length){
+          toast('Risolvi prima le anomalie');
+          return false;
+        }
+
+        const btn=$('#editorSave');
+        if(btn){
+          btn.disabled=true;
+          btn.textContent='Chiusura in corso...';
+          btn.classList.remove('primary');
+          btn.classList.add('warn');
+        }
+
+        (async()=>{
+          try{
+            const res=await v1232PerformGuidedClose();
+            if(!res.ok){
+              toast(`Chiusura non completata: ${(res.blockers||[]).join(', ')}`);
+              return;
+            }
+            toast(`Serata chiusa: ${res.summary.orders} ordini - ${money(res.summary.total)}`);
+            try{$('#editorDialog')?.close()}catch{}
+          }catch(err){
+            console.error('Chiusura guidata V12.3.6',err);
+            toast('Chiusura interrotta: dati conservati. Puoi riprovare.');
+          }finally{
+            const b=$('#editorSave');
+            if(b){
+              b.disabled=false;
+              b.style.display='';
+              b.textContent='Salva';
+              b.classList.remove('warn','danger','success');
+              b.classList.add('primary');
+            }
+          }
+        })();
+
+        /* il dialog resta aperto fino a conclusione async */
+        return false;
+      });
+    });
+  };
+
+  /* ---------------------------------------------------------
+     5) Pulsante configurazione chiusura.
+     --------------------------------------------------------- */
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v1236-save-evening-close"]');
+    if(!b)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    v1232PromptAdmin(()=>v1236SaveEveningClose());
+  },true);
+
+  /* ---------------------------------------------------------
+     6) Guardia UI globale: quando si apre un nuovo editor,
+        Salva deve essere sempre visibile e attivo salvo i manager.
+     --------------------------------------------------------- */
+  const v1236Observer=new MutationObserver(()=>{
+    const d=$('#editorDialog'),b=$('#editorSave');
+    if(!d?.open||!b)return;
+    const title=$('#editorTitle')?.textContent||'';
+    const manager=/^Prodotti |^Modificatori /.test(title);
+    const closing=title==='Chiusura serale guidata'&&b.textContent.includes('Chiusura in corso');
+    if(!manager&&!closing){
+      b.style.display='';
+      b.disabled=false;
+      if(b.textContent!=='Salva')b.textContent='Salva';
+    }
+  });
+  v1236Observer.observe($('#editorDialog'),{attributes:true,subtree:true,childList:true,characterData:true});
 
 </script>
 </body>
