@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12.3.6 STABLE VERIFIED</title>
+  <title>Pizzeria Smart V12.3.7 STABLE VERIFIED</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -151,6 +151,52 @@
     border:1px solid var(--line);
     border-radius:8px;
     background:#fff;
+  }
+
+
+  /* =========================================================
+     V12.3.7 MODIFIER ALPHABET COLOR MAP
+     ========================================================= */
+  .mod-alpha-letter-bar{
+    grid-column:1/-1;
+    min-width:0;
+    border-radius:10px;
+    padding:6px 10px;
+    margin:2px 0;
+    font-size:.82rem;
+    font-weight:950;
+    letter-spacing:.08em;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+  }
+  .mod-alpha-letter-bar small{
+    font-size:.66rem;
+    font-weight:750;
+    letter-spacing:0;
+    opacity:.86;
+  }
+  .product-wrap.mod-alpha-colored,
+  button.product.mod-alpha-colored,
+  .picker-option.mod-alpha-colored{
+    --mod-alpha-color:#c41424;
+  }
+  .product-wrap.mod-alpha-colored>.product,
+  button.product.mod-alpha-colored,
+  .picker-option.mod-alpha-colored{
+    box-shadow:inset 0 5px 0 var(--mod-alpha-color),0 2px 8px rgba(0,0,0,.04);
+  }
+  .product-wrap.mod-alpha-soft>.product,
+  button.product.mod-alpha-soft,
+  .picker-option.mod-alpha-soft{
+    background:color-mix(in srgb,var(--mod-alpha-color) 8%,white);
+  }
+  .modifier-alpha-settings-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(112px,1fr));
+    gap:8px;
+    margin-top:10px;
   }
 
 </style>
@@ -2573,6 +2619,308 @@
     }
   });
   v1236Observer.observe($('#editorDialog'),{attributes:true,subtree:true,childList:true,characterData:true});
+
+
+  /* =========================================================
+     V12.3.7 MODIFIER ALPHABET COLOR MAP
+     Ordine A-Z e colori per i modificatori, separati per gruppo.
+     ========================================================= */
+
+  const V1237_VERSION='12.3.7-modifier-alpha-colors';
+
+  function v1237EnsureModifierAlphabetSettings(){
+    const productCfg=typeof v1234EnsureAlphabetSettings==='function'
+      ? v1234EnsureAlphabetSettings()
+      : {colors:{...V1234_ALPHA_DEFAULTS}};
+    state.settings.modifierAlphabet={
+      enabled:true,
+      showBars:true,
+      colorCards:true,
+      softBackground:false,
+      useProductColors:true,
+      colors:{},
+      ...(state.settings.modifierAlphabet||{})
+    };
+    state.settings.modifierAlphabet.colors={
+      ...V1234_ALPHA_DEFAULTS,
+      ...(state.settings.modifierAlphabet.colors||{})
+    };
+    if(state.settings.modifierAlphabet.useProductColors && productCfg?.colors){
+      /* non copiamo: leggiamo dinamicamente la palette prodotti */
+    }
+    return state.settings.modifierAlphabet;
+  }
+
+  function v1237ModifierColor(letter){
+    const cfg=v1237EnsureModifierAlphabetSettings();
+    if(cfg.useProductColors){
+      const p=typeof v1234EnsureAlphabetSettings==='function'?v1234EnsureAlphabetSettings():null;
+      return p?.colors?.[letter]||V1234_ALPHA_DEFAULTS[letter]||'#566573';
+    }
+    return cfg.colors[letter]||V1234_ALPHA_DEFAULTS[letter]||'#566573';
+  }
+
+  function v1237ModifierById(id){
+    for(const g of state.modifierGroups||[]){
+      const m=(g.items||[]).find(x=>x.id===id);
+      if(m)return {group:g,item:m};
+    }
+    return null;
+  }
+
+  function v1237NodeModifierName(node){
+    const btn=node?.matches?.('button[data-mod]')
+      ? node
+      : node?.querySelector?.('button[data-mod]');
+    if(!btn)return'';
+    return v1237ModifierById(btn.dataset.mod)?.item?.name ||
+           btn.querySelector('strong')?.textContent || '';
+  }
+
+  function v1237DecorateModifierNode(node,name){
+    const cfg=v1237EnsureModifierAlphabetSettings();
+    const letter=v1234InitialLetter(name);
+    const color=v1237ModifierColor(letter);
+    node.classList.toggle('mod-alpha-colored',!!cfg.colorCards);
+    node.classList.toggle('mod-alpha-soft',!!cfg.softBackground&&!!cfg.colorCards);
+    if(cfg.colorCards)node.style.setProperty('--mod-alpha-color',color);
+    else node.style.removeProperty('--mod-alpha-color');
+    node.dataset.modAlphaLetter=letter;
+    return {letter,color};
+  }
+
+  function v1237ApplyMainModifierAlphabet(){
+    const cfg=v1237EnsureModifierAlphabetSettings();
+    if(!cfg.enabled)return;
+
+    const root=$('#view-entry');
+    if(!root)return;
+
+    const card=[...root.querySelectorAll('.card')].find(c=>{
+      const h=c.querySelector('h3');
+      return h&&/^Modifica:/.test(h.textContent||'');
+    });
+    if(!card)return;
+
+    const grid=card.querySelector('.grid.products');
+    if(!grid)return;
+
+    $$('.mod-alpha-letter-bar',grid).forEach(x=>x.remove());
+
+    const nodes=[...grid.children].filter(node=>{
+      return node.matches?.('button[data-mod],.product-wrap') &&
+        (node.matches?.('button[data-mod]')||node.querySelector?.('button[data-mod]'));
+    });
+    if(!nodes.length)return;
+
+    nodes.sort((a,b)=>v1237NodeModifierName(a).localeCompare(
+      v1237NodeModifierName(b),'it',{sensitivity:'base',numeric:true}
+    ));
+
+    const frag=document.createDocumentFragment();
+    let current=null,bar=null,count=0;
+
+    nodes.forEach(node=>{
+      const name=v1237NodeModifierName(node);
+      const meta=v1237DecorateModifierNode(node,name);
+      if(meta.letter!==current){
+        current=meta.letter;count=0;
+        if(cfg.showBars){
+          bar=document.createElement('div');
+          bar.className='mod-alpha-letter-bar';
+          bar.style.background=meta.color;
+          bar.style.color=v1234ContrastText(meta.color);
+          bar.innerHTML=`<span>${esc(meta.letter)}</span><small>0 modificatori</small>`;
+          frag.appendChild(bar);
+        }else bar=null;
+      }
+      count++;
+      if(bar)bar.querySelector('small').textContent=`${count} ${count===1?'modificatore':'modificatori'}`;
+      frag.appendChild(node);
+    });
+
+    grid.appendChild(frag);
+  }
+
+  function v1237ApplyMultiModifierBox(box){
+    const cfg=v1237EnsureModifierAlphabetSettings();
+    if(!cfg.enabled||!box)return;
+
+    $$('.mod-alpha-letter-bar',box).forEach(x=>x.remove());
+    const nodes=[...box.children].filter(x=>x.matches?.('[data-v10-mod]'));
+    if(!nodes.length)return;
+
+    const getName=node=>{
+      const group=state.modifierGroups.find(g=>g.id===node.dataset.group);
+      return group?.items?.find(m=>m.id===node.dataset.v10Mod)?.name ||
+             node.querySelector('b')?.textContent || '';
+    };
+
+    nodes.sort((a,b)=>getName(a).localeCompare(getName(b),'it',{sensitivity:'base',numeric:true}));
+
+    const frag=document.createDocumentFragment();
+    let current=null,bar=null,count=0;
+
+    nodes.forEach(node=>{
+      const name=getName(node),letter=v1234InitialLetter(name),color=v1237ModifierColor(letter);
+      node.classList.toggle('mod-alpha-colored',!!cfg.colorCards);
+      node.classList.toggle('mod-alpha-soft',!!cfg.softBackground&&!!cfg.colorCards);
+      if(cfg.colorCards)node.style.setProperty('--mod-alpha-color',color);
+      else node.style.removeProperty('--mod-alpha-color');
+
+      if(letter!==current){
+        current=letter;count=0;
+        if(cfg.showBars){
+          bar=document.createElement('div');
+          bar.className='mod-alpha-letter-bar';
+          bar.style.background=color;
+          bar.style.color=v1234ContrastText(color);
+          bar.innerHTML=`<span>${esc(letter)}</span><small>0 modificatori</small>`;
+          frag.appendChild(bar);
+        }else bar=null;
+      }
+      count++;
+      if(bar)bar.querySelector('small').textContent=`${count} ${count===1?'modificatore':'modificatori'}`;
+      frag.appendChild(node);
+    });
+
+    box.appendChild(frag);
+  }
+
+  function v1237ApplyAllMultiModifierBoxes(){
+    $$('.picker-results[data-v10-mods]',$('#multiBody')).forEach(v1237ApplyMultiModifierBox);
+  }
+
+  let v1237MultiObserverLock=false;
+  const v1237MultiObserver=new MutationObserver(()=>{
+    if(v1237MultiObserverLock)return;
+    v1237MultiObserverLock=true;
+    v1237MultiObserver.disconnect();
+    try{v1237ApplyAllMultiModifierBoxes()}catch(err){console.warn('Modifier alpha multi',err)}
+    v1237MultiObserver.observe($('#multiBody'),{childList:true,subtree:true});
+    setTimeout(()=>{v1237MultiObserverLock=false},0);
+  });
+  if($('#multiBody'))v1237MultiObserver.observe($('#multiBody'),{childList:true,subtree:true});
+
+  function v1237ModifierAlphabetSettingsHtml(){
+    const cfg=v1237EnsureModifierAlphabetSettings();
+    const letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+    return `<div class="card" id="v1237ModifierAlphabetCard">
+      <div class="page-head">
+        <div>
+          <h2>Ordine alfabetico e colori modificatori</h2>
+          <div class="order-meta">Dentro ogni gruppo (Piu, Senza, Poco, Abbondante, ecc.) i modificatori vengono ordinati A-Z.</div>
+        </div>
+        <span class="badge">${cfg.enabled?'ATTIVO':'DISATTIVO'}</span>
+      </div>
+      <div class="grid two">
+        ${check('Ordina modificatori A-Z','v1237-enabled',cfg.enabled)}
+        ${check('Mostra striscia lettera','v1237-bars',cfg.showBars)}
+        ${check('Colora bordo schede','v1237-cards',cfg.colorCards)}
+        ${check('Sfondo leggermente colorato','v1237-soft',cfg.softBackground)}
+        ${check('Usa gli stessi colori delle pizze','v1237-sameColors',cfg.useProductColors)}
+      </div>
+      <div class="notice" style="margin-top:10px">
+        I gruppi restano separati: prima scegli <b>Piu / Senza / Poco / Abbondante</b>,
+        poi all'interno trovi A-Z. Vale anche dentro ogni gusto del multigusto.
+      </div>
+      <div id="v1237OwnColors" style="${cfg.useProductColors?'display:none':''}">
+        <h3 style="margin-top:12px">Colori separati modificatori</h3>
+        <div class="modifier-alpha-settings-grid">
+          ${letters.map(letter=>`<label class="alpha-color-cell">
+            <b>${esc(letter)}</b>
+            <input type="color" data-v1237-color="${esc(letter)}"
+              value="${esc(cfg.colors[letter]||V1234_ALPHA_DEFAULTS[letter]||'#566573')}">
+          </label>`).join('')}
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" type="button" data-action="v1237-save">Salva ordine e colori modificatori</button>
+        <button class="btn ghost" type="button" data-action="v1237-reset">Ripristina impostazioni modificatori</button>
+      </div>
+      <div id="v1237Status" class="order-meta" style="margin-top:8px"></div>
+    </div>`;
+  }
+
+  function v1237ReadSettingsFromDom(){
+    const card=$('#v1237ModifierAlphabetCard',$('#view-settings'));
+    if(!card)return false;
+    const cfg=v1237EnsureModifierAlphabetSettings();
+    cfg.enabled=!!$('[name="v1237-enabled"]',card)?.checked;
+    cfg.showBars=!!$('[name="v1237-bars"]',card)?.checked;
+    cfg.colorCards=!!$('[name="v1237-cards"]',card)?.checked;
+    cfg.softBackground=!!$('[name="v1237-soft"]',card)?.checked;
+    cfg.useProductColors=!!$('[name="v1237-sameColors"]',card)?.checked;
+    $$('[data-v1237-color]',card).forEach(input=>{
+      if(input.dataset.v1237Color)cfg.colors[input.dataset.v1237Color]=input.value;
+    });
+    return true;
+  }
+
+  async function v1237SaveSettings(reset=false){
+    const cfg=v1237EnsureModifierAlphabetSettings();
+    if(reset){
+      cfg.enabled=true;
+      cfg.showBars=true;
+      cfg.colorCards=true;
+      cfg.softBackground=false;
+      cfg.useProductColors=true;
+      cfg.colors={...V1234_ALPHA_DEFAULTS};
+    }else{
+      v1237ReadSettingsFromDom();
+    }
+
+    if(typeof persistStateNow==='function')await persistStateNow('alfabeto modificatori V12.3.7');
+    else save('alfabeto modificatori V12.3.7');
+
+    ui.settingsTab='mods';
+    renderAll();showView('settings');renderSettings();
+    toast(reset?'Impostazioni modificatori ripristinate':'Ordine e colori modificatori salvati');
+  }
+
+  const renderEntryV1237Base=renderEntry;
+  renderEntry=function(){
+    const out=renderEntryV1237Base();
+    v1237ApplyMainModifierAlphabet();
+    return out;
+  };
+
+  const renderSettingsV1237Base=renderSettings;
+  renderSettings=function(){
+    v1237EnsureModifierAlphabetSettings();
+    const out=renderSettingsV1237Base();
+    if(ui.settingsTab==='mods'){
+      const panel=$('[data-panel="mods"]',$('#view-settings'));
+      if(panel&&!$('#v1237ModifierAlphabetCard'))panel.insertAdjacentHTML('afterbegin',v1237ModifierAlphabetSettingsHtml());
+    }
+    return out;
+  };
+
+  /* Anche Salva tutto deve conservare queste scelte. */
+  const saveSettingsFormV1237Base=saveSettingsForm;
+  saveSettingsForm=function(){
+    if(ui.settingsTab==='mods')v1237ReadSettingsFromDom();
+    const out=saveSettingsFormV1237Base();
+    if(ui.settingsTab==='mods'){
+      if(typeof persistStateNow==='function')persistStateNow('salva tutto + alfabeto modificatori V12.3.7');
+      else save('salva tutto + alfabeto modificatori V12.3.7');
+    }
+    return out;
+  };
+
+  document.addEventListener('change',e=>{
+    const input=e.target.closest('[name="v1237-sameColors"]');
+    if(!input)return;
+    const box=$('#v1237OwnColors');
+    if(box)box.style.display=input.checked?'none':'';
+  });
+
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v1237-save"],[data-action="v1237-reset"]');
+    if(!b)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    v1232PromptAdmin(()=>v1237SaveSettings(b.dataset.action==='v1237-reset'));
+  },true);
 
 </script>
 </body>
