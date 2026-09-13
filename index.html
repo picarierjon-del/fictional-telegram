@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12.3.7 STABLE VERIFIED</title>
+  <title>Pizzeria Smart V12.3.8 FINAL FORMAT VERIFIED</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -197,6 +197,25 @@
     grid-template-columns:repeat(auto-fill,minmax(112px,1fr));
     gap:8px;
     margin-top:10px;
+  }
+
+
+  /* =========================================================
+     V12.3.8 FORMAT / SINGLE CHOICE MODIFIER
+     ========================================================= */
+  .mod-format{
+    border-color:#7c3aed!important;
+    color:#6d28d9!important;
+    background:#f5f3ff!important;
+  }
+  .format-badge{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:3px 7px;border-radius:999px;
+    background:#ede9fe;color:#6d28d9;font-size:.68rem;font-weight:850;
+  }
+  .format-scope{
+    max-height:260px;overflow:auto;border:1px solid var(--line);
+    border-radius:12px;padding:8px;background:var(--surface2)
   }
 
 </style>
@@ -2921,6 +2940,378 @@
     e.preventDefault();e.stopImmediatePropagation();
     v1232PromptAdmin(()=>v1237SaveSettings(b.dataset.action==='v1237-reset'));
   },true);
+
+
+  /* =========================================================
+     V12.3.8 FORMAT / SINGLE CHOICE MODIFIER
+     ========================================================= */
+
+  const V1238_VERSION='12.3.8-format-single-choice';
+
+  function v1238EnsureModifierSchema(){
+    state.modifierGroups=(state.modifierGroups||[]).map(g=>{
+      if(!g.selectionMode)g.selectionMode='multiple';
+      if(typeof g.applyAllCategories!=='boolean')g.applyAllCategories=true;
+      if(!Array.isArray(g.categoryIds))g.categoryIds=[];
+      if(!Array.isArray(g.productIds))g.productIds=[];
+      if(typeof g.required!=='boolean')g.required=false;
+      if(!g.defaultModifierId)g.defaultModifierId='';
+      (g.items||[]).forEach(m=>{
+        if(!m.printStyle)m.printStyle='normal';
+      });
+      return g;
+    });
+  }
+
+  function v1238Delta(price){
+    const n=Number(price)||0;
+    if(!n)return'Incluso';
+    return `${n>0?'+':'-'}${money(Math.abs(n))}`;
+  }
+
+  function v1238GroupAppliesToLine(group,line){
+    if(!group||!line)return false;
+    if(group.applyAllCategories!==false)return true;
+    if((group.productIds||[]).includes(line.productId))return true;
+    return (group.categoryIds||[]).includes(line.categoryId);
+  }
+
+  function v1238ApplicableGroups(line){
+    v1238EnsureModifierSchema();
+    return (state.modifierGroups||[]).filter(g=>
+      g.enabled!==false && v1238GroupAppliesToLine(g,line)
+    );
+  }
+
+  function v1238ApplyDefaultSingleGroups(line){
+    if(!line)return;
+    for(const g of v1238ApplicableGroups(line)){
+      if(g.selectionMode!=='single'||!g.defaultModifierId)continue;
+      const exists=(line.modifiers||[]).some(m=>m.groupId===g.id || String(m.name||'').startsWith(`${g.name}:`));
+      if(exists)continue;
+      const m=(g.items||[]).find(x=>x.id===g.defaultModifierId&&!x.soldOut);
+      if(m){
+        line.modifiers=line.modifiers||[];
+        line.modifiers.push({
+          id:uid('lm'),modifierId:m.id,groupId:g.id,selectionMode:'single',
+          name:`${g.name}: ${m.name}`,price:+m.price||0,printStyle:m.printStyle||'normal'
+        });
+      }
+    }
+  }
+
+  function v1238RefreshMainModifierUi(){
+    const line=state.draft?.lines?.[ui.selectedLine];
+    if(!line)return;
+    v1238ApplyDefaultSingleGroups(line);
+
+    const card=[...$('#view-entry').querySelectorAll('.card')].find(c=>{
+      const h=c.querySelector('h3'); return h&&/^Modifica:/.test(h.textContent||'');
+    });
+    if(!card)return;
+
+    const allowed=new Set(v1238ApplicableGroups(line).map(g=>g.id));
+    $$('.tabs [data-modgroup]',card).forEach(btn=>{
+      const g=state.modifierGroups.find(x=>x.id===btn.dataset.modgroup);
+      btn.style.display=allowed.has(btn.dataset.modgroup)?'':'none';
+      if(g?.selectionMode==='single'){
+        btn.classList.add('mod-format');
+        btn.title='Scelta singola';
+      }
+    });
+
+    const current=state.modifierGroups.find(g=>g.id===ui.modGroup);
+    if(!current||!allowed.has(current.id)){
+      ui.modGroup=[...allowed][0]||'';
+      if(ui.modGroup){
+        setTimeout(()=>renderEntry(),0);
+        return;
+      }
+    }
+
+    const g=state.modifierGroups.find(x=>x.id===ui.modGroup);
+    if(!g)return;
+
+    $$('button[data-mod]',card).forEach(btn=>{
+      const m=(g.items||[]).find(x=>x.id===btn.dataset.mod);
+      if(!m)return;
+      const price=btn.querySelector('.price');
+      if(price)price.textContent=v1238Delta(m.price);
+      if(g.selectionMode==='single'){
+        const chosen=(line.modifiers||[]).some(x=>
+          x.groupId===g.id&&x.modifierId===m.id ||
+          (!x.groupId&&String(x.name||'')===`${g.name}: ${m.name}`)
+        );
+        btn.classList.toggle('selected',chosen);
+      }
+    });
+  }
+
+  /* Formato/scelta singola appartiene all'intera pizza, non ai singoli gusti. */
+  const composeMultiV1238Base=composeMulti;
+  composeMulti=function(...args){
+    v1238EnsureModifierSchema();
+    const singles=(state.modifierGroups||[]).filter(g=>g.selectionMode==='single');
+    const states=singles.map(g=>[g,g.enabled]);
+    singles.forEach(g=>g.enabled=false);
+    try{return composeMultiV1238Base(...args)}
+    finally{states.forEach(([g,v])=>g.enabled=v)}
+  };
+
+  /* Render entry: applica scope, default e formattazione prezzi +/- */
+  const renderEntryV1238Base=renderEntry;
+  renderEntry=function(){
+    v1238EnsureModifierSchema();
+    const out=renderEntryV1238Base();
+    v1238RefreshMainModifierUi();
+    return out;
+  };
+
+  /* Click intercettato prima del vecchio handler:
+     single = sostituisce la scelta precedente dello stesso gruppo. */
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest('button[data-mod]');
+    if(!btn)return;
+
+    const line=state.draft?.lines?.[ui.selectedLine];
+    const g=state.modifierGroups.find(x=>x.id===ui.modGroup);
+    if(!line||!g||g.selectionMode!=='single')return;
+
+    const m=(g.items||[]).find(x=>x.id===btn.dataset.mod);
+    if(!m||m.soldOut)return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    line.modifiers=(line.modifiers||[]).filter(x=>{
+      if(x.groupId===g.id)return false;
+      if(!x.groupId&&String(x.name||'').startsWith(`${g.name}:`))return false;
+      return true;
+    });
+
+    line.modifiers.push({
+      id:uid('lm'),modifierId:m.id,groupId:g.id,selectionMode:'single',
+      name:`${g.name}: ${m.name}`,price:+m.price||0,printStyle:m.printStyle||'normal'
+    });
+
+    audit('Formato selezionato',`${line.name} - ${g.name}: ${m.name} (${v1238Delta(m.price)})`);
+    save('formato/scelta singola');
+    renderEntry();
+  },true);
+
+  function v1238CategoryScopeHtml(g){
+    const cats=state.categories.filter(c=>c.type==='standard'||c.type==='multi');
+    return `<div class="field" style="grid-column:1/-1">
+      <label>Applicabilita</label>
+      ${check('Applica a tutte le categorie','applyAllCategories',g?.applyAllCategories!==false)}
+      <div class="format-scope" style="margin-top:8px">
+        <b>Categorie specifiche</b>
+        <div class="grid two" style="margin-top:6px">
+          ${cats.map(c=>check(c.name,`scopeCat_${c.id}`,(g?.categoryIds||[]).includes(c.id))).join('')}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function v1238ProductScopeHtml(g){
+    const products=state.categories.flatMap(c=>(c.items||[]).map(p=>({c,p})));
+    return `<div class="field" style="grid-column:1/-1">
+      <label>Eccezioni / prodotti specifici</label>
+      <div class="order-meta">Se il gruppo non vale per tutte le categorie, puoi abilitarlo anche solo su prodotti singoli.</div>
+      <div class="format-scope" style="margin-top:8px">
+        ${products.map(({c,p})=>check(`${c.name} - ${p.name}`,`scopeProd_${p.id}`,(g?.productIds||[]).includes(p.id))).join('')||'<div class="empty">Nessun prodotto</div>'}
+      </div>
+    </div>`;
+  }
+
+  /* Editor gruppo evoluto */
+  editModGroup=function(g){
+    v1238EnsureModifierSchema();
+    const current=g||{
+      id:uid('mg'),items:[],name:'',style:'plus',enabled:true,
+      selectionMode:'multiple',applyAllCategories:true,categoryIds:[],productIds:[],
+      required:false,defaultModifierId:''
+    };
+
+    const defaultOptions=(current.items||[]).map(m=>
+      `<option value="${m.id}" ${current.defaultModifierId===m.id?'selected':''}>${esc(m.name)}</option>`
+    ).join('');
+
+    openEditor(g?'Modifica gruppo modificatori':'Nuovo gruppo modificatori',
+      `${field('Nome gruppo','name',current.name||'')}
+      <div class="grid two">
+        <div class="field"><label>Tipo gruppo</label>
+          <select class="input" name="selectionMode">
+            <option value="multiple" ${current.selectionMode!=='single'?'selected':''}>Scelta multipla (PiÃ¹/Senza/Poco...)</option>
+            <option value="single" ${current.selectionMode==='single'?'selected':''}>Scelta singola / Formato</option>
+          </select>
+        </div>
+        <div class="field"><label>Colore pulsante</label>
+          <select class="input" name="style">
+            <option value="plus" ${current.style==='plus'?'selected':''}>Verde</option>
+            <option value="minus" ${current.style==='minus'?'selected':''}>Grigio</option>
+            <option value="little" ${current.style==='little'?'selected':''}>Giallo</option>
+            <option value="more" ${current.style==='more'?'selected':''}>Blu</option>
+          </select>
+        </div>
+        ${check('Gruppo disponibile','enabled',current.enabled!==false)}
+        ${check('Scelta obbligatoria','required',current.required===true)}
+        <div class="field"><label>Scelta predefinita</label>
+          <select class="input" name="defaultModifierId">
+            <option value="">Nessuna</option>${defaultOptions}
+          </select>
+        </div>
+      </div>
+      <div class="notice" style="margin-top:10px">
+        <b>Formato / scelta singola:</b> scegli una sola voce alla volta. Esempio:
+        Baby -1,00 â¬ Â· Normale 0,00 â¬ Â· Schiacciata +2,00 â¬ Â· Famiglia +6,50 â¬.
+        La scelta si applica alla pizza intera, anche nel multigusto.
+      </div>
+      ${v1238CategoryScopeHtml(current)}
+      ${v1238ProductScopeHtml(current)}`,
+      fd=>{
+        const name=String(fd.get('name')||'').trim();
+        if(!name)return toast('Inserisci il nome del gruppo'),false;
+
+        current.name=name;
+        current.selectionMode=fd.get('selectionMode')==='single'?'single':'multiple';
+        current.style=fd.get('style')||'plus';
+        current.enabled=fd.has('enabled');
+        current.required=fd.has('required');
+        current.defaultModifierId=String(fd.get('defaultModifierId')||'');
+        current.applyAllCategories=fd.has('applyAllCategories');
+        current.categoryIds=state.categories
+          .filter(c=>fd.has(`scopeCat_${c.id}`)).map(c=>c.id);
+        current.productIds=state.categories
+          .flatMap(c=>c.items||[])
+          .filter(p=>fd.has(`scopeProd_${p.id}`)).map(p=>p.id);
+
+        if(!g)state.modifierGroups.push(current);
+        if(!state.modifierGroups.some(x=>x.id===ui.modGroup&&x.enabled!==false)){
+          ui.modGroup=state.modifierGroups.find(x=>x.enabled!==false)?.id||'';
+        }
+        save('gruppo modificatori/formato');
+        renderAll();
+      });
+  };
+
+  /* Editor voce: prezzo anche negativo + stile normale/grassetto/evidenziato */
+  editMod=function(g,m){
+    v1238EnsureModifierSchema();
+    const obj=m||{
+      id:uid('m'),name:'',price:0,printStyle:'normal',soldOut:false
+    };
+    openEditor(m?'Modifica modificatore':'Nuovo modificatore',
+      `${field('Nome modificatore','name',obj.name||'')}
+      ${numField(g.selectionMode==='single'?'Variazione prezzo (+/-)':'Supplemento','price',obj.price??0,-9999,9999,.1)}
+      <div class="field"><label>Stile in comanda / stampa</label>
+        <select class="input" name="printStyle">
+          <option value="normal" ${(obj.printStyle||'normal')==='normal'?'selected':''}>Normale</option>
+          <option value="bold" ${obj.printStyle==='bold'?'selected':''}>Grassetto</option>
+          <option value="highlight" ${obj.printStyle==='highlight'?'selected':''}>Evidenziato</option>
+        </select>
+      </div>
+      ${check('Disponibile','available',!obj.soldOut)}
+      <div class="notice">
+        Prezzo: usa un numero negativo per scontare il formato (es. Baby -1,00),
+        zero per Normale, positivo per maggiorare (es. Famiglia +6,50).
+      </div>`,
+      fd=>{
+        const name=String(fd.get('name')||'').trim();
+        if(!name)return toast('Inserisci il nome modificatore'),false;
+        const price=Number(fd.get('price'));
+        obj.name=name;
+        obj.price=Number.isFinite(price)?price:0;
+        obj.printStyle=fd.get('printStyle')||'normal';
+        obj.soldOut=!fd.has('available');
+        if(!m)g.items.push(obj);
+        save('modificatore/formato');
+        setTimeout(()=>manageModItems(g.id),25);
+        return true;
+      });
+  };
+
+  /* Lista gestione: mostra +/- e stile */
+  const manageModItemsV1238Base=manageModItems;
+  manageModItems=function(groupId){
+    const g=state.modifierGroups.find(x=>x.id===groupId);
+    if(!g)return;
+    managerDialog(`Modificatori Â· ${g.name}`,
+      `<div class="notice">${g.selectionMode==='single'
+        ?'<b>Scelta singola / Formato.</b> Una sola voce alla volta. Sono ammessi prezzi negativi, zero e positivi.'
+        :'Aggiungi tutte le voci che desideri. Ogni voce ha prezzo, disponibilitÃ  e stile indipendenti.'}</div>
+      <button type="button" class="btn primary full" id="addModInEditor" style="margin-top:10px">+ Nuovo modificatore</button>
+      <div class="stack" style="margin-top:10px">
+        ${(g.items||[]).map(m=>`<div class="setting-row">
+          <div><b>${esc(m.name)}</b>
+            <div class="order-meta">${v1238Delta(m.price)} Â·
+              <span class="badge ${m.soldOut?'red':'green'}">${m.soldOut?'NON DISPONIBILE':'DISPONIBILE'}</span> Â·
+              ${m.printStyle==='highlight'?'Evidenziato':m.printStyle==='bold'?'Grassetto':'Normale'}
+              ${g.defaultModifierId===m.id?' Â· PREDEFINITO':''}
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" class="btn small ${m.soldOut?'success':'warn'} toggle-m" data-id="${m.id}">${m.soldOut?'Attiva':'Disattiva'}</button>
+            <button type="button" class="btn small edit-m" data-id="${m.id}">Modifica</button>
+            <button type="button" class="btn small danger del-m" data-id="${m.id}">Elimina</button>
+          </div>
+        </div>`).join('')||'<div class="empty">Nessun modificatore: premi Nuovo modificatore</div>'}
+      </div>`);
+
+    $('#addModInEditor').onclick=()=>closeManager(()=>editMod(g));
+    $$('.edit-m').forEach(b=>b.onclick=()=>closeManager(()=>editMod(g,g.items.find(x=>x.id===b.dataset.id))));
+    $$('.toggle-m').forEach(b=>b.onclick=()=>{
+      const m=g.items.find(x=>x.id===b.dataset.id);
+      if(m){m.soldOut=!m.soldOut;save('disponibilitÃ  modificatore');manageModItems(groupId)}
+    });
+  };
+
+  /* Validazione obbligatori prima finalizzazione */
+  function v1238MissingRequiredGroups(line){
+    return v1238ApplicableGroups(line).filter(g=>{
+      if(!g.required)return false;
+      return !(line.modifiers||[]).some(m=>
+        m.groupId===g.id || String(m.name||'').startsWith(`${g.name}:`)
+      );
+    });
+  }
+
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('button[data-action="finalize"]');
+    if(!b)return;
+    const missing=(state.draft?.lines||[]).flatMap(line=>
+      v1238MissingRequiredGroups(line).map(g=>({line,g}))
+    );
+    if(!missing.length)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const x=missing[0];
+    ui.selectedLine=state.draft.lines.indexOf(x.line);
+    ui.modGroup=x.g.id;
+    renderEntry();
+    toast(`Seleziona ${x.g.name} per ${x.line.name}`);
+  },true);
+
+  /* Diagnostica self-test V12.3.8 */
+  const runSelfTestV1238Base=runSelfTest;
+  runSelfTest=function(repair=true){
+    v1238EnsureModifierSchema();
+    const h=runSelfTestV1238Base(repair);
+    const issues=h.issues||[];
+    for(const g of state.modifierGroups||[]){
+      if(!['multiple','single'].includes(g.selectionMode)){
+        issues.push(`Tipo gruppo ${g.name} riparato`);
+        if(repair)g.selectionMode='multiple';
+      }
+      if(g.defaultModifierId&&!g.items.some(m=>m.id===g.defaultModifierId)){
+        issues.push(`Predefinito gruppo ${g.name} rimosso`);
+        if(repair)g.defaultModifierId='';
+      }
+    }
+    h.issues=issues.slice(0,50);
+    if(repair)save('self-test formato V12.3.8');
+    return h;
+  };
 
 </script>
 </body>
