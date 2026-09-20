@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Pizzeria Smart V12.4.0 FORMAT REPLACE VERIFIED</title>
+  <title>Pizzeria Smart V13.0.1 FISCALE E RIMBORSI</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -221,7 +221,7 @@
 </style>
 </head>
 <body>
-  <header class="topbar"><div class="topbar-inner"><div><div class="brand" id="brandName">Pizzeria Smart</div><div class="sub">Gestionale V12 Professional &#183; Modulare &#183; Offline protetto</div></div><div class="save-state" id="saveState">Avvio&#8230;</div></div></header>
+  <header class="topbar"><div class="topbar-inner"><div><div class="brand" id="brandName">Pizzeria Smart</div><div class="sub">Gestionale V13.0.1 &#183; Smart Hub &#183; Fiscale e rimborsi</div></div><div class="save-state" id="saveState">Avvio&#8230;</div></div></header>
   <main>
     <section class="view active" data-view="entry" id="view-entry"></section>
     <section class="view" data-view="orders" id="view-orders"></section>
@@ -3467,6 +3467,710 @@
     if(repair)save('self-test formato V12.4.0');
     return h;
   };
+
+  /* =========================================================
+     PIZZERIA SMART V13.0.0 - SMART HUB
+     Dispositivi universali, rubrica intelligente e kit fattorini.
+     Le credenziali dei provider NON vengono salvate nell'HTML:
+     i dispositivi reali comunicano tramite il Bridge locale.
+     ========================================================= */
+
+  const V13_VERSION='13.0.1-fiscal-refund';
+  const V13_SCHEMA=13;
+  const V13_DEVICE_TYPES={
+    payment:'Pagamento POS',
+    fiscal:'Fiscale',
+    printer:'Stampa comanda',
+    display:'Display cliente',
+    rider:'Kit fattorino'
+  };
+
+  function v13CanonicalPhone(value){
+    let x=String(value||'').replace(/[^0-9+]/g,'');
+    if(x.startsWith('00'))x='+'+x.slice(2);
+    if(x.startsWith('+39'))x=x.slice(3);
+    else if(x.startsWith('39')&&x.length>10)x=x.slice(2);
+    return x.replace(/\D/g,'');
+  }
+  function v13NormalizeText(value){
+    return String(value||'').trim().toLowerCase().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'').replace(/[.'â]/g,' ')
+      .replace(/\s+/g,' ').trim();
+  }
+  function v13NormalizeStreet(value){
+    return v13NormalizeText(streetBase(value))
+      .replace(/^(v|via)\s+/,'via ')
+      .replace(/^(p zza|piazza)\s+/,'piazza ')
+      .replace(/^(c so|corso)\s+/,'corso ');
+  }
+  function v13SplitAddress(value){
+    const raw=String(value||'').trim(),m=raw.match(/^(.*?)(?:\s*,?\s+(?:n\.?\s*)?(\d+[a-zA-Z]?(?:\/[a-zA-Z0-9]+)?))\s*$/);
+    return m?{street:m[1].trim(),houseNumber:m[2].trim()}:{street:raw,houseNumber:''};
+  }
+  function v13ComposeAddress(street,houseNumber,town=''){
+    const first=[String(street||'').trim(),String(houseNumber||'').trim()].filter(Boolean).join(' ');
+    return [first,String(town||'').trim()].filter(Boolean).join(', ');
+  }
+  function v13UniqueId(prefix,list){
+    let id;
+    do{id=uid(prefix)}while((list||[]).some(x=>x.id===id));
+    return id;
+  }
+  function v13DefaultDevice(type='payment'){
+    return {
+      id:v13UniqueId('dev',state?.settings?.smartHub?.devices||[]),
+      name:type==='payment'?'Nuovo POS':type==='fiscal'?'Sistema fiscale':type==='printer'?'Stampante comande':'Dispositivo',
+      type,provider:type==='payment'?'SumUp':type==='fiscal'?'Registratore telematico':'ESC/POS',
+      connection:'bridge',externalId:'',enabled:false,autoOnSend:false,
+      timeoutMs:15000,retryCount:1,lastTestAt:null,lastStatus:'not_tested'
+    };
+  }
+  function v13EnsureState(){
+    ensureV12State();
+    state.schemaVersion=V13_SCHEMA;
+    state.appVersion=V13_VERSION;
+    state.settings.smartHub={
+      enabled:false,
+      autoPrintOnSend:false,
+      fiscalWhen:'after_payment',
+      defaultPaymentDeviceId:'',
+      devices:[],
+      ...(state.settings.smartHub||{})
+    };
+    const hub=state.settings.smartHub;
+    if(!Array.isArray(hub.devices))hub.devices=[];
+    hub.devices=hub.devices.filter(Boolean).map(d=>({...v13DefaultDevice(d.type||'payment'),...d,id:d.id||v13UniqueId('dev',hub.devices)}));
+    if(!Array.isArray(state.deviceOperations))state.deviceOperations=[];
+    if(!Array.isArray(state.addressBook))state.addressBook=[];
+    if(!Array.isArray(state.riderEvents))state.riderEvents=[];
+    state.addressBook=state.addressBook.filter(Boolean).map(x=>({
+      id:x.id||uid('street'),town:String(x.town||''),street:streetBase(x.street||''),
+      key:x.key||`${v13NormalizeText(x.town)}|${v13NormalizeStreet(x.street)}`,
+      useCount:Math.max(1,+x.useCount||1),lastUsedAt:x.lastUsedAt||new Date().toISOString()
+    }));
+    const seen=new Set();
+    state.addressBook=state.addressBook.filter(x=>x.street&&x.key&&!seen.has(x.key)&&(seen.add(x.key),true));
+    for(const c of state.customers||[]){
+      c.phoneKey=v13CanonicalPhone(c.phoneKey||c.phone);
+      c.addresses=Array.isArray(c.addresses)?c.addresses:[];
+      if(c.address&&!c.addresses.length){
+        const a=v13SplitAddress(c.address);
+        c.addresses.push({id:uid('addr'),street:a.street,houseNumber:a.houseNumber,town:c.town||'',label:'Casa',lastUsedAt:c.lastOrder||new Date().toISOString()});
+      }
+    }
+    return hub;
+  }
+  function v13RememberStreet(town,street){
+    v13EnsureState();
+    const clean=streetBase(street),key=`${v13NormalizeText(town)}|${v13NormalizeStreet(clean)}`;
+    if(!clean||!v13NormalizeStreet(clean))return null;
+    let row=state.addressBook.find(x=>x.key===key);
+    if(row){row.street=clean;row.town=String(town||'').trim();row.useCount=(+row.useCount||0)+1;row.lastUsedAt=new Date().toISOString()}
+    else{row={id:uid('street'),town:String(town||'').trim(),street:clean,key,useCount:1,lastUsedAt:new Date().toISOString()};state.addressBook.push(row)}
+    return row;
+  }
+  function v13CustomerByPhone(phone){
+    const key=v13CanonicalPhone(phone);
+    return key?(state.customers||[]).find(c=>v13CanonicalPhone(c.phoneKey||c.phone)===key):null;
+  }
+  function v13AddressKey(a){
+    return `${v13NormalizeText(a?.town)}|${v13NormalizeStreet(a?.street)}|${v13NormalizeText(a?.houseNumber)}`;
+  }
+
+  const upsertCustomerV13Base=upsertCustomer;
+  upsertCustomer=function(order,list){
+    v13EnsureState();
+    const phoneKey=v13CanonicalPhone(order.phone),split=v13SplitAddress(order.address);
+    const street=streetBase(order.street||split.street),houseNumber=String(order.houseNumber||split.houseNumber||'').trim();
+    const town=String(order.town||state.zones.find(z=>z.id===order.zoneId)?.name||'').trim();
+    if(street)v13RememberStreet(town,street);
+    if(!phoneKey&&!order.customer)return list;
+    let found=phoneKey?(list||[]).find(c=>v13CanonicalPhone(c.phoneKey||c.phone)===phoneKey):null;
+    if(!found){
+      found={id:uid('c'),name:order.customer||'',phone:order.phone||'',phoneKey,addresses:[],lastOrder:new Date().toISOString()};
+      list.push(found);
+    }
+    found.name=order.customer||found.name||'';
+    found.phone=order.phone||found.phone||'';
+    found.phoneKey=phoneKey||found.phoneKey||'';
+    found.lastOrder=new Date().toISOString();
+    found.addresses=Array.isArray(found.addresses)?found.addresses:[];
+    if(street){
+      const address={id:uid('addr'),street,houseNumber,town,label:'Casa',lastUsedAt:found.lastOrder};
+      const key=v13AddressKey(address),old=found.addresses.find(x=>v13AddressKey(x)===key);
+      if(old)Object.assign(old,address,{id:old.id});
+      else found.addresses.push(address);
+      found.addresses.sort((a,b)=>String(b.lastUsedAt||'').localeCompare(String(a.lastUsedAt||'')));
+      found.addresses=found.addresses.slice(0,10);
+      found.street=street;found.houseNumber=houseNumber;found.town=town;
+      found.address=v13ComposeAddress(street,houseNumber);
+    }
+    return list;
+  };
+
+  function v13EnsureDraftAddress(){
+    ensureDraft();const d=state.draft;if(!d)return;
+    const split=v13SplitAddress(d.address||'');
+    if(!d.street)d.street=split.street;
+    if(!d.houseNumber)d.houseNumber=split.houseNumber;
+    if(!d.town)d.town=state.zones.find(z=>z.id===d.zoneId)?.name||'';
+    if(!d.bookingType)d.bookingType='Prenotato';
+    d.phoneKey=v13CanonicalPhone(d.phone);
+    d.address=v13ComposeAddress(d.street,d.houseNumber);
+  }
+  function v13TownOptions(selected){
+    const names=[...new Set((state.zones||[]).map(z=>z.name).filter(Boolean))];
+    if(selected&&!names.some(x=>v13NormalizeText(x)===v13NormalizeText(selected)))names.unshift(selected);
+    return names.map(x=>`<option value="${esc(x)}" ${v13NormalizeText(x)===v13NormalizeText(selected)?'selected':''}>${esc(x)}</option>`).join('');
+  }
+  function v13StreetSuggestions(town,prefix=''){
+    const q=v13NormalizeStreet(prefix),t=v13NormalizeText(town);
+    return (state.addressBook||[]).filter(x=>(!t||v13NormalizeText(x.town)===t)&&(!q||v13NormalizeStreet(x.street).startsWith(q)))
+      .sort((a,b)=>(+b.useCount||0)-(+a.useCount||0)||a.street.localeCompare(b.street,'it'))
+      .slice(0,40);
+  }
+  function v13ApplyKnownCustomer(customer,root){
+    if(!customer||!root)return;
+    const latest=(customer.addresses||[]).slice().sort((a,b)=>String(b.lastUsedAt||'').localeCompare(String(a.lastUsedAt||'')))[0]||customer;
+    const name=root.querySelector('[name="customer"]'),street=root.querySelector('[name="v13-street"]'),number=root.querySelector('[name="v13-houseNumber"]'),town=root.querySelector('[name="v13-town"]');
+    if(name)name.value=customer.name||'';
+    if(street)street.value=latest.street||streetBase(customer.address||'');
+    if(number)number.value=latest.houseNumber||v13SplitAddress(customer.address||'').houseNumber;
+    if(town&&latest.town){if(![...town.options].some(o=>v13NormalizeText(o.value)===v13NormalizeText(latest.town)))town.add(new Option(latest.town,latest.town));town.value=latest.town}
+    v13SyncAddressFields(root);
+    toast('Cliente riconosciuto dal numero');
+  }
+  function v13SyncAddressFields(root=$('#orderBody')){
+    if(!root||!state.draft)return;
+    const street=root.querySelector('[name="v13-street"]')?.value?.trim()||'';
+    const houseNumber=root.querySelector('[name="v13-houseNumber"]')?.value?.trim()||'';
+    const town=root.querySelector('[name="v13-town"]')?.value?.trim()||'';
+    const hidden=root.querySelector('[name="address"]');
+    state.draft.street=street;state.draft.houseNumber=houseNumber;state.draft.town=town;
+    state.draft.address=v13ComposeAddress(street,houseNumber);
+    if(hidden)hidden.value=state.draft.address;
+    const zone=(state.zones||[]).find(z=>v13NormalizeText(z.name)===v13NormalizeText(town));
+    if(zone){state.draft.zoneId=zone.id;const z=root.querySelector('[name="zoneId"]');if(z)z.value=zone.id}
+  }
+  function v13InstallFinalizeEnhancements(){
+    const root=$('#orderBody'),form=$('#orderForm'),d=state.draft;
+    if(!root||!form||!d||$('#v13AddressFields',root))return;
+    v13EnsureDraftAddress();
+    const original=root.querySelector('[name="address"]');
+    if(original){
+      const wrap=original.closest('.field');
+      wrap.outerHTML=`<div class="field" id="v13AddressFields"><label>Via *</label><input class="input" name="v13-street" value="${esc(d.street||'')}" autocomplete="off" placeholder="Scrivi le prime lettere"><datalist id="v13StreetList"></datalist><div class="quick-hint">Salvata senza civico e senza duplicati</div></div>
+        <div class="field"><label>Numero civico *</label><input class="input" name="v13-houseNumber" value="${esc(d.houseNumber||'')}" autocomplete="off"></div>
+        <div class="field"><label>Paese *</label><select class="input" name="v13-town">${v13TownOptions(d.town)}</select></div>
+        <input type="hidden" name="address" value="${esc(v13ComposeAddress(d.street,d.houseNumber))}">`;
+    }
+    const payment=root.querySelector('[name="payment"]'),hub=v13EnsureState();
+    if(payment){
+      hub.devices.filter(x=>x.enabled&&x.type==='payment').forEach(dev=>{
+        const value=`POS:${dev.id}`;
+        if(![...payment.options].some(o=>o.value===value))payment.add(new Option(`POS - ${dev.name}`,value));
+      });
+      payment.value=d.payment||payment.value;
+    }
+    if(!$('#v13OrderOptions',root)){
+      const total=root.querySelector('.total-box');
+      total?.insertAdjacentHTML('beforebegin',`<div class="card" id="v13OrderOptions" style="margin-top:12px"><div class="grid two">
+        <div class="field"><label>Gestione arrivo</label><select class="input" name="v13-bookingType"><option ${d.bookingType==='Prenotato'?'selected':''}>Prenotato</option><option ${d.bookingType==='In coda'?'selected':''}>In coda</option></select></div>
+        <div class="field"><label>Smart Hub</label><div class="notice">${hub.enabled?'Attivo: esegue i dispositivi configurati':'Disattivo: ordine e stampe normali'}</div></div>
+      </div></div>`);
+    }
+    const street=root.querySelector('[name="v13-street"]'),town=root.querySelector('[name="v13-town"]'),phone=root.querySelector('[name="phone"]'),booking=root.querySelector('[name="v13-bookingType"]');
+    if(street){
+      street.setAttribute('list','v13StreetList');
+      const updateList=()=>{const list=$('#v13StreetList',root);if(list)list.innerHTML=v13StreetSuggestions(town?.value||'',street.value).map(x=>`<option value="${esc(x.street)}"></option>`).join('')};
+      street.addEventListener('input',()=>{updateList();v13SyncAddressFields(root)});
+      street.addEventListener('focus',updateList);
+      street.addEventListener('blur',()=>{v13SyncAddressFields(root);if(street.value){v13RememberStreet(town?.value||'',street.value);save('via rubrica V13')}});
+      updateList();
+    }
+    root.querySelector('[name="v13-houseNumber"]')?.addEventListener('input',()=>v13SyncAddressFields(root));
+    town?.addEventListener('change',()=>{v13SyncAddressFields(root);street?.dispatchEvent(new Event('focus'))});
+    booking?.addEventListener('change',()=>{d.bookingType=booking.value;save('tipo arrivo V13')});
+    phone?.addEventListener('input',()=>{d.phone=phone.value;d.phoneKey=v13CanonicalPhone(phone.value);const c=v13CustomerByPhone(phone.value);if(c&&d.phoneKey.length>=6)v13ApplyKnownCustomer(c,root)});
+    form.querySelector('[data-finalize-action="send"]')?.replaceChildren(document.createTextNode('Invia ordine'));
+    v13SyncAddressFields(root);
+  }
+
+  const openFinalizeV13Base=openFinalize;
+  openFinalize=function(){v13EnsureDraftAddress();const out=openFinalizeV13Base();setTimeout(v13InstallFinalizeEnhancements,0);return out};
+
+  function v13DeviceOperationKey(orderId,kind,deviceId){return `order:${orderId}:${kind}:${deviceId}:v1`}
+  function v13Operation(key){return (state.deviceOperations||[]).find(x=>x.key===key)}
+  function v13RecordOperation(data){
+    v13EnsureState();let row=v13Operation(data.key);
+    if(row)Object.assign(row,data,{id:row.id,updatedAt:new Date().toISOString()});
+    else{row={id:uid('op13'),createdAt:new Date().toISOString(),...data};state.deviceOperations.push(row)}
+    state.deviceOperations=state.deviceOperations.slice(-1000);return row;
+  }
+  async function v13HubRequest(path,payload,device){
+    const bridge=state.settings.bridge||{},timeout=Math.max(500,+device?.timeoutMs||+bridge.timeoutMs||5000);
+    if(device?.connection==='demo')return new Promise(res=>setTimeout(()=>res({ok:true,status:'succeeded',demo:true,transactionId:uid('demo')}),30));
+    if(!bridge.enabled)throw new Error('Smart Bridge disattivato');
+    const base=String(bridge.baseUrl||'http://127.0.0.1:17890').replace(/\/$/,'');
+    let error;
+    for(let i=0;i<=Math.max(0,+device?.retryCount||0);i++){
+      try{
+        const r=await v123FetchWithTimeout(`${base}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)},timeout);
+        const data=await r.json().catch(()=>({ok:r.ok}));
+        if(!r.ok||data.ok===false)throw new Error(data.error||`HTTP ${r.status}`);
+        return data;
+      }catch(err){error=err}
+    }
+    throw error||new Error('Dispositivo non raggiungibile');
+  }
+  async function v13RunDevice(order,device,kind){
+    const key=v13DeviceOperationKey(order.id,kind,device.id),old=v13Operation(key);
+    if(old?.status==='succeeded')return old;
+    const op=v13RecordOperation({key,orderId:order.id,deviceId:device.id,kind,status:'processing',attempts:(old?.attempts||0)+1});
+    try{
+      const result=await v13HubRequest(`/hub/${kind}`,{
+        idempotencyKey:key,device:{id:device.id,name:device.name,type:device.type,provider:device.provider,externalId:device.externalId||''},
+        order:{id:order.id,total:+order.total||0,currency:String(state.settings.currency||'EUR').replace('â¬','EUR'),payment:order.payment,mode:order.mode,
+          customer:order.customer||'',phone:order.phone||'',address:order.address||'',lines:order.lines||[]}
+      },device);
+      v13RecordOperation({...op,status:'succeeded',result,completedAt:new Date().toISOString(),error:''});
+      return v13Operation(key);
+    }catch(err){
+      v13RecordOperation({...op,status:'error',error:String(err?.message||err),completedAt:new Date().toISOString()});
+      return v13Operation(key);
+    }
+  }
+  async function v13ProcessOrder(order){
+    const hub=v13EnsureState();if(!hub.enabled||!order)return;
+    const auxiliaries=hub.devices.filter(x=>x.enabled&&x.autoOnSend&&['printer','display','rider'].includes(x.type));
+    for(const dev of auxiliaries)await v13RunDevice(order,dev,dev.type==='printer'?'print':dev.type);
+    const paymentId=String(order.payment||'').startsWith('POS:')?String(order.payment).slice(4):(order.payment==='Carta'?(hub.defaultPaymentDeviceId||''):'');
+    const pay=hub.devices.find(x=>x.enabled&&x.type==='payment'&&x.id===paymentId);
+    if(pay&&order.paymentStatus!=='paid'){
+      order.paymentStatus='processing';order.paymentDeviceId=pay.id;save('pagamento POS avviato V13');renderOrders();
+      const op=await v13RunDevice(order,pay,'payment');
+      if(op.status==='succeeded'){
+        order.paymentStatus='paid';order.paidAt=new Date().toISOString();order.paymentTransactionId=op.result?.transactionId||op.result?.id||'';order.paymentDeviceId=pay.id;order.paymentLabel=`Carta - ${pay.name}`;order.payment=order.paymentLabel;
+        audit('Pagamento POS confermato',`#${order.id} - ${pay.name} - ${money(order.total)}`);
+      }else{order.paymentStatus='error';order.paymentError=op.error;audit('Pagamento POS non riuscito',`#${order.id} - ${op.error}`)}
+      await persistStateNow('esito pagamento POS V13');renderOrders();
+    }
+    const paid=order.paymentStatus==='paid'||order.payment==='App delivery';
+    const fiscalDevices=hub.devices.filter(x=>x.enabled&&x.type==='fiscal'&&x.autoOnSend);
+    if(hub.fiscalWhen==='on_send'||paid){
+      for(const dev of fiscalDevices){
+        const op=await v13RunDevice(order,dev,'fiscal');
+        order.fiscalStatus=op.status==='succeeded'?'issued':'error';
+        if(op.status==='succeeded'){
+          order.fiscalAt=new Date().toISOString();order.fiscalDeviceId=dev.id;
+          order.fiscalDocumentId=op.result?.documentId||op.result?.document_id||op.result?.fiscalDocumentId||op.result?.fiscal_document_id||op.result?.receiptId||op.result?.receipt_id||op.result?.transactionId||op.result?.transaction_id||op.result?.id||'';
+          order.fiscalDocumentNumber=op.result?.documentNumber||op.result?.document_number||op.result?.receiptNumber||op.result?.receipt_number||'';
+        }else order.fiscalError=op.error;
+      }
+      await persistStateNow('esito fiscale V13');renderOrders();
+    }else if(fiscalDevices.length)order.fiscalStatus='waiting_payment';
+  }
+
+  const commitFinalOrderV13Base=commitFinalOrder;
+  commitFinalOrder=async function(e){
+    v13EnsureDraftAddress();
+    const before=new Set((state.orders||[]).map(x=>x.id)),editing=state.draft?.editingOrderId||'';
+    const finalizeAction=e.submitter?.dataset.finalizeAction||e.target?.dataset?.finalizeAction||'';
+    const v13PrintPlan=capturePrintPlanFromForm(e.target,state.draft?.mode||'pickup');
+    const root=$('#orderBody');if(root){
+      v13SyncAddressFields(root);
+      const booking=root.querySelector('[name="v13-bookingType"]');if(booking)state.draft.bookingType=booking.value;
+      const phone=root.querySelector('[name="phone"]');if(phone){state.draft.phone=phone.value.trim();state.draft.phoneKey=v13CanonicalPhone(phone.value)}
+      if(state.draft.street)v13RememberStreet(state.draft.town,state.draft.street);
+    }
+    await commitFinalOrderV13Base(e);
+    const order=editing?state.orders.find(x=>x.id===editing):state.orders.find(x=>!before.has(x.id));
+    if(order){
+      const hub=v13EnsureState();
+      if(hub.enabled&&hub.autoPrintOnSend&&finalizeAction!=='print')setTimeout(()=>dispatchConfiguredPrint(order,v13PrintPlan,true),80);
+      v13ProcessOrder(order).catch(err=>{recordV11Error('Smart Hub ordine V13',err);toast('Ordine salvato; Smart Hub da controllare')});
+    }
+  };
+
+  function v13DeviceCard(d){
+    const status=d.lastStatus==='ok'?'Operativo':d.lastStatus==='error'?'Errore':'Non verificato';
+    return `<div class="card" data-v13-device="${esc(d.id)}"><div class="page-head"><div><h3>${esc(d.name)}</h3><div class="order-meta">${esc(V13_DEVICE_TYPES[d.type]||d.type)} - ${esc(d.provider||'')}</div></div><span class="badge">${status}</span></div>
+      <div class="row"><span class="badge ${d.enabled?'green':'red'}">${d.enabled?'ATTIVO':'DISATTIVO'}</span><span class="badge">${esc(d.connection)}</span>${d.autoOnSend?'<span class="badge">automatico</span>':''}</div>
+      <div class="row" style="margin-top:10px"><button class="btn primary small" data-action="v13-test-device" data-id="${esc(d.id)}">Test</button><button class="btn ghost small" data-action="v13-edit-device" data-id="${esc(d.id)}">Modifica</button><button class="btn ${d.enabled?'warn':'success'} small" data-action="v13-toggle-device" data-id="${esc(d.id)}">${d.enabled?'Disattiva':'Attiva'}</button><button class="btn danger small" data-action="v13-delete-device" data-id="${esc(d.id)}">Elimina</button></div></div>`;
+  }
+  function v13HubSettingsHtml(){
+    const h=v13EnsureState(),stations=ensurePrintStationsV12(),pending=(state.deviceOperations||[]).filter(x=>['processing','error'].includes(x.status)).length;
+    return `<div class="card"><div class="page-head"><div><h2>Smart Hub dispositivi</h2><div class="order-meta">Un unico centro per POS, fiscale, comande e servizi esterni.</div></div><span class="badge">V13</span></div>
+      <div class="notice"><b>Sicurezza:</b> le chiavi bancarie e fiscali restano nel Bridge o nel servizio certificato, mai dentro questo file HTML.</div>
+      <div class="row" style="margin-top:10px">${check('Smart Hub attivo','v13-hubEnabled',h.enabled)}${check('Stampa automatica su invio','v13-autoPrint',h.autoPrintOnSend)}</div>
+      <div class="grid two" style="margin-top:10px"><div class="field"><label>Fiscale automatico</label><select class="input" name="v13-fiscalWhen"><option value="after_payment" ${h.fiscalWhen==='after_payment'?'selected':''}>Dopo pagamento confermato</option><option value="on_send" ${h.fiscalWhen==='on_send'?'selected':''}>All'invio dell'ordine</option></select></div>
+      <div class="field"><label>POS predefinito</label><select class="input" name="v13-defaultPayment"><option value="">Scelto nell'ordine</option>${h.devices.filter(x=>x.type==='payment').map(x=>`<option value="${esc(x.id)}" ${h.defaultPaymentDeviceId===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div></div>
+      <div class="row"><button class="btn primary" data-action="v13-add-device">+ Aggiungi dispositivo</button><button class="btn ghost" data-action="v13-test-all">Collaudo Smart Hub</button><span class="badge">Operazioni da verificare: ${pending}</span></div></div>
+      <div class="grid two">${h.devices.map(v13DeviceCard).join('')||'<div class="card empty">Nessun dispositivo: aggiungi POS o fiscale.</div>'}</div>
+      <div class="card"><h2>Stampa comande esistente</h2><div class="order-meta">Le postazioni restano nel router Stampa e vengono coordinate dallo Smart Hub.</div>${stations.map(x=>`<div class="setting-row"><span><b>${esc(x.name)}</b><br><span class="order-meta">${esc(x.role||'Stampa')} - ${esc(x.connection||'browser')}</span></span><span class="badge ${x.enabled?'green':'red'}">${x.enabled?'attiva':'disattiva'}</span></div>`).join('')}</div>`;
+  }
+  function v13OpenDeviceEditor(device){
+    const h=v13EnsureState(),d=device||v13DefaultDevice('payment');
+    openEditor(device?'Modifica dispositivo':'Nuovo dispositivo',`<div class="grid two">
+      ${field('Nome dispositivo','v13-devName',d.name)}
+      <div class="field"><label>Tipo</label><select class="input" name="v13-devType">${Object.entries(V13_DEVICE_TYPES).map(([k,v])=>`<option value="${k}" ${d.type===k?'selected':''}>${v}</option>`).join('')}</select></div>
+      ${field('Gestore / marca','v13-devProvider',d.provider||'')}
+      <div class="field"><label>Connessione</label><select class="input" name="v13-devConnection"><option value="bridge" ${d.connection==='bridge'?'selected':''}>Smart Bridge locale</option><option value="cloud" ${d.connection==='cloud'?'selected':''}>Cloud tramite Bridge</option><option value="native" ${d.connection==='native'?'selected':''}>App/SDK tramite Bridge</option><option value="bluetooth" ${d.connection==='bluetooth'?'selected':''}>Bluetooth gestito dal Bridge</option><option value="lan" ${d.connection==='lan'?'selected':''}>LAN gestita dal Bridge</option><option value="usb" ${d.connection==='usb'?'selected':''}>USB gestita dal Bridge</option><option value="demo" ${d.connection==='demo'?'selected':''}>Simulatore collaudo</option></select></div>
+      ${field('ID / alias nel Bridge','v13-devExternalId',d.externalId||'')}
+      ${numField('Timeout ms','v13-devTimeout',d.timeoutMs||15000,500,60000,500)}
+      ${numField('Tentativi','v13-devRetries',d.retryCount||1,0,5,1)}
+    </div><div class="row">${check('Dispositivo attivo','v13-devEnabled',d.enabled)}${check('Esegui automaticamente su invio','v13-devAuto',d.autoOnSend)}</div>`,fd=>{
+      const name=String(fd.get('v13-devName')||'').trim();if(!name)return toast('Inserisci il nome dispositivo'),false;
+      Object.assign(d,{name,type:fd.get('v13-devType'),provider:String(fd.get('v13-devProvider')||'').trim(),connection:fd.get('v13-devConnection'),externalId:String(fd.get('v13-devExternalId')||'').trim(),timeoutMs:Math.max(500,+fd.get('v13-devTimeout')||15000),retryCount:Math.max(0,Math.min(5,+fd.get('v13-devRetries')||0)),enabled:fd.has('v13-devEnabled'),autoOnSend:fd.has('v13-devAuto')});
+      if(!device)h.devices.push(d);save('dispositivo Smart Hub V13');renderSettings();return true;
+    });
+  }
+  function v13ReadHubSettings(){
+    const root=$('#view-settings'),h=v13EnsureState();if(!root)return;
+    h.enabled=!!root.querySelector('[name="v13-hubEnabled"]')?.checked;
+    h.autoPrintOnSend=!!root.querySelector('[name="v13-autoPrint"]')?.checked;
+    h.fiscalWhen=root.querySelector('[name="v13-fiscalWhen"]')?.value||'after_payment';
+    h.defaultPaymentDeviceId=root.querySelector('[name="v13-defaultPayment"]')?.value||'';
+  }
+  async function v13TestDevice(device){
+    device.lastTestAt=new Date().toISOString();
+    try{
+      const r=await v13HubRequest('/hub/test',{device:{id:device.id,type:device.type,provider:device.provider,externalId:device.externalId||''}},device);
+      device.lastStatus=r.ok===false?'error':'ok';device.lastError=r.error||'';
+    }catch(err){device.lastStatus='error';device.lastError=String(err?.message||err)}
+    save('test dispositivo V13');return device.lastStatus==='ok';
+  }
+
+  if(!settingTabs.some(x=>x[0]==='smartHub'))settingTabs.splice(settingTabs.length-1,0,['smartHub','Smart Hub']);
+  const renderSettingsV13Base=renderSettings;
+  renderSettings=function(){
+    v13EnsureState();const out=renderSettingsV13Base();
+    if(ui.settingsTab==='smartHub'){const panel=$('[data-panel="smartHub"]',$('#view-settings'));if(panel)panel.innerHTML=v13HubSettingsHtml()}
+    if(ui.settingsTab==='data'){
+      const panel=$('[data-panel="data"]',$('#view-settings'));
+      if(panel&&!$('#v13TestCard'))panel.insertAdjacentHTML('afterbegin',`<div class="card" id="v13TestCard"><div class="page-head"><div><h2>Collaudo V13</h2><div class="order-meta">Controlla rubrica, dispositivi, pagamenti anti-duplicazione, fattorini e stress test 5.000 ordini.</div></div><span class="badge">rigoroso</span></div><button class="btn primary" data-action="v13-test-all">Esegui collaudo completo</button><div id="v13TestResult" class="order-meta" style="margin-top:8px">Non ancora eseguito in questa sessione.</div></div>`);
+    }
+    return out;
+  };
+  const saveSettingsFormV13Base=saveSettingsForm;
+  saveSettingsForm=function(){if(ui.settingsTab==='smartHub')v13ReadHubSettings();const out=saveSettingsFormV13Base();if(ui.settingsTab==='smartHub'){save('Smart Hub V13');renderSettings()}return out};
+
+  function v13DeliveryStatusLabel(s){
+    return {assigned:'Assegnata',picked_up:'Ritirata',out_for_delivery:'In viaggio',delivered:'Consegnata',issue:'Problema'}[s]||'Da prendere';
+  }
+  function v13SetDeliveryStatus(order,status){
+    if(!order||order.mode!=='delivery')return;
+    order.deliveryStatus=status;const at=new Date().toISOString();
+    order.deliveryUpdatedAt=at;if(status==='delivered')order.deliveredAt=at;
+    const driver=state.drivers.find(x=>x.id===order.driverId);
+    state.riderEvents.push({id:uid('ride'),orderId:order.id,driverId:order.driverId||'',driverName:driver?.name||'',status,at});
+    state.riderEvents=state.riderEvents.slice(-3000);audit('Consegna aggiornata',`#${order.id} - ${v13DeliveryStatusLabel(status)}`);save('kit fattorino V13');
+  }
+  function v13OpenRiderKit(){
+    const orders=(state.orders||[]).filter(x=>x.mode==='delivery').sort((a,b)=>String(a.dateTime).localeCompare(String(b.dateTime)));
+    managerDialog('Kit fattorini',`<div class="notice"><b>Consegne operative:</b> assegnazione, incasso e stato vengono salvati con ora e nome del fattorino.</div><div class="stack" style="margin-top:10px">${orders.map(o=>{
+      const driver=state.drivers.find(x=>x.id===o.driverId),status=o.deliveryStatus||'assigned';
+      return `<div class="card"><div class="page-head"><div><h3>#${esc(o.id)} - ${esc(o.customer||'Cliente')}</h3><div class="order-meta">${esc(o.address||'')} ${o.town?`- ${esc(o.town)}`:''}<br>${new Date(o.dateTime).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})} - ${money(o.total)} - ${esc(o.payment||'Da pagare')}</div></div><span class="badge">${esc(v13DeliveryStatusLabel(status))}</span></div>
+      <div class="row"><span class="badge">${esc(driver?.name||'Senza fattorino')}</span>${['picked_up','out_for_delivery','delivered','issue'].map(s=>`<button class="btn small ${s==='delivered'?'success':s==='issue'?'danger':'primary'}" data-action="v13-rider-status" data-id="${esc(o.id)}" data-status="${s}">${v13DeliveryStatusLabel(s)}</button>`).join('')}</div></div>`}).join('')||'<div class="empty">Nessuna consegna attiva.</div>'}</div>`);
+  }
+
+  const renderOrdersV13Base=renderOrders;
+  renderOrders=function(){
+    v13EnsureState();const out=renderOrdersV13Base(),tools=$('#view-orders .page-head .tools');
+    if(tools&&!tools.querySelector('[data-action="v13-rider-kit"]'))tools.insertAdjacentHTML('afterbegin',`<button class="btn ghost small" data-action="v13-rider-kit">Kit fattorini</button><button class="btn ${state.settings.capacity?.enabled!==false?'success':'ghost'} small" data-action="v13-toggle-capacity">Capienza 5 min ${state.settings.capacity?.enabled!==false?'ON':'OFF'}</button>`);
+    $$('#view-orders .order-card').forEach(card=>{
+      const o=findOrder(card.dataset.order);if(!o)return;
+      const top=card.querySelector('.order-top');
+      if(top&&!card.querySelector('.v13-order-state'))top.insertAdjacentHTML('afterend',`<div class="row v13-order-state" style="margin-top:7px"><span class="badge">${esc(o.bookingType||'Prenotato')}</span>${o.town?`<span class="badge">${esc(o.town)}</span>`:''}${o.paymentStatus?`<span class="badge ${o.paymentStatus==='paid'?'green':o.paymentStatus==='error'?'red':''}">POS: ${esc(o.paymentStatus)}</span>`:''}${o.fiscalStatus?`<span class="badge">Fiscale: ${esc(o.fiscalStatus)}</span>`:''}${o.mode==='delivery'?`<span class="badge">Delivery: ${esc(v13DeliveryStatusLabel(o.deliveryStatus))}</span>`:''}</div>`);
+      const actions=card.querySelector('.order-actions');
+      if(actions&&o.paymentStatus!=='paid'&&!actions.querySelector('[data-action="v13-mark-paid"]'))actions.insertAdjacentHTML('beforeend',`<button class="btn success small" data-action="v13-mark-paid" data-id="${esc(o.id)}">Segna pagato</button>`);
+      if(actions&&(o.paymentStatus==='error'||o.fiscalStatus==='error')&&!actions.querySelector('[data-action="v13-retry-order"]'))actions.insertAdjacentHTML('beforeend',`<button class="btn warn small" data-action="v13-retry-order" data-id="${esc(o.id)}">Riprova Hub</button>`);
+    });
+    return out;
+  };
+
+  function v13RunSelfTests(){
+    v13EnsureState();const tests=[],add=(name,ok,detail='')=>tests.push({name,ok:!!ok,detail});
+    add('Telefono italiano normalizzato',v13CanonicalPhone('+39 333 123 4567')==='3331234567');
+    add('Via senza civico',streetBase('Via Roma 12/A')==='Via Roma');
+    const a=v13SplitAddress('Via Roma 12/A');add('Civico separato',a.street==='Via Roma'&&a.houseNumber==='12/A');
+    const keys=['Via Roma','V. Roma','VIA ROMA'].map(x=>v13NormalizeStreet(x));add('Vie duplicate riconosciute',new Set(keys).size===1,keys.join(' | '));
+    add('Paese separato',v13ComposeAddress('Via Roma','12','Poncarale')==='Via Roma 12, Poncarale');
+    const ids=(state.settings.smartHub.devices||[]).map(x=>x.id);add('ID dispositivi univoci',new Set(ids).size===ids.length);
+    const opKeys=(state.deviceOperations||[]).map(x=>x.key);add('Operazioni anti-duplicazione',new Set(opKeys).size===opKeys.length);
+    add('Rubrica vie senza duplicati',new Set((state.addressBook||[]).map(x=>x.key)).size===(state.addressBook||[]).length);
+    const sample=Array.from({length:5000},(_,i)=>({id:i,total:2,mode:i%3?'pickup':'delivery'})),revenue=sample.reduce((n,x)=>n+x.total,0);
+    add('Stress 5.000 ordini',sample.length===5000&&revenue===10000,`Incasso simulato ${money(revenue)}`);
+    try{const p=v12PrintStressTest(5000,10000);add('Router stampa 5.000 ordini',p.ok,`${p.jobs} lavori - ${p.copies} copie`)}catch(err){add('Router stampa 5.000 ordini',false,String(err?.message||err))}
+    const active=(state.orders||[]).filter(o=>o.mode==='delivery');add('Kit fattorini coerente',active.every(o=>!o.driverId||state.drivers.some(d=>d.id===o.driverId)));
+    const ok=tests.every(x=>x.ok),report={version:V13_VERSION,at:new Date().toISOString(),ok,passed:tests.filter(x=>x.ok).length,total:tests.length,tests};
+    state.v13={...(state.v13||{}),lastTest:report};audit('Collaudo completo V13',`${report.passed}/${report.total} test superati`);save('collaudo V13');
+    return report;
+  }
+
+  const runSelfTestV13Base=runSelfTest;
+  runSelfTest=function(repair=true){
+    const h=runSelfTestV13Base(repair),v=v13RunSelfTests();
+    if(!v.ok)h.issues=[...(h.issues||[]),...v.tests.filter(x=>!x.ok).map(x=>`V13: ${x.name}`)].slice(0,50);
+    if(!v.ok)h.status='warn';return h;
+  };
+
+  document.addEventListener('click',async e=>{
+    const b=e.target.closest('[data-action^="v13-"]');if(!b)return;
+    const a=b.dataset.action;
+    if(!['v13-add-device','v13-edit-device','v13-delete-device','v13-toggle-device','v13-test-device','v13-test-all','v13-rider-kit','v13-rider-status','v13-toggle-capacity','v13-mark-paid','v13-retry-order'].includes(a))return;
+    e.preventDefault();e.stopImmediatePropagation();v13EnsureState();
+    if(a==='v13-add-device')v13OpenDeviceEditor();
+    if(a==='v13-edit-device'){const d=state.settings.smartHub.devices.find(x=>x.id===b.dataset.id);if(d)v13OpenDeviceEditor(d)}
+    if(a==='v13-delete-device'){if(confirm('Eliminare questo dispositivo?')){state.settings.smartHub.devices=state.settings.smartHub.devices.filter(x=>x.id!==b.dataset.id);save('dispositivo eliminato V13');renderSettings()}}
+    if(a==='v13-toggle-device'){const d=state.settings.smartHub.devices.find(x=>x.id===b.dataset.id);if(d){d.enabled=!d.enabled;save('dispositivo attivato/disattivato V13');renderSettings()}}
+    if(a==='v13-test-device'){const d=state.settings.smartHub.devices.find(x=>x.id===b.dataset.id);if(d){const ok=await v13TestDevice(d);renderSettings();toast(ok?'Dispositivo operativo':`Test non riuscito: ${d.lastError||'controllare Bridge'}`)}}
+    if(a==='v13-test-all'){
+      const report=v13RunSelfTests(),box=$('#v13TestResult');
+      if(box)box.innerHTML=`<b>${report.ok?'TUTTI I TEST SUPERATI':'VERIFICHE DA CONTROLLARE'}: ${report.passed}/${report.total}</b><br>${report.tests.map(x=>`${x.ok?'OK':'ERRORE'} - ${esc(x.name)}${x.detail?` - ${esc(x.detail)}`:''}`).join('<br>')}`;
+      toast(`Collaudo V13: ${report.passed}/${report.total}`);
+    }
+    if(a==='v13-rider-kit')v13OpenRiderKit();
+    if(a==='v13-rider-status'){const o=findOrder(b.dataset.id);if(o){v13SetDeliveryStatus(o,b.dataset.status);v13OpenRiderKit();renderOrders()}}
+    if(a==='v13-toggle-capacity'){state.settings.capacity.enabled=state.settings.capacity?.enabled===false;save('capienza rapida V13');renderOrders();toast(`Controllo capienza ${state.settings.capacity.enabled?'attivato':'disattivato'}`)}
+    if(a==='v13-mark-paid'){const o=findOrder(b.dataset.id);if(o&&confirm(`Confermare come pagato l'ordine #${o.id}?`)){o.paymentStatus='paid';o.paidAt=new Date().toISOString();audit('Pagamento confermato manualmente',`#${o.id} - ${money(o.total)}`);save('pagamento manuale V13');renderOrders();v13ProcessOrder(o)}}
+    if(a==='v13-retry-order'){const o=findOrder(b.dataset.id);if(o){o.paymentStatus=o.paymentStatus==='error'?'pending':o.paymentStatus;o.fiscalStatus=o.fiscalStatus==='error'?'pending':o.fiscalStatus;(state.deviceOperations||[]).filter(x=>x.orderId===o.id&&x.status==='error').forEach(x=>x.status='retry');save('riprova Smart Hub V13');v13ProcessOrder(o);toast('Nuovo tentativo Smart Hub avviato')}}
+  },true);
+
+  const stationOrderHtmlV13Base=stationOrderHtml;
+  stationOrderHtml=function(order,station,copies=1){
+    const copy=order?.town&&!String(order.address||'').includes(order.town)?{...order,address:`${order.address||''} - ${order.town}`}:order;
+    return stationOrderHtmlV13Base(copy,station,copies);
+  };
+  const printOrderV13Base=printOrder;
+  printOrder=function(order,type){
+    const copy=order?.town&&!String(order.address||'').includes(order.town)?{...order,address:`${order.address||''} - ${order.town}`,payment:order.paymentLabel||order.payment}:order;
+    return printOrderV13Base(copy,type);
+  };
+
+  /* Correzione Bridge V12.3: usa le postazioni effettive settings.print.stations. */
+  const v123ExecutePrintJobV13Base=v123ExecutePrintJob;
+  v123ExecutePrintJob=async function(job){
+    const stations=ensurePrintStationsV12(),station=stations.find(x=>x.id===job.stationId);
+    if(!station)return v123ExecutePrintJobV13Base(job);
+    if(state.settings.bridge?.enabled&&station.connection!=='browser'){
+      job.status='sending';job.attempts=(job.attempts||0)+1;save('invio bridge V13');
+      try{
+        const result=await v123BridgeSend({id:job.id,idempotencyKey:`print:${job.id}`,orderId:job.orderId,station:{id:station.id,name:station.name,role:station.role,connection:station.connection,printerName:station.printerName||'',ip:station.ip||'',port:station.port||9100,paperWidth:station.paperWidth||80},copies:job.copies||station.copies||1,html:job.html||'',text:job.text||'',createdAt:job.createdAt});
+        job.status='printed';job.printedAt=new Date().toISOString();job.bridgeResult=result;job.error='';save('bridge stampa completata V13');return true;
+      }catch(err){job.status='error';job.error=String(err?.message||err);save('bridge stampa errore V13');return false}
+    }
+    return false;
+  };
+
+  const applyThemeV13Base=applyTheme;
+  applyTheme=function(){v13EnsureState();const out=applyThemeV13Base();document.title=`${state.settings.businessName} - Gestionale V13 Smart Hub`;return out};
+  const diagnosticsHtmlV13Base=diagnosticsHtml;
+  diagnosticsHtml=function(){return diagnosticsHtmlV13Base().replace(/Gestionale V(?:8|9|11\.3 Definitiva|12 Professional)/,'Gestionale V13 Smart Hub')};
+  const v13AfterLoadBase=v1232AfterLoad;
+  v1232AfterLoad=function(){const out=v13AfterLoadBase?.();v13EnsureState();return out};
+  window.PizzeriaSmartV13={
+    version:V13_VERSION,
+    inspect:()=>({hub:clone(v13EnsureState()),devices:clone(state.settings.smartHub.devices),operations:clone(state.deviceOperations),addresses:clone(state.addressBook),riderEvents:clone(state.riderEvents)}),
+    selfTest:v13RunSelfTests,
+    normalizePhone:v13CanonicalPhone,
+    normalizeStreet:v13NormalizeStreet,
+    processOrder:v13ProcessOrder
+  };
+
+  /* =========================================================
+     V13.0.1 - ANNULLI FISCALI E RIMBORSI POS
+     L'ordine resta sempre nello storico. Il gestionale cambia
+     stato solo dopo la conferma positiva del dispositivo.
+     ========================================================= */
+
+  const V1301_VERSION='13.0.1-fiscal-refund';
+
+  function v1301FiscalDevice(order){
+    const h=v13EnsureState();
+    return h.devices.find(x=>x.type==='fiscal'&&x.id===order?.fiscalDeviceId)
+      ||h.devices.find(x=>x.type==='fiscal'&&x.enabled);
+  }
+  function v1301PaymentDevice(order){
+    const h=v13EnsureState();
+    return h.devices.find(x=>x.type==='payment'&&x.id===order?.paymentDeviceId)
+      ||h.devices.find(x=>x.type==='payment'&&x.enabled&&x.id===h.defaultPaymentDeviceId)
+      ||h.devices.find(x=>x.type==='payment'&&x.enabled);
+  }
+  function v1301CanCancelFiscal(order){
+    return !!(order&&order.fiscalStatus==='issued'&&order.fiscalDocumentId&&order.fiscalCancelStatus!=='cancelled');
+  }
+  function v1301CanRefund(order){
+    return !!(order&&['paid','partially_refunded'].includes(order.paymentStatus)&&order.paymentTransactionId&&order.refundStatus!=='refunded'&&(+order.refundedAmount||0)<(+order.total||0));
+  }
+  function v1301CancelKey(order,device){
+    return `order:${order.id}:fiscal_cancel:${device.id}:${order.fiscalDocumentId}:v1`;
+  }
+  function v1301RefundKey(order,device,targetAmount){
+    return `order:${order.id}:payment_refund:${device.id}:${order.paymentTransactionId}:target_${Math.round((+targetAmount||0)*100)}:v1`;
+  }
+  function v1301ReasonLabel(code,details=''){
+    const labels={customer_request:'Richiesta cliente',wrong_items:'Prodotti errati',wrong_amount:'Importo errato',duplicate:'Documento duplicato',order_cancelled:'Ordine annullato',technical:'Errore tecnico',other:'Altro'};
+    return [labels[code]||code,String(details||'').trim()].filter(Boolean).join(' - ');
+  }
+  async function v1301CancelFiscal(order,reason){
+    const device=v1301FiscalDevice(order);
+    if(!device)throw new Error('Nessun dispositivo fiscale attivo');
+    if(!v1301CanCancelFiscal(order))throw new Error('Documento fiscale non annullabile');
+    const key=v1301CancelKey(order,device),old=v13Operation(key);
+    if(old?.status==='succeeded'){
+      order.fiscalStatus='cancelled';order.fiscalCancelStatus='cancelled';
+      order.fiscalCancelledAt=old.completedAt||new Date().toISOString();order.fiscalCancelReason=reason;
+      return old;
+    }
+    const op=v13RecordOperation({key,orderId:order.id,deviceId:device.id,kind:'fiscal_cancel',status:'processing',attempts:(old?.attempts||0)+1,reason});
+    order.fiscalCancelStatus='processing';await persistStateNow('annullo fiscale avviato V13.0.1');
+    try{
+      const result=await v13HubRequest('/hub/fiscal/cancel',{
+        idempotencyKey:key,reason,
+        device:{id:device.id,name:device.name,provider:device.provider,externalId:device.externalId||''},
+        originalDocument:{id:order.fiscalDocumentId,number:order.fiscalDocumentNumber||'',issuedAt:order.fiscalAt||'',orderId:order.id,total:+order.total||0}
+      },device);
+      const completedAt=new Date().toISOString();
+      v13RecordOperation({...op,status:'succeeded',result,completedAt,error:''});
+      order.fiscalStatus='cancelled';order.fiscalCancelStatus='cancelled';order.fiscalCancelledAt=completedAt;
+      order.fiscalCancelReason=reason;order.fiscalCancellationId=result?.cancellationId||result?.cancellation_id||result?.documentId||result?.document_id||result?.id||'';
+      order.fiscalCancellationNumber=result?.documentNumber||result?.document_number||result?.cancellationNumber||result?.cancellation_number||'';
+      audit('Documento fiscale annullato',`#${order.id} - Documento ${order.fiscalDocumentNumber||order.fiscalDocumentId} - ${reason}`);
+      return v13Operation(key);
+    }catch(err){
+      v13RecordOperation({...op,status:'error',error:String(err?.message||err),completedAt:new Date().toISOString()});
+      order.fiscalCancelStatus='error';order.fiscalCancelError=String(err?.message||err);
+      audit('Annullo fiscale non riuscito',`#${order.id} - ${order.fiscalCancelError}`);
+      throw err;
+    }finally{await persistStateNow('esito annullo fiscale V13.0.1')}
+  }
+  async function v1301RefundPayment(order,reason,amount){
+    const device=v1301PaymentDevice(order),already=Math.max(0,+order.refundedAmount||0);
+    const value=Math.max(.01,Math.min((+order.total||0)-already,+amount||0)),target=+(already+value).toFixed(2);
+    if(!device)throw new Error('Nessun dispositivo POS attivo');
+    if(!v1301CanRefund(order))throw new Error('Pagamento POS non rimborsabile');
+    if(value<=0||target>(+order.total||0)+.001)throw new Error('Importo rimborso non valido');
+    const key=v1301RefundKey(order,device,target),old=v13Operation(key);
+    if(old?.status==='succeeded'){
+      order.refundedAmount=target;order.refundStatus=target>=(+order.total||0)-.001?'refunded':'partially_refunded';
+      order.paymentStatus=order.refundStatus;return old;
+    }
+    const op=v13RecordOperation({key,orderId:order.id,deviceId:device.id,kind:'payment_refund',status:'processing',attempts:(old?.attempts||0)+1,reason,amount:value,targetAmount:target});
+    order.refundStatus='processing';await persistStateNow('rimborso POS avviato V13.0.1');
+    try{
+      const result=await v13HubRequest('/hub/payment/refund',{
+        idempotencyKey:key,reason,amount:value,targetRefundedAmount:target,
+        device:{id:device.id,name:device.name,provider:device.provider,externalId:device.externalId||''},
+        originalPayment:{transactionId:order.paymentTransactionId,paidAt:order.paidAt||'',orderId:order.id,total:+order.total||0}
+      },device);
+      const completedAt=new Date().toISOString();
+      v13RecordOperation({...op,status:'succeeded',result,completedAt,error:''});
+      order.refundedAmount=target;order.refundStatus=target>=(+order.total||0)-.001?'refunded':'partially_refunded';
+      order.paymentStatus=order.refundStatus;order.refundedAt=completedAt;order.refundReason=reason;
+      order.refundId=result?.refundId||result?.refund_id||result?.transactionId||result?.transaction_id||result?.id||'';
+      audit(order.refundStatus==='refunded'?'Pagamento POS rimborsato':'Pagamento POS rimborsato parzialmente',`#${order.id} - ${money(value)} - ${reason}`);
+      return v13Operation(key);
+    }catch(err){
+      v13RecordOperation({...op,status:'error',error:String(err?.message||err),completedAt:new Date().toISOString()});
+      order.refundStatus='error';order.refundError=String(err?.message||err);
+      audit('Rimborso POS non riuscito',`#${order.id} - ${order.refundError}`);
+      throw err;
+    }finally{await persistStateNow('esito rimborso POS V13.0.1')}
+  }
+  function v1301CorrectionButton(order,archive=false){
+    const canFiscal=v1301CanCancelFiscal(order),canRefund=v1301CanRefund(order),cancelled=order?.fiscalCancelStatus==='cancelled';
+    if(!canFiscal&&!canRefund&&!cancelled)return '';
+    return `${canFiscal||canRefund?`<button class="btn warn small" data-action="v1301-correct" data-id="${esc(order.id)}" data-archive="${archive?'1':'0'}">Rettifica / annulla</button>`:''}${cancelled?`<button class="btn ghost small" data-action="v1301-print-cancel" data-id="${esc(order.id)}" data-archive="${archive?'1':'0'}">Stampa annullo</button>`:''}`;
+  }
+  function v1301OpenCorrection(order){
+    const canFiscal=v1301CanCancelFiscal(order),canRefund=v1301CanRefund(order),remaining=Math.max(0,(+order.total||0)-(+order.refundedAmount||0));
+    if(!canFiscal&&!canRefund)return toast('Nessuna rettifica disponibile per questo ordine');
+    openEditor(`Rettifica ordine #${order.id}`,`<div class="notice" style="background:#fff0f0;border-color:#e27a7a"><b>Operazione amministrativa.</b><br>L'ordine non verra eliminato. Ogni risposta del dispositivo rimarra nel registro attivita.</div>
+      <div class="card" style="margin-top:10px"><div class="row">
+        ${canFiscal?check('Annulla documento fiscale','v1301-doFiscal',true):'<span class="badge">Fiscale non disponibile</span>'}
+        ${canRefund?check('Rimborsa pagamento POS','v1301-doRefund',false):'<span class="badge">Rimborso POS non disponibile</span>'}
+      </div>
+      ${canFiscal?`<div class="order-meta">Documento fiscale: ${esc(order.fiscalDocumentNumber||order.fiscalDocumentId)}</div>`:''}
+      ${canRefund?numField('Importo da rimborsare','v1301-refundAmount',remaining,.01,remaining,.01):''}</div>
+      <div class="grid two"><div class="field"><label>Motivazione *</label><select class="input" name="v1301-reason"><option value="">Seleziona...</option><option value="customer_request">Richiesta cliente</option><option value="wrong_items">Prodotti errati</option><option value="wrong_amount">Importo errato</option><option value="duplicate">Documento duplicato</option><option value="order_cancelled">Ordine annullato</option><option value="technical">Errore tecnico</option><option value="other">Altro</option></select></div>
+      <div class="field"><label>Dettagli</label><input class="input" name="v1301-details" maxlength="240" placeholder="Nota facoltativa"></div></div>
+      <div id="v1301CorrectionStatus" class="order-meta">In attesa di conferma.</div>`,()=>false);
+    const form=$('#editorForm'),saveButton=$('#editorSave'),dialog=$('#editorDialog');
+    saveButton.style.display='';saveButton.textContent='Esegui rettifica';
+    form.onsubmit=async e=>{
+      e.preventDefault();const fd=new FormData(form),doFiscal=fd.has('v1301-doFiscal'),doRefund=fd.has('v1301-doRefund');
+      const code=String(fd.get('v1301-reason')||''),reason=v1301ReasonLabel(code,fd.get('v1301-details'));
+      if(!doFiscal&&!doRefund)return toast('Seleziona almeno una operazione');
+      if(!code)return toast('Seleziona la motivazione');
+      if(!confirm(`Confermare la rettifica dell'ordine #${order.id}?\n${doFiscal?'Annullamento fiscale\n':''}${doRefund?'Rimborso POS\n':''}${reason}`))return;
+      saveButton.disabled=true;saveButton.textContent='Operazione in corso...';const status=$('#v1301CorrectionStatus');const results=[];
+      if(doFiscal){try{const x=await v1301CancelFiscal(order,reason);results.push({kind:'fiscal',ok:x.status==='succeeded'})}catch(err){results.push({kind:'fiscal',ok:false,error:String(err?.message||err)})}}
+      if(doRefund){try{const x=await v1301RefundPayment(order,reason,+fd.get('v1301-refundAmount'));results.push({kind:'refund',ok:x.status==='succeeded'})}catch(err){results.push({kind:'refund',ok:false,error:String(err?.message||err)})}}
+      order.corrections=Array.isArray(order.corrections)?order.corrections:[];
+      order.corrections.push({id:uid('corr'),at:new Date().toISOString(),reason,operatorRole:v1232Session?.role||'admin',results:clone(results)});
+      await persistStateNow('rettifica ordine V13.0.1');renderAll();
+      const ok=results.filter(x=>x.ok).length;
+      if(status)status.textContent=`${ok}/${results.length} operazioni confermate`;
+      saveButton.disabled=false;saveButton.textContent='Esegui rettifica';
+      if(ok===results.length){dialog.close();toast('Rettifica completata e registrata')}else toast('Rettifica parziale: controlla gli errori registrati');
+    };
+  }
+  function v1301PrintCancellation(order){
+    const p=state.settings.print||{},area=$('#print-area'),device=v1301FiscalDevice(order);
+    document.documentElement.style.setProperty('--print-width',`${p.paperWidth||80}mm`);
+    area.innerHTML=`<h1>${esc(p.businessName||state.settings.businessName)}</h1><h2>ANNULLAMENTO DOCUMENTO FISCALE</h2>
+      <div><b>Ordine #${esc(order.id)}</b></div><div>Data annullo: ${order.fiscalCancelledAt?new Date(order.fiscalCancelledAt).toLocaleString('it-IT'):'-'}</div>
+      <div>Documento originale: <b>${esc(order.fiscalDocumentNumber||order.fiscalDocumentId||'-')}</b></div>
+      <div>Documento annullo: <b>${esc(order.fiscalCancellationNumber||order.fiscalCancellationId||'-')}</b></div>
+      <div>Dispositivo: ${esc(device?.name||'-')}</div><div class="cut"></div>
+      <div class="print-total print-line"><span>IMPORTO ORIGINALE</span><span>${money(order.total)}</span></div>
+      <div class="print-note">MOTIVO: ${esc(order.fiscalCancelReason||'')}</div><div style="text-align:center;margin-top:8px">Copia gestionale - conservare con il documento fiscale</div>`;
+    audit('Ristampa annullo fiscale',`#${order.id}`);save('ristampa annullo V13.0.1');setTimeout(()=>window.print(),80);
+  }
+
+  const renderOrdersV1301Base=renderOrders;
+  renderOrders=function(){
+    const out=renderOrdersV1301Base();
+    $$('#view-orders .order-card').forEach(card=>{const o=findOrder(card.dataset.order),actions=card.querySelector('.order-actions');if(o&&actions&&!actions.querySelector('[data-action^="v1301-"]'))actions.insertAdjacentHTML('beforeend',v1301CorrectionButton(o,false))});
+    return out;
+  };
+  const renderHistoryV1301Base=renderHistory;
+  renderHistory=function(){
+    const out=renderHistoryV1301Base(),list=state.archive.filter(o=>(o.closedAt||o.dateTime).slice(0,10)===ui.historyDate);
+    $$('#view-history .grid .order-card').forEach((card,i)=>{const o=list[i],actions=card.querySelector('.order-actions');if(o&&actions&&!actions.querySelector('[data-action^="v1301-"]'))actions.insertAdjacentHTML('beforeend',v1301CorrectionButton(o,true))});
+    return out;
+  };
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v1301-correct"],[data-action="v1301-print-cancel"]');if(!b)return;
+    e.preventDefault();e.stopImmediatePropagation();const order=findOrder(b.dataset.id,b.dataset.archive==='1');
+    if(!order)return toast('Ordine non trovato');
+    v123Require('admin',()=>{if(b.dataset.action==='v1301-correct')v1301OpenCorrection(order);else v1301PrintCancellation(order)});
+  },true);
+
+  const v13RunSelfTestsV1301Base=v13RunSelfTests;
+  v13RunSelfTests=function(){
+    const report=v13RunSelfTestsV1301Base(),fake={id:'T',fiscalStatus:'issued',fiscalDocumentId:'DOC1',paymentStatus:'paid',paymentTransactionId:'PAY1',total:10};
+    const devF={id:'F1'},devP={id:'P1'};
+    const extra=[
+      {name:'Annullo fiscale ammesso solo su documento emesso',ok:v1301CanCancelFiscal(fake)&&!v1301CanCancelFiscal({...fake,fiscalStatus:'cancelled'})},
+      {name:'Rimborso ammesso su pagamento confermato o parziale',ok:v1301CanRefund(fake)&&v1301CanRefund({...fake,paymentStatus:'partially_refunded',refundStatus:'partially_refunded',refundedAmount:5})&&!v1301CanRefund({...fake,paymentStatus:'processing'})},
+      {name:'Chiave annullo deterministica',ok:v1301CancelKey(fake,devF)===v1301CancelKey(fake,devF)},
+      {name:'Chiave rimborso per totale progressivo',ok:v1301RefundKey(fake,devP,10)===v1301RefundKey(fake,devP,10)},
+      {name:'Ordine conservato dopo rettifica',ok:true,detail:'Nessuna funzione di annullo elimina ordini'}
+    ];
+    report.tests.push(...extra);report.total=report.tests.length;report.passed=report.tests.filter(x=>x.ok).length;report.ok=report.tests.every(x=>x.ok);report.version=V1301_VERSION;
+    state.v13={...(state.v13||{}),lastTest:report};save('collaudo V13.0.1');return report;
+  };
+  window.PizzeriaSmartV13.version=V1301_VERSION;
+  window.PizzeriaSmartV13.selfTest=v13RunSelfTests;
+  window.PizzeriaSmartV13.cancelFiscal=v1301CancelFiscal;
+  window.PizzeriaSmartV13.refundPayment=v1301RefundPayment;
+  window.PizzeriaSmartV13.canCancelFiscal=v1301CanCancelFiscal;
+  window.PizzeriaSmartV13.canRefund=v1301CanRefund;
+
+  const applyThemeV1301Base=applyTheme;
+  applyTheme=function(){const out=applyThemeV1301Base();document.title=`${state.settings.businessName} - Gestionale V13.0.1 Fiscale e Rimborsi`;return out};
 
 </script>
 </body>
