@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Amalfitana AI Smart Hub V29.7 — Pizza unificata, disponibilità e preparazione OpenAI</title>
+  <title>Amalfitana AI Smart Hub V30.0 — Categorie complete e salvataggio protetto</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -236,6 +236,15 @@
   #view-entry .tabs [data-cat]:active{transform:scale(.97)}
 
 
+
+/* V30.0: barra categorie completamente leggibile; niente categorie nascoste fuori schermo. */
+#view-entry .tabs:has([data-cat]){display:flex!important;flex-wrap:wrap!important;overflow:visible!important;overflow-x:visible!important;overflow-y:visible!important;gap:8px;padding:5px 2px 12px;scroll-snap-type:none!important;touch-action:pan-y!important;max-height:none!important}
+#view-entry .tabs [data-cat]{flex:0 0 auto!important;max-width:100%;white-space:normal!important;min-height:42px;line-height:1.15;overflow-wrap:anywhere}
+#view-entry .tabs [data-cat].active{font-weight:850}
+#view-entry .category-bar-hint{display:block;font-size:.76rem;color:var(--muted);margin:-4px 0 8px}
+@media(min-width:700px){#view-entry .tabs:has([data-cat]){gap:9px}#view-entry .tabs [data-cat]{white-space:nowrap!important}}
+@media(max-width:699px){#view-entry .tabs [data-cat]{max-width:calc(50% - 5px);flex:1 1 auto!important;justify-content:center;text-align:center;padding:9px 10px}}
+
   /* V29.9 multigusto UX: keep selected taste visible and reduce vertical jumps. */
   #multiDialog{max-height:96dvh;overscroll-behavior:contain}
   #multiDialog .dialog-body{max-height:calc(96dvh - 112px);overflow-y:auto;overscroll-behavior:contain;scroll-behavior:auto;scroll-padding-top:12px}
@@ -327,7 +336,7 @@
   document.addEventListener('drop',e=>{const target=e.target.closest('#view-entry [data-cat]');if(!target||!draggedCategoryId)return;e.preventDefault();const from=state.categories.findIndex(c=>c.id===draggedCategoryId),to=state.categories.findIndex(c=>c.id===target.dataset.cat);if(from<0||to<0||from===to)return;const arr=orderedCategories(),item=arr.find(c=>c.id===draggedCategoryId);arr.splice(arr.indexOf(item),1);arr.splice(arr.findIndex(c=>c.id===target.dataset.cat),0,item);arr.forEach((c,i)=>c.entryOrder=i+1);state.categories=[...arr,...state.categories.filter(c=>!arr.some(v=>v.id===c.id))];save('ordine categorie inserimento');renderSettings();renderEntry();toast('Ordine categorie salvato')});
   function renderEntry(){const cat=activeCat();if(cat)ui.category=cat.id;const q=ui.search.trim().toLowerCase();const source=(cat?.type==='multi'&&!(cat.items||[]).length)?[{id:`builder_${cat.id}`,name:`Componi ${cat.slots||2} gusti`,price:+cat.basePrice||0,synthetic:true}]:(cat?.items||[]);const products=source.filter(p=>`${p.name} ${p.price}`.toLowerCase().includes(q)).sort((a,b)=>cat?.id==='ai_menu_pizza'?a.name.localeCompare(b.name,'it',{sensitivity:'base'}):(b.favorite?1:0)-(a.favorite?1:0));const sel=state.draft.lines[ui.selectedLine];const mg=activeMods();$('#view-entry').innerHTML=`
     <div class="page-head"><h1>${state.draft.editingOrderId?`Modifica ordine #${esc(state.draft.editingOrderId)}`:esc(state.settings.labels.entry)}</h1><div class="tools"><button class="btn ghost small" data-action="clear-draft">${state.draft.editingOrderId?'Annulla modifica':esc(state.settings.labels.newOrder)}</button></div></div>
-    <div class="layout"><div class="stack"><div class="card"><div class="tabs">${orderedCategories().filter(c=>c.enabled).map(c=>`<button class="chip category-chip ${c.id===ui.category?'active':''}" data-cat="${c.id}" draggable="true" title="Trascina per riordinare" style="--category-color:${/^#[0-9a-f]{6}$/i.test(c.color||'')?c.color:'#c41424'}">${esc(c.name)}</button>`).join('')}</div><div class="search"><input class="input" id="productSearch" value="${esc(ui.search)}" placeholder="${esc(state.settings.labels.productSearch)}"></div><div class="grid products" style="margin-top:10px">${products.map(p=>`<button class="product ${p.soldOut?'soldout':''} ${cat.type==='multi'?'multi':''}" data-product="${p.id}" ${p.soldOut?'disabled':''}><strong>${esc(p.name)}</strong><span class="price">${money(p.price||cat.basePrice)} ${cat.type==='multi'?`\u00b7 ${cat.slots} gusti`:''}</span></button>`).join('')||'<div class="empty">Nessun prodotto</div>'}</div></div>
+    <div class="layout"><div class="stack"><div class="card"><div class="tabs" aria-label="Categorie prodotto">${orderedCategories().filter(c=>c.enabled).map(c=>`<button class="chip category-chip ${c.id===ui.category?'active':''}" data-cat="${c.id}" draggable="true" title="Trascina per riordinare" style="--category-color:${/^#[0-9a-f]{6}$/i.test(c.color||'')?c.color:'#c41424'}">${esc(c.name)}</button>`).join('')}</div><small class="category-bar-hint">Tutte le categorie sono visibili. Tocca una categoria per aprirla.</small><div class="search"><input class="input" id="productSearch" value="${esc(ui.search)}" placeholder="${esc(state.settings.labels.productSearch)}"></div><div class="grid products" style="margin-top:10px">${products.map(p=>`<button class="product ${p.soldOut?'soldout':''} ${cat.type==='multi'?'multi':''}" data-product="${p.id}" ${p.soldOut?'disabled':''}><strong>${esc(p.name)}</strong><span class="price">${money(p.price||cat.basePrice)} ${cat.type==='multi'?`\u00b7 ${cat.slots} gusti`:''}</span></button>`).join('')||'<div class="empty">Nessun prodotto</div>'}</div></div>
     ${sel?`<div class="card"><h3>Modifica: ${esc(sel.name)}</h3><div class="tabs">${state.modifierGroups.filter(g=>g.enabled!==false).map(g=>`<button class="chip mod-${g.style} ${g.id===ui.modGroup?'active':''}" data-modgroup="${g.id}">${esc(g.name)}</button>`).join('')}</div><div class="grid products">${(mg?.items||[]).map(m=>`<button class="product ${m.soldOut?'soldout':''}" data-mod="${m.id}" ${m.soldOut?'disabled':''}><strong>${esc(m.name)}</strong><span class="price">${m.price?`+${money(m.price)}`:'Incluso'}</span><span class="order-meta stock-availability" style="display:block;margin-top:4px;font-weight:750;color:${m.soldOut?'#b91c1c':m.stockTracked?'#168a52':'#647184'}">${m.soldOut?'ESAURITO':m.stockTracked?`DISPONIBILI: ${Math.max(0,Number(m.stockQty)||0)}${v298DraftUseCount(m)>0?` · DOPO ORDINE: ${Math.max(0,(Number(m.stockQty)||0)-v298DraftUseCount(m))}`:''}`:'DISPONIBILE · senza conteggio'}</span></button>`).join('')}</div></div>`:''}</div>
     <aside class="card sticky-card"><h2>${esc(state.settings.labels.currentOrder)}</h2>${state.draft.lines.length?state.draft.lines.map((l,i)=>`<div class="order-line ${i===ui.selectedLine?'selected':''}" data-line="${i}"><div><div class="order-name">${esc(l.name)}</div>${l.slots?.length?`<div class="order-meta">${l.slots.map((s,n)=>`${n+1}. ${esc(s.taste||'\u2014')}${s.modifiers?.length?` (${s.modifiers.map(m=>esc(m.name)).join(', ')})`:''}`).join('<br>')}</div>`:''}${l.modifiers?.length?`<div class="order-meta">${l.modifiers.map(m=>esc(m.name)).join(', ')}</div>`:''}<div class="order-meta">${money(lineTotal(l))}</div></div><div class="qty">${l.slots?.length?`<button title="Modifica gusti" data-action="edit-multi" data-index="${i}">\u270e</button>`:''}<button data-action="qty-minus" data-index="${i}">\u2212</button><b>${l.qty}</b><button data-action="qty-plus" data-index="${i}">+</button><button data-action="remove-line" data-index="${i}">\u2715</button></div></div>`).join(''):'<div class="empty">Tocca un prodotto per iniziare</div>'}<div class="total-box"><span>${esc(state.settings.labels.total)}</span><span>${money(draftTotal())}</span></div><button class="btn success full" style="margin-top:12px" data-action="finalize" ${state.draft.lines.length?'':'disabled'}>${esc(state.settings.labels.finalize)}</button></aside></div>`}
   function statusById(id){return state.settings.statuses.find(s=>s.id===id)||state.settings.statuses[0]}
@@ -4785,6 +4794,71 @@ window.AmalfitanaAIHubV298Diagnostics=()=>({version:'V29.8',finalCommitWrapped:t
 
 // V29 diagnostic hooks for pre-release testing and secure OpenAI backend integration.
 window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto-decrement-on-final-commit-with-live-draft-countdown',inventorySearchAndFilters:true,autoListsCategoryProductsAndModifierItems:true,automaticStockConsumption:true,openAI:{readyForBackendIntegration:true,apiKeyInBrowser:false,requiredEnvironmentVariable:'OPENAI_API_KEY'},getInventorySummary(){const out={products:0,modifiers:0,soldOutProducts:0,soldOutModifiers:0,tracked:0};state.categories.forEach(c=>(c.items||[]).forEach(p=>{out.products++;if(p.soldOut)out.soldOutProducts++;if(p.stockTracked)out.tracked++}));state.modifierGroups.forEach(g=>(g.items||[]).forEach(m=>{out.modifiers++;if(m.soldOut)out.soldOutModifiers++;if(m.stockTracked)out.tracked++}));return out}};
+
+/* V30.0 — persistenza immediata e pulizia rigorosamente limitata ai dati d'ordine. */
+(function(){
+  const V30_VERSION='V30.0';
+  // Scrive subito la copia locale, IndexedDB primaria e archivio di sicurezza dopo ogni modifica.
+  const saveV30Previous=save;
+  save=function(reason='salvataggio V30.0'){
+    try{clearTimeout(saveTimer)}catch{}
+    state.version=2;state.metaSavedAt=new Date().toISOString();
+    const snapshot=clone(state);
+    try{localStorage.setItem('pizzeria_smart_v2',JSON.stringify(snapshot))}catch(err){try{setSave('Avviso: copia locale non disponibile')}catch{}}
+    try{setSave('Salvataggio…')}catch{}
+    // Serializza gli aggiornamenti di sicurezza per evitare che una scrittura vecchia sovrascriva la nuova.
+    safetyChain=safetyChain.then(async()=>{
+      let mainOk=false,safeOk=false;
+      try{mainOk=await DB.put(clone(snapshot))}catch{}
+      try{safeOk=await (navigator.locks?.request ? navigator.locks.request('pizzeria-smart-write',()=>SafetyDB.mirror(clone(snapshot),reason)) : SafetyDB.mirror(clone(snapshot),reason))}catch{}
+      if(mainOk||safeOk){ui.lastSaved=new Date();try{setSave(`Salvato ${ui.lastSaved.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}`)}catch{};try{channel?.postMessage({type:'saved',tab:V10_TAB,at:Date.now()})}catch{}}
+      else {try{setSave('Salvataggio locale effettuato')}catch{}}
+    }).catch(()=>{});
+  };
+  // La pulizia non tocca mai menu, categorie, prodotti, modificatori, prezzi, fornitori, fattorini,
+  // impostazioni, preferiti, configurazioni multigusto, giacenze, clienti, diagnostica o backup.
+  // Ogni modalità agisce solo sugli ordini indicati dal pulsante.
+  purgeOperationalData=async function(mode){
+    const clearActive=mode==='active'||mode==='all';
+    const clearHistory=mode==='history'||mode==='all';
+    if(!clearActive&&!clearHistory)throw new Error('Modalità di pulizia non valida');
+    const removedActive=clearActive?(state.orders||[]).length:0;
+    const removedHistory=clearHistory?(state.archive||[]).length:0;
+    clearTimeout(saveTimer);
+    if(clearActive)state.orders=[];
+    if(clearHistory){
+      state.archive=[];
+      // Chiusure e cestino storico sono dati associati allo storico degli ordini; non si eliminano altri dati.
+      state.eveningClosures=Array.isArray(state.eveningClosures)?state.eveningClosures:[];
+      state.trash=(state.trash||[]).filter(x=>x.kind!=='archive');
+      await deleteDatabaseV104('PizzeriaSmartArchivio',ColdArchive);
+    }
+    // Manteniamo coda di stampa, registro attività, snapshots, cache, settings e menu.
+    audit('Pulizia ordini V30.0',`${removedActive} ordini attivi rimossi; ${removedHistory} ordini storici rimossi`);
+    await persistStateNow('pulizia ordini V30.0');
+    renderAll();
+    await refreshReliabilityPanel();
+    toast(`Pulizia completata: ${removedActive} attivi, ${removedHistory} storici. Menu e impostazioni conservati.`);
+    return true;
+  };
+  // Blocca anche le vecchie azioni legacy che potevano sostituire DEFAULTS e quindi azzerare il menu.
+  document.addEventListener('click',async function(e){
+    const b=e.target.closest('button[data-action="reset-all"],button[data-action="reset-settings"]');
+    if(!b)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(b.dataset.action==='reset-all'){
+      if(!confirm('Questa pulizia cancellerà soltanto gli ordini attivi e lo storico. Menu, pizze, bibite, categorie, modificatori, fornitori, prezzi, fattorini e impostazioni resteranno invariati. Continuare?'))return;
+      await purgeOperationalData('all');
+    }else{
+      if(!confirm('Ripristinare soltanto le preferenze di aspetto? Menu, categorie, prodotti, modificatori, prezzi, fornitori, fattorini, ordini e impostazioni operative resteranno invariati.'))return;
+      const fresh=clone(DEFAULTS.settings);
+      ['businessName','currency','accent','accent2','background','appFont','labels','print'].forEach(k=>state.settings[k]=fresh[k]);
+      save('ripristino sicuro solo aspetto V30.0');await persistStateNow('ripristino sicuro solo aspetto V30.0');renderAll();toast('Aspetto ripristinato; menu e dati operativi conservati');
+    }
+  },true);
+  window.AmalfitanaAIHubV30Diagnostics=()=>({version:V30_VERSION,categoryTabsWrap:true,immediateLocalStorageWrite:true,indexedDBWriteQueued:true,purgeLimitedToOrders:true,menuPreservedByPurge:true,settingsPreservedByPurge:true,multigustoProductFieldsPersisted:true});
+})();
+
 </script>
 
 </body>
