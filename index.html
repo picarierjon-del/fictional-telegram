@@ -4412,101 +4412,37 @@ const AMALFITANA_MENU_SOURCE = [{"id":"web_1","name":"Margherita","price":6.0,"c
 function integrateAmalfitanaCatalog(){
   try {
     if(typeof state==='undefined' || !Array.isArray(state.categories)) return;
-    // V30.10 FIX: il catalogo viene integrato una sola volta. Non ricreare categorie
-    // che l'utente ha eliminato nelle sessioni successive.
-    if(state.amalfitanaMenuIntegratedAt) return;
-    const slug=s=>String(s||'categoria').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
-    // Unifica solo Pizza tradizionale + L’Amalfitana consiglia in una categoria Pizza.
-    // Conserva la provenienza originale in menuCategory e le impostazioni visive già scelte.
-    const legacyPizzaSettings=state.categories.filter(c=>/^ai_menu_(pizza_tradizionale|l_amalfitana_consiglia)$/.test(c.id));
-    const preservedPizzaSettings=legacyPizzaSettings.find(c=>c.id==='ai_menu_pizza_tradizionale')||legacyPizzaSettings[0]||{};
-    const groups=new Map();
-    for(const p of AMALFITANA_MENU_SOURCE){
-      const originalCat=p.category||'Altro';
-      const cat=['Pizza tradizionale','L’Amalfitana consiglia'].includes(originalCat)?'Pizza':originalCat;
-      if(!groups.has(cat))groups.set(cat,[]);
-      groups.get(cat).push({...p, category:originalCat});
-    }
-    // Ensure existing products remain but replace the demo seed pizzas with the checked menu.
-    const pizzaCats=new Set(['Pizza','Pizza tradizionale','Pizza speciale','L’Amalfitana consiglia','Menù 17 Gourmet (stagionale)']);
-    const sourceNames=new Set(AMALFITANA_MENU_SOURCE.map(p=>String(p.name).trim().toLocaleLowerCase('it')));
-    state.categories=state.categories.filter(c=>!/^ai_menu_/.test(c.id));
+    // V30.11: il gestionale è l'unica fonte ufficiale del catalogo.
+    // Questa funzione NON crea, elimina, rinomina o reinserisce categorie.
+    const slug=s=>String(s||'categoria').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+    const menu=[];
     for(const c of state.categories){
-      if(c.id==='cat_pizze') c.items=(c.items||[]).filter(p=>!['Margherita','Diavola','Quattro Formaggi'].includes(p.name));
-      c.items=(c.items||[]).filter(p=>!sourceNames.has(String(p.name).trim().toLocaleLowerCase('it')));
-    }
-    for(const [cat,items] of groups){
-      const id='ai_menu_'+slug(cat);
-      let target=state.categories.find(c=>c.id===id);
-      if(!target){
-        target={id,name:cat,type:'standard',enabled:true,items:[]};
-        if(cat==='Pizza'){
-          if(preservedPizzaSettings.color)target.color=preservedPizzaSettings.color;
-          if(typeof preservedPizzaSettings.enabled==='boolean')target.enabled=preservedPizzaSettings.enabled;
-          if(typeof preservedPizzaSettings.entryOrder==='number')target.entryOrder=preservedPizzaSettings.entryOrder;
-        }
-        state.categories.push(target)
-      }
-      target.name=cat;target.type='standard';
-      if(cat!=='Pizza')target.enabled=true;
-      target.useAsTaste=['Pizza','Pizza tradizionale','Pizza speciale','L’Amalfitana consiglia','Menù 17 Gourmet (stagionale)'].includes(cat);
-      target.items=items.map(p=>({id:'am_'+slug(p.id+'_'+p.name),name:p.name,price:Number(p.price)||0,soldOut:!!p.soldOut,ingredients:p.ingredients||'',allergens:p.allergens||'',variants:p.variants||'',verified:p.verified!==false,source:p.source||'Menu Amalfitana AI',menuId:p.id,menuCategory:p.category||cat}));
-      if(cat==='Pizza')target.items.sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'}));
-    }
-    // Build complete ingredient controls from every imported pizza recipe.
-    // Prices intentionally start at zero: the owner sets each surcharge in the manager.
-    const ingredientMap=new Map();
-    const cleanIngredient=(raw)=>String(raw||'').trim().replace(/^un pizzico di\s+/i,'').replace(/^un filo di\s+/i,'').replace(/^formato\s+/i,'').replace(/\s+/g,' ');
-    for(const p of AMALFITANA_MENU_SOURCE){
-      const cat=String(p.category||'');
-      if(!/pizza|gourmet|consiglia|calzone|focaccia|panino/i.test(cat)) continue;
-      const raw=String(p.ingredients||'');
-      if(!raw || /ingredienti a sorpresa|da definire|formato mezzo metro|esclusi gusti/i.test(raw)) continue;
-      raw.split(/,|;|\s+\+\s+/).map(cleanIngredient).filter(x=>x && x.length<65).forEach(x=>{
-        const key=x.toLocaleLowerCase('it'); if(!ingredientMap.has(key)) ingredientMap.set(key,x);
-      });
-    }
-    const modifierSpecs=[
-      {id:'mg_plus',name:'Più',prefix:'',style:'plus'},
-      {id:'mg_without',name:'Senza',prefix:'Senza ',style:'minus'},
-      {id:'mg_little',name:'Poco',prefix:'Poco ',style:'little'},
-      {id:'mg_more',name:'Abbondante',prefix:'Abbondante ',style:'more'}
-    ];
-    for(const spec of modifierSpecs){
-      let group=state.modifierGroups.find(g=>g.id===spec.id);
-      if(!group){group={id:spec.id,name:spec.name,style:spec.style,enabled:true,items:[]};state.modifierGroups.push(group)}
-      group.name=spec.name; group.style=spec.style; group.enabled=true; group.items=Array.isArray(group.items)?group.items:[];
-      // Migrazione: per 'Più' rimuove il prefisso 'Extra ' anche dai dati già salvati; deduplica senza alterare prezzi o stato esaurito.
-      if(spec.id==='mg_plus'){const normalized=new Map();for(const m of group.items){m.name=String(m.name||'').replace(/^extra\s+/i,'').trim();const k=m.name.toLocaleLowerCase('it');if(k&&!normalized.has(k))normalized.set(k,m)}group.items=Array.from(normalized.values())}
-      const seen=new Set(group.items.map(m=>String(m.name||'').toLocaleLowerCase('it')));
-      for(const ingredient of ingredientMap.values()){
-        const label=spec.prefix+ingredient, key=label.toLocaleLowerCase('it');
-        if(!seen.has(key)){group.items.push({id:'ing_'+spec.id+'_'+slug(ingredient),name:label,price:0,soldOut:false,printStyle:'normal',ingredientModifier:true});seen.add(key)}
+      if(!c || c.enabled===false) continue;
+      for(const p of (Array.isArray(c.items)?c.items:[])){
+        if(!p || p.enabled===false || p.deleted===true) continue;
+        menu.push({
+          id:String(p.id||slug((c.id||c.name)+'_'+p.name)),
+          name:String(p.name||''),
+          price:Number(p.price)||0,
+          category:String(c.name||'Altro'),
+          categoryId:String(c.id||''),
+          ingredients:p.ingredients||'',
+          allergens:p.allergens||'',
+          variants:p.variants||'',
+          soldOut:!!p.soldOut,
+          verified:p.verified!==false,
+          source:'gestionale'
+        });
       }
     }
-    // The composition tools must support 2 tastes for half/half and 1, 2 or 3 tastes for mezzo metro.
-    const multiCat=state.categories.find(c=>c.id==='cat_meta');
-    if(multiCat){multiCat.name='Componi pizza metà';multiCat.type='multi';multiCat.enabled=true;multiCat.slots=2;multiCat.priceRule='highest';multiCat.useAsTaste=false;}
-    const metroCat=state.categories.find(c=>c.id==='cat_metro');
-    if(metroCat){metroCat.name='Componi mezzo metro · 3 gusti';metroCat.type='multi';metroCat.enabled=true;metroCat.slots=3;metroCat.priceRule='fixed';metroCat.items=[];metroCat.useAsTaste=false;}
-    const metroOne=state.categories.find(c=>c.id==='cat_metro_1')||{id:'cat_metro_1',name:'Componi mezzo metro · 1 gusto',type:'multi',enabled:true,slots:1,priceRule:'fixed',basePrice:0,items:[]};
-    metroOne.name='Componi mezzo metro · 1 gusto';metroOne.type='multi';metroOne.enabled=true;metroOne.slots=1;metroOne.priceRule='fixed';metroOne.items=[];
-    if(!state.categories.some(c=>c.id==='cat_metro_1'))state.categories.push(metroOne);
-    const metroTwo=state.categories.find(c=>c.id==='cat_metro_2')||{id:'cat_metro_2',name:'Componi mezzo metro · 2 gusti',type:'multi',enabled:true,slots:2,priceRule:'fixed',basePrice:0,items:[]};
-    metroTwo.name='Componi mezzo metro · 2 gusti';metroTwo.type='multi';metroTwo.enabled=true;metroTwo.slots=2;metroTwo.priceRule='fixed';metroTwo.items=[];
-    if(!state.categories.some(c=>c.id==='cat_metro_2'))state.categories.push(metroTwo);
-    // Exact menu formats (including 1/2 metro Margherita, 2 gusti e 3 gusti) remain in their imported category.
-
+    state.amalfitanaMenu=menu;
+    state.amalfitanaMenuSource='state.categories';
     state.settings=state.settings||{};
     state.settings.amalfitanaAI=state.settings.amalfitanaAI||{backendUrl:'',voiceEnabled:false,mode:'B',maxComplexity:'manual_on_complex',updatedAt:''};
-    state.amalfitanaMenu=AMALFITANA_MENU_SOURCE.map(p=>({...p}));
-    state.amalfitanaMenuIntegratedAt=new Date().toISOString();
-    if(typeof save==='function') save('integrazione menu Amalfitana AI v15');
-  }catch(e){console.error('Integrazione catalogo Amalfitana AI:',e)}
+  }catch(e){console.error('Sincronizzazione menu dal gestionale:',e)}
 }
-// Il gestionale carica prima lo stato persistente: riprova dopo l'avvio e poi salva il menu unificato.
+// Sincronizza soltanto la vista derivata; non riscrive mai il catalogo del gestionale.
 setTimeout(integrateAmalfitanaCatalog, 1800);
-
 const amalfitanaSettingsBase=renderSettings;
 renderSettings=function(){
   const out=amalfitanaSettingsBase();
@@ -5024,5 +4960,22 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
 })();
 </script>
 
+<script>
+/* V30.12 — disponibilità residua live e upsell discreto basato sul menu gestionale. */
+(function(){
+ const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('it').trim();
+ const stockLeft=m=>Math.max(0,(Number(m?.stockQty)||0)-(typeof v298DraftUseCount==='function'?v298DraftUseCount(m):0));
+ function updateModifierStock(){try{document.querySelectorAll('#view-entry button[data-mod]').forEach(b=>{const m=(state.modifierGroups||[]).flatMap(g=>g.items||[]).find(x=>String(x.id)===String(b.dataset.mod));if(!m?.stockTracked)return;const left=stockLeft(m),out=!!m.soldOut||left<=0;b.disabled=out;b.classList.toggle('soldout',out);const label=b.querySelector('.stock-availability');if(label){label.textContent=out?'ESAURITO':`DISPONIBILI: ${left}`;label.style.color=out?'#b91c1c':'#168a52'}})}catch(e){console.warn(e)}}
+ const entry=document.querySelector('#view-entry');if(entry&&window.MutationObserver){new MutationObserver(()=>updateModifierStock()).observe(entry,{childList:true,subtree:true});setTimeout(updateModifierStock,0)}
+ document.addEventListener('click',e=>{const b=e.target.closest('#view-entry button[data-mod]');if(!b)return;const m=(state.modifierGroups||[]).flatMap(g=>g.items||[]).find(x=>String(x.id)===String(b.dataset.mod));if(m?.stockTracked&&(m.soldOut||stockLeft(m)<=0)){e.preventDefault();e.stopImmediatePropagation();toast('Impasto non disponibile: giacenza esaurita.');updateModifierStock()}},true);
+ function liveStock(x){return !!x&&!x.soldOut&&(!x.stockTracked||Number(x.stockQty)>0)}
+ function catalogCategories(){return (state.categories||[]).filter(c=>c.enabled!==false)}
+ function availableUpsells(){const cats=catalogCategories();const drinks=cats.filter(c=>/bevande|bibite|birre|bibita|drink/i.test(c.name||''));const desserts=cats.filter(c=>/dolci|dessert|torte|gelati/i.test(c.name||''));const dough=(state.modifierGroups||[]).filter(g=>g.enabled!==false&&/impast|base|integrale|senza glutine/i.test(g.name||'')).flatMap(g=>(g.items||[]).filter(m=>liveStock(m)&&(!m.stockTracked||stockLeft(m)>0)).map(m=>({kind:'dough',group:g,item:m})));const pick=cs=>cs.flatMap(c=>(c.items||[]).filter(liveStock).map(p=>({kind:'product',cat:c,item:p})));return {drink:pick(drinks)[0]||null,dessert:pick(desserts)[0]||null,dough:dough[0]||null}}
+ function upsellHTML(){const a=availableUpsells();if(!a.drink&&!a.dessert&&!a.dough)return '';const b=(x,label)=>x?`<button type="button" class="btn ghost small" data-am-upsell="${x.kind==='dough'?'dough':x===a.drink?'drink':'dessert'}" data-cat="${esc(x.cat?.id||'')}" data-item="${esc(x.item.id)}" data-group="${esc(x.group?.id||'')}">${label}: ${esc(x.item.name)}${Number(x.item.price)>0?' · '+money(x.item.price):''}</button>`:'';return `<div class="card" id="amAiUpsell" style="margin:12px 0;border:1px dashed var(--accent);background:#fffafa"><b>Vuoi aggiungere qualcosa?</b><div class="order-meta" style="margin:4px 0 9px">Se ti fa piacere, puoi aggiungere un extra. Altrimenti continuiamo senza problemi.</div><div class="row">${b(a.drink,'Una bibita')}${b(a.dessert,'Un dolce')}${b(a.dough,'Un impasto alternativo')}</div></div>`}
+ function addUpsell(btn){const kind=btn.dataset.amUpsell,d=state.draft;if(!d)return;const cat=catalogCategories().find(c=>c.id===btn.dataset.cat),item=kind==='dough'?(state.modifierGroups||[]).find(g=>g.id===btn.dataset.group)?.items?.find(m=>m.id===btn.dataset.item):cat?.items?.find(p=>p.id===btn.dataset.item);if(!item||!liveStock(item)||(item.stockTracked&&Number(item.stockQty)<=0))return toast('Questo elemento non è più disponibile.');if(kind==='dough'){const g=(state.modifierGroups||[]).find(x=>x.id===btn.dataset.group);const line=[...(d.lines||[])].reverse().find(l=>l.slots?.length||/pizza|calzone|focaccia|panino/i.test(l.name||''));if(!line)return toast('Aggiungi prima una pizza per scegliere l’impasto.');if((line.modifiers||[]).some(m=>m.modifierId===item.id))return toast('Questo impasto è già selezionato.');line.modifiers=line.modifiers||[];line.modifiers.push({id:uid('lm'),modifierId:item.id,groupId:g.id,name:`${g.name}: ${item.name}`,price:Number(item.price)||0});}else{d.lines.push({id:uid('l'),categoryId:cat.id,productId:item.id,name:item.name,unitPrice:Number(item.price)||0,qty:1,modifiers:[]});ui.selectedLine=d.lines.length-1}save('suggerimento gentile ordine');renderEntry();openFinalize();toast(kind==='dough'?'Impasto aggiunto':kind==='drink'?'Bibita aggiunta':'Dolce aggiunto')}
+ if(typeof openFinalize==='function'){const base=openFinalize;openFinalize=function(){base();try{const body=document.querySelector('#orderBody');if(!body)return;body.querySelector('#amAiUpsell')?.remove();const anchor=body.querySelector('.total-box,.summary-box');if(anchor)anchor.insertAdjacentHTML('beforebegin',upsellHTML());body.querySelectorAll('[data-am-upsell]').forEach(b=>b.addEventListener('click',()=>addUpsell(b)))}catch(e){console.warn('upsell',e)}}}
+ window.AmalfitanaAIHubV312={version:'V30.12',getLiveAvailability(){return {catalog:catalogCategories().map(c=>({id:c.id,name:c.name,items:(c.items||[]).filter(liveStock).map(p=>({id:p.id,name:p.name,price:Number(p.price)||0,remaining:p.stockTracked?Number(p.stockQty)||0:null}))})),dough:(state.modifierGroups||[]).filter(g=>g.enabled!==false).map(g=>({group:g.name,items:(g.items||[]).filter(liveStock).map(m=>({id:m.id,name:m.name,price:Number(m.price)||0,remaining:m.stockTracked?stockLeft(m):null}))})),schedule:clone(state.settings.schedule||{}),capacity:clone(state.settings.capacity||{}),generatedAt:new Date().toISOString()}},getOrderAssistantInstructions(){return 'Usa solo getLiveAvailability del gestionale per prodotti, prezzi, giacenze, impasti e fasce orarie. Ricontrolla la disponibilità e la fascia prima di confermare; non inventare dati. Alla fine proponi una sola volta con gentilezza una bibita oppure un dolce disponibile, o un impasto alternativo se pertinente. Se il cliente rifiuta, non insistere.'}};
+})();
+</script>
 </body>
 </html>
