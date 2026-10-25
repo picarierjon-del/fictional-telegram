@@ -310,7 +310,7 @@
   function renderEntry(){const cat=activeCat();if(cat)ui.category=cat.id;const q=ui.search.trim().toLowerCase();const source=(cat?.type==='multi'&&!(cat.items||[]).length)?[{id:`builder_${cat.id}`,name:`Componi ${cat.slots||2} gusti`,price:+cat.basePrice||0,synthetic:true}]:(cat?.items||[]);const products=source.filter(p=>`${p.name} ${p.price}`.toLowerCase().includes(q)).sort((a,b)=>cat?.id==='ai_menu_pizza'?a.name.localeCompare(b.name,'it',{sensitivity:'base'}):(b.favorite?1:0)-(a.favorite?1:0));const sel=state.draft.lines[ui.selectedLine];const mg=activeMods();$('#view-entry').innerHTML=`
     <div class="page-head"><h1>${state.draft.editingOrderId?`Modifica ordine #${esc(state.draft.editingOrderId)}`:esc(state.settings.labels.entry)}</h1><div class="tools"><button class="btn ghost small" data-action="clear-draft">${state.draft.editingOrderId?'Annulla modifica':esc(state.settings.labels.newOrder)}</button></div></div>
     <div class="layout"><div class="stack"><div class="card"><div class="tabs">${orderedCategories().filter(c=>c.enabled).map(c=>`<button class="chip category-chip ${c.id===ui.category?'active':''}" data-cat="${c.id}" draggable="true" title="Trascina per riordinare" style="--category-color:${/^#[0-9a-f]{6}$/i.test(c.color||'')?c.color:'#c41424'}">${esc(c.name)}</button>`).join('')}</div><div class="search"><input class="input" id="productSearch" value="${esc(ui.search)}" placeholder="${esc(state.settings.labels.productSearch)}"></div><div class="grid products" style="margin-top:10px">${products.map(p=>`<button class="product ${p.soldOut?'soldout':''} ${cat.type==='multi'?'multi':''}" data-product="${p.id}" ${p.soldOut?'disabled':''}><strong>${esc(p.name)}</strong><span class="price">${money(p.price||cat.basePrice)} ${cat.type==='multi'?`\u00b7 ${cat.slots} gusti`:''}</span></button>`).join('')||'<div class="empty">Nessun prodotto</div>'}</div></div>
-    ${sel?`<div class="card"><h3>Modifica: ${esc(sel.name)}</h3><div class="tabs">${state.modifierGroups.filter(g=>g.enabled!==false).map(g=>`<button class="chip mod-${g.style} ${g.id===ui.modGroup?'active':''}" data-modgroup="${g.id}">${esc(g.name)}</button>`).join('')}</div><div class="grid products">${(mg?.items||[]).map(m=>`<button class="product ${m.soldOut?'soldout':''}" data-mod="${m.id}" ${m.soldOut?'disabled':''}><strong>${esc(m.name)}</strong><span class="price">${m.price?`+${money(m.price)}`:'Incluso'}</span><span class="order-meta stock-availability" style="display:block;margin-top:4px;font-weight:750;color:${m.soldOut?'#b91c1c':m.stockTracked?'#168a52':'#647184'}">${m.soldOut?'ESAURITO':m.stockTracked?`DISPONIBILI: ${Math.max(0,Number(m.stockQty)||0)}`:'DISPONIBILE · senza conteggio'}</span></button>`).join('')}</div></div>`:''}</div>
+    ${sel?`<div class="card"><h3>Modifica: ${esc(sel.name)}</h3><div class="tabs">${state.modifierGroups.filter(g=>g.enabled!==false).map(g=>`<button class="chip mod-${g.style} ${g.id===ui.modGroup?'active':''}" data-modgroup="${g.id}">${esc(g.name)}</button>`).join('')}</div><div class="grid products">${(mg?.items||[]).map(m=>`<button class="product ${m.soldOut?'soldout':''}" data-mod="${m.id}" ${m.soldOut?'disabled':''}><strong>${esc(m.name)}</strong><span class="price">${m.price?`+${money(m.price)}`:'Incluso'}</span><span class="order-meta stock-availability" style="display:block;margin-top:4px;font-weight:750;color:${m.soldOut?'#b91c1c':m.stockTracked?'#168a52':'#647184'}">${m.soldOut?'ESAURITO':m.stockTracked?`DISPONIBILI: ${Math.max(0,Number(m.stockQty)||0)}${v298DraftUseCount(m)>0?` · DOPO ORDINE: ${Math.max(0,(Number(m.stockQty)||0)-v298DraftUseCount(m))}`:''}`:'DISPONIBILE · senza conteggio'}</span></button>`).join('')}</div></div>`:''}</div>
     <aside class="card sticky-card"><h2>${esc(state.settings.labels.currentOrder)}</h2>${state.draft.lines.length?state.draft.lines.map((l,i)=>`<div class="order-line ${i===ui.selectedLine?'selected':''}" data-line="${i}"><div><div class="order-name">${esc(l.name)}</div>${l.slots?.length?`<div class="order-meta">${l.slots.map((s,n)=>`${n+1}. ${esc(s.taste||'\u2014')}${s.modifiers?.length?` (${s.modifiers.map(m=>esc(m.name)).join(', ')})`:''}`).join('<br>')}</div>`:''}${l.modifiers?.length?`<div class="order-meta">${l.modifiers.map(m=>esc(m.name)).join(', ')}</div>`:''}<div class="order-meta">${money(lineTotal(l))}</div></div><div class="qty">${l.slots?.length?`<button title="Modifica gusti" data-action="edit-multi" data-index="${i}">\u270e</button>`:''}<button data-action="qty-minus" data-index="${i}">\u2212</button><b>${l.qty}</b><button data-action="qty-plus" data-index="${i}">+</button><button data-action="remove-line" data-index="${i}">\u2715</button></div></div>`).join(''):'<div class="empty">Tocca un prodotto per iniziare</div>'}<div class="total-box"><span>${esc(state.settings.labels.total)}</span><span>${money(draftTotal())}</span></div><button class="btn success full" style="margin-top:12px" data-action="finalize" ${state.draft.lines.length?'':'disabled'}>${esc(state.settings.labels.finalize)}</button></aside></div>`}
   function statusById(id){return state.settings.statuses.find(s=>s.id===id)||state.settings.statuses[0]}
   function renderOrdersBase(){const q=ui.orderSearch.toLowerCase();const orders=state.orders.filter(o=>[o.customer,o.phone,o.address,o.id].join(' ').toLowerCase().includes(q)).sort((a,b)=>a.dateTime.localeCompare(b.dateTime));$('#view-orders').innerHTML=`<div class="page-head"><h1>${esc(state.settings.labels.orders)} <span class="badge">${orders.length}</span></h1><div class="tools"><button class="btn ghost small" data-action="kitchen-view">${esc(state.settings.labels.kitchenMode)}</button></div></div><div class="search"><input class="input" id="orderSearch" value="${esc(ui.orderSearch)}" placeholder="Cerca cliente, telefono, indirizzo\u2026"></div><div class="grid" style="margin-top:12px">${orders.map(o=>orderCard(o)).join('')||'<div class="card empty">Nessun ordine attivo</div>'}</div>`}
@@ -4712,8 +4712,61 @@ document.addEventListener('click',async e=>{
 
 /* V28 — preserva posizione di scorrimento e focus durante il cambio filtro/gruppo nel composer multigusto. */
 window.AmalfitanaV28Diagnostics=()=>({version:'V28',multiComposerRenderPreservesScroll:true,modifierGroupFilterFocusRestored:true,cartMultiEditHandler:typeof composeMulti==='function'});
+/* V29.8 — giacenze affidabili, idempotenti e conteggio residuo durante l'inserimento.
+   L'ultima definizione di commitFinalOrder viene avvolta DOPO tutti i moduli aggiuntivi,
+   così il decremento avviene anche quando la finalizzazione è gestita da wrapper successivi. */
+function v298ModifierItemForLineModifier(mod){
+  if(!mod)return null;
+  const groups=state.modifierGroups||[];
+  const direct=mod.modifierId||mod.stockItemId||mod.id;
+  if(direct){for(const g of groups){const found=(g.items||[]).find(x=>String(x.id)===String(direct));if(found)return found}}
+  const raw=String(mod.name||'').trim();
+  const gid=mod.groupId||mod.modifierGroupId||'';
+  const candidates=gid?groups.filter(g=>String(g.id)===String(gid)):groups;
+  for(const g of candidates){
+    let name=raw;
+    const prefix=String(g.name||'')+':';
+    if(name.toLocaleLowerCase('it').startsWith(prefix.toLocaleLowerCase('it')))name=name.slice(prefix.length).trim();
+    const found=(g.items||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase('it')===name.toLocaleLowerCase('it'));
+    if(found)return found;
+  }
+  return null;
+}
+function v298DraftUseCount(item){
+  if(!item||!state.draft)return 0;
+  let count=0;
+  for(const line of state.draft.lines||[]){
+    const qty=Math.max(1,Number(line.qty)||1);
+    for(const mod of line.modifiers||[])if(v298ModifierItemForLineModifier(mod)?.id===item.id)count+=qty;
+    for(const slot of line.slots||[])for(const mod of slot.modifiers||[])if(v298ModifierItemForLineModifier(mod)?.id===item.id)count+=qty;
+  }
+  return count;
+}
+const v298CommitFinalOrderBase=commitFinalOrder;
+commitFinalOrder=async function(e){
+  const before=new Set((state.orders||[]).map(o=>String(o.id)));
+  const editingId=String(state.draft?.editingOrderId||'');
+  await v298CommitFinalOrderBase(e);
+  // Do not decrement for edits, cancelled forms, or orders not actually saved.
+  if(editingId||state.draft)return;
+  const order=(state.orders||[]).find(o=>!before.has(String(o.id)));
+  if(!order)return;
+  const result=v294ConsumeTrackedStock(order);
+  if(result.products||result.modifiers){
+    audit('Giacenze scalate automaticamente',`Ordine #${order.id}: ${result.products} unità prodotto/gusto, ${result.modifiers} unità modificatore/impasto`);
+    await persistStateNow('giacenze ordine V29.8');
+    renderAll();
+    if(ui.settingsTab==='inventory')renderSettings();
+    toast(`Ordine #${order.id}: giacenze aggiornate`);
+  }else{
+    // Salva il flag di idempotenza anche se non ci sono elementi tracciati.
+    await persistStateNow('verifica giacenze ordine V29.8');
+  }
+};
+window.AmalfitanaAIHubV298Diagnostics=()=>({version:'V29.8',finalCommitWrapped:true,stockConsumptionFunction:typeof v294ConsumeTrackedStock==='function',modifierLookup:'id/modifierId/groupId/name',draftCountdown:true,stockConsumedOncePerNewOrder:true});
+
 // V29 diagnostic hooks for pre-release testing and secure OpenAI backend integration.
-window.AmalfitanaAIHubV29={version:'V29.7',inventoryMode:'optional-quantity-auto-decrement-on-new-order-with-robust-modifier-resolution',inventorySearchAndFilters:true,autoListsCategoryProductsAndModifierItems:true,automaticStockConsumption:true,openAI:{readyForBackendIntegration:true,apiKeyInBrowser:false,requiredEnvironmentVariable:'OPENAI_API_KEY'},getInventorySummary(){const out={products:0,modifiers:0,soldOutProducts:0,soldOutModifiers:0,tracked:0};state.categories.forEach(c=>(c.items||[]).forEach(p=>{out.products++;if(p.soldOut)out.soldOutProducts++;if(p.stockTracked)out.tracked++}));state.modifierGroups.forEach(g=>(g.items||[]).forEach(m=>{out.modifiers++;if(m.soldOut)out.soldOutModifiers++;if(m.stockTracked)out.tracked++}));return out}};
+window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto-decrement-on-final-commit-with-live-draft-countdown',inventorySearchAndFilters:true,autoListsCategoryProductsAndModifierItems:true,automaticStockConsumption:true,openAI:{readyForBackendIntegration:true,apiKeyInBrowser:false,requiredEnvironmentVariable:'OPENAI_API_KEY'},getInventorySummary(){const out={products:0,modifiers:0,soldOutProducts:0,soldOutModifiers:0,tracked:0};state.categories.forEach(c=>(c.items||[]).forEach(p=>{out.products++;if(p.soldOut)out.soldOutProducts++;if(p.stockTracked)out.tracked++}));state.modifierGroups.forEach(g=>(g.items||[]).forEach(m=>{out.modifiers++;if(m.soldOut)out.soldOutModifiers++;if(m.stockTracked)out.tracked++}));return out}};
 </script>
 
 </body>
