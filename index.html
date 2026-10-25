@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Amalfitana AI Smart Hub V30.0 — Categorie complete e salvataggio protetto</title>
+  <title>Amalfitana AI Smart Hub V30.1 — Salvataggio stabile e non bloccante</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -4795,71 +4795,9 @@ window.AmalfitanaAIHubV298Diagnostics=()=>({version:'V29.8',finalCommitWrapped:t
 // V29 diagnostic hooks for pre-release testing and secure OpenAI backend integration.
 window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto-decrement-on-final-commit-with-live-draft-countdown',inventorySearchAndFilters:true,autoListsCategoryProductsAndModifierItems:true,automaticStockConsumption:true,openAI:{readyForBackendIntegration:true,apiKeyInBrowser:false,requiredEnvironmentVariable:'OPENAI_API_KEY'},getInventorySummary(){const out={products:0,modifiers:0,soldOutProducts:0,soldOutModifiers:0,tracked:0};state.categories.forEach(c=>(c.items||[]).forEach(p=>{out.products++;if(p.soldOut)out.soldOutProducts++;if(p.stockTracked)out.tracked++}));state.modifierGroups.forEach(g=>(g.items||[]).forEach(m=>{out.modifiers++;if(m.soldOut)out.soldOutModifiers++;if(m.stockTracked)out.tracked++}));return out}};
 
-/* V30.0 — persistenza immediata e pulizia rigorosamente limitata ai dati d'ordine. */
+/* V30.1 — persistenza non bloccante e pulizia rigorosamente limitata ai dati d'ordine. */
 (function(){
-  const V30_VERSION='V30.0';
+  const V30_VERSION='V30.1';
   // Scrive subito la copia locale, IndexedDB primaria e archivio di sicurezza dopo ogni modifica.
   const saveV30Previous=save;
-  save=function(reason='salvataggio V30.0'){
-    try{clearTimeout(saveTimer)}catch{}
-    state.version=2;state.metaSavedAt=new Date().toISOString();
-    const snapshot=clone(state);
-    try{localStorage.setItem('pizzeria_smart_v2',JSON.stringify(snapshot))}catch(err){try{setSave('Avviso: copia locale non disponibile')}catch{}}
-    try{setSave('Salvataggio…')}catch{}
-    // Serializza gli aggiornamenti di sicurezza per evitare che una scrittura vecchia sovrascriva la nuova.
-    safetyChain=safetyChain.then(async()=>{
-      let mainOk=false,safeOk=false;
-      try{mainOk=await DB.put(clone(snapshot))}catch{}
-      try{safeOk=await (navigator.locks?.request ? navigator.locks.request('pizzeria-smart-write',()=>SafetyDB.mirror(clone(snapshot),reason)) : SafetyDB.mirror(clone(snapshot),reason))}catch{}
-      if(mainOk||safeOk){ui.lastSaved=new Date();try{setSave(`Salvato ${ui.lastSaved.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}`)}catch{};try{channel?.postMessage({type:'saved',tab:V10_TAB,at:Date.now()})}catch{}}
-      else {try{setSave('Salvataggio locale effettuato')}catch{}}
-    }).catch(()=>{});
-  };
-  // La pulizia non tocca mai menu, categorie, prodotti, modificatori, prezzi, fornitori, fattorini,
-  // impostazioni, preferiti, configurazioni multigusto, giacenze, clienti, diagnostica o backup.
-  // Ogni modalità agisce solo sugli ordini indicati dal pulsante.
-  purgeOperationalData=async function(mode){
-    const clearActive=mode==='active'||mode==='all';
-    const clearHistory=mode==='history'||mode==='all';
-    if(!clearActive&&!clearHistory)throw new Error('Modalità di pulizia non valida');
-    const removedActive=clearActive?(state.orders||[]).length:0;
-    const removedHistory=clearHistory?(state.archive||[]).length:0;
-    clearTimeout(saveTimer);
-    if(clearActive)state.orders=[];
-    if(clearHistory){
-      state.archive=[];
-      // Chiusure e cestino storico sono dati associati allo storico degli ordini; non si eliminano altri dati.
-      state.eveningClosures=Array.isArray(state.eveningClosures)?state.eveningClosures:[];
-      state.trash=(state.trash||[]).filter(x=>x.kind!=='archive');
-      await deleteDatabaseV104('PizzeriaSmartArchivio',ColdArchive);
-    }
-    // Manteniamo coda di stampa, registro attività, snapshots, cache, settings e menu.
-    audit('Pulizia ordini V30.0',`${removedActive} ordini attivi rimossi; ${removedHistory} ordini storici rimossi`);
-    await persistStateNow('pulizia ordini V30.0');
-    renderAll();
-    await refreshReliabilityPanel();
-    toast(`Pulizia completata: ${removedActive} attivi, ${removedHistory} storici. Menu e impostazioni conservati.`);
-    return true;
-  };
-  // Blocca anche le vecchie azioni legacy che potevano sostituire DEFAULTS e quindi azzerare il menu.
-  document.addEventListener('click',async function(e){
-    const b=e.target.closest('button[data-action="reset-all"],button[data-action="reset-settings"]');
-    if(!b)return;
-    e.preventDefault();e.stopImmediatePropagation();
-    if(b.dataset.action==='reset-all'){
-      if(!confirm('Questa pulizia cancellerà soltanto gli ordini attivi e lo storico. Menu, pizze, bibite, categorie, modificatori, fornitori, prezzi, fattorini e impostazioni resteranno invariati. Continuare?'))return;
-      await purgeOperationalData('all');
-    }else{
-      if(!confirm('Ripristinare soltanto le preferenze di aspetto? Menu, categorie, prodotti, modificatori, prezzi, fornitori, fattorini, ordini e impostazioni operative resteranno invariati.'))return;
-      const fresh=clone(DEFAULTS.settings);
-      ['businessName','currency','accent','accent2','background','appFont','labels','print'].forEach(k=>state.settings[k]=fresh[k]);
-      save('ripristino sicuro solo aspetto V30.0');await persistStateNow('ripristino sicuro solo aspetto V30.0');renderAll();toast('Aspetto ripristinato; menu e dati operativi conservati');
-    }
-  },true);
-  window.AmalfitanaAIHubV30Diagnostics=()=>({version:V30_VERSION,categoryTabsWrap:true,immediateLocalStorageWrite:true,indexedDBWriteQueued:true,purgeLimitedToOrders:true,menuPreservedByPurge:true,settingsPreservedByPurge:true,multigustoProductFieldsPersisted:true});
-})();
-
-</script>
-
-</body>
-</html>
+  let v30SaveTimer=null,v30PendingRea
