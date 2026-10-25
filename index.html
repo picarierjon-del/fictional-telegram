@@ -346,11 +346,36 @@
       state.categories.forEach(c=>(c.items||[]).forEach(p=>products.push({kind:'product',parentId:c.id,id:p.id,name:p.name,group:c.name,item:p})));
       const modifiers=[];
       state.modifierGroups.forEach(g=>(g.items||[]).forEach(m=>modifiers.push({kind:'modifier',parentId:g.id,id:m.id,name:m.name,group:g.name,item:m})));
-      const row=x=>`<div class="setting-row" style="gap:8px"><div style="min-width:0;flex:1"><b>${esc(x.name)}</b><div class="order-meta">${esc(x.group)} · <span class="badge ${x.item.soldOut?'red':'green'}">${x.item.soldOut?'ESAURITO':'DISPONIBILE'}</span>${x.item.stockTracked?' · Giacenza: '+Math.max(0,Number(x.item.stockQty)||0):' · Quantità non tracciata'}</div></div><div class="row" style="flex-wrap:wrap;justify-content:flex-end"><button class="btn small ghost" data-stock-action="minus" data-kind="${x.kind}" data-parent="${x.parentId}" data-id="${x.id}" ${!x.item.stockTracked?'disabled':''}>−1</button><button class="btn small ghost" data-stock-action="plus" data-kind="${x.kind}" data-parent="${x.parentId}" data-id="${x.id}">+1</button><button class="btn small ${x.item.soldOut?'success':'warn'}" data-stock-action="toggle" data-kind="${x.kind}" data-parent="${x.parentId}" data-id="${x.id}">${x.item.soldOut?'Riattiva':'Esaurito'}</button><button class="btn small ghost" data-stock-action="set" data-kind="${x.kind}" data-parent="${x.parentId}" data-id="${x.id}">Imposta</button></div></div>`;
-      return `<div class="stack"><div class="card"><h2>Disponibilità prodotti e modificatori</h2><div class="notice">Imposta la giacenza di impasti, ingredienti, bibite e modificatori. Quando la giacenza tracciata arriva a zero, l'elemento viene marcato automaticamente come ESAURITO e non deve essere selezionabile nelle nuove righe. Per riaprire la disponibilità usa Riattiva oppure imposta una giacenza positiva.</div><p class="order-meta">La giacenza viene salvata insieme al gestionale. In questa versione la quantità è aggiornata manualmente: non viene ancora scalata automaticamente alla conferma dell'ordine, così evitiamo scarichi doppi o errati prima del collaudo del flusso ordini.</p></div><div class="card"><div class="page-head"><h2>Prodotti</h2><span class="badge">${products.length}</span></div>${products.map(row).join('')||'<div class="empty">Nessun prodotto</div>'}</div><div class="card"><div class="page-head"><h2>Modificatori e impasti</h2><span class="badge">${modifiers.length}</span></div>${modifiers.map(row).join('')||'<div class="empty">Nessun modificatore</div>'}</div></div>`;
+      const row=x=>`<div class="setting-row" data-stock-row data-stock-search="${esc((x.name+' '+x.group).toLocaleLowerCase('it'))}" data-stock-kind="${x.kind}" data-stock-status="${x.item.soldOut?'soldout':'available'}" style="gap:8px"><div style="min-width:0;flex:1"><b>${esc(x.name)}</b><div class="order-meta">${esc(x.group)} · <span class="badge ${x.item.soldOut?'red':'green'}">${x.item.soldOut?'ESAURITO':'DISPONIBILE'}</span>${x.item.stockTracked?' · Giacenza: '+Math.max(0,Number(x.item.stockQty)||0):' · Conteggio disattivato'}</div></div><div class="row" style="flex-wrap:wrap;justify-content:flex-end"><button class="btn small ghost" data-stock-action="minus" data-kind="${x.kind}" data-parent="${x.parentId}" data-id="${x.id}" ${!x.item.stockTracked?'disabled':''}>−1</button><button class="btn small ghost" data-stock-action="plus" data-kind="${x.kind}" data-parent="${x.parentId}" data-id="${x.id}">+1</button><button class="btn small ${x.item.soldOut?'success':'warn'}" data-stock-action="toggle" data-kind="${x.kind}" data-parent="${x.parentId}" data-id="${x.id}">${x.item.soldOut?'Riattiva':'Esaurito'}</button><button class="btn small ghost" data-stock-action="set" data-kind="${x.kind}" data-parent="${x.parentId}" data-id="${x.id}">${x.item.stockTracked?"Modifica giacenza":"Attiva giacenza"}</button></div></div>`;
+      return `<div class="stack"><div class="card"><h2>Disponibilità prodotti e modificatori</h2><div class="notice">La giacenza NON è obbligatoria: ogni nuovo prodotto, impasto, formato o modificatore è disponibile per impostazione predefinita e non richiede quantità. Attiva il conteggio solo per gli elementi che vuoi gestire a quantità. Tutti gli elementi vengono raccolti automaticamente qui; quando una giacenza attiva arriva a zero, l'elemento viene marcato come ESAURITO.</div><p class="order-meta">La giacenza è facoltativa e si salva insieme al gestionale. Il conteggio è manuale: le quantità non vengono scalate automaticamente alla conferma dell'ordine. Puoi sempre segnare un elemento come esaurito o riattivarlo senza attivare il conteggio.</p><div class="grid two" style="margin-top:12px"><div class="field"><label for="inventorySearch">Cerca prodotto, impasto, formato o gruppo</label><input class="input" id="inventorySearch" type="search" placeholder="Es. integrale, baby, mozzarella…" autocomplete="off"></div><div class="field"><label for="inventoryFilter">Mostra</label><select class="input" id="inventoryFilter"><option value="all">Tutti gli elementi</option><option value="available">Solo disponibili</option><option value="soldout">Solo esauriti</option><option value="tracked">Solo con giacenza tracciata</option><option value="product">Solo prodotti/categorie</option><option value="modifier">Solo modificatori, impasti e formati</option></select></div></div><div class="order-meta" id="inventoryFilterCount" aria-live="polite" style="margin-top:8px">${products.length+modifiers.length} elementi</div></div><div class="card"><div class="page-head"><h2>Prodotti e categorie</h2><span class="badge">${products.length}</span></div><div class="stack" id="inventoryProducts">${products.map(row).join('')||'<div class="empty">Nessun prodotto</div>'}</div></div><div class="card"><div class="page-head"><h2>Modificatori, impasti e formati</h2><span class="badge">${modifiers.length}</span></div><div class="stack" id="inventoryModifiers">${modifiers.map(row).join('')||'<div class="empty">Nessun modificatore: aggiungili nelle impostazioni dei gruppi modificatori e appariranno qui automaticamente.</div>'}</div></div></div>`;
     }
     return settingsPanelV29Base(id);
   };
+  function applyInventoryFilters(){
+    const panel=$('[data-panel="inventory"]')||$('#view-settings');
+    if(!panel)return;
+    const q=String($('#inventorySearch',panel)?.value||'').trim().toLocaleLowerCase('it');
+    const mode=String($('#inventoryFilter',panel)?.value||'all');
+    let shown=0,total=0;
+    $$('[data-stock-row]',panel).forEach(row=>{
+      total++;
+      const matchesText=!q||(row.dataset.stockSearch||'').includes(q);
+      const matchesMode=mode==='all'||
+        (mode==='available'&&row.dataset.stockStatus==='available')||
+        (mode==='soldout'&&row.dataset.stockStatus==='soldout')||
+        (mode==='product'&&row.dataset.stockKind==='product')||
+        (mode==='modifier'&&row.dataset.stockKind==='modifier')||
+        (mode==='tracked'&&row.querySelector('[data-stock-action="minus"]')?.disabled===false);
+      const visible=matchesText&&matchesMode;
+      row.hidden=!visible;
+      if(visible)shown++;
+    });
+    const count=$('#inventoryFilterCount',panel);
+    if(count)count.textContent=`Visualizzati ${shown} di ${total} elementi`;
+  }
+  document.addEventListener('input',e=>{if(e.target?.id==='inventorySearch')applyInventoryFilters()});
+  document.addEventListener('change',e=>{if(e.target?.id==='inventoryFilter')applyInventoryFilters()});
+
   document.addEventListener('click',function(e){
     const b=e.target.closest('[data-stock-action]'); if(!b)return;
     const kind=b.dataset.kind,parentId=b.dataset.parent,id=b.dataset.id,action=b.dataset.stockAction;
@@ -369,13 +394,13 @@
       }
     }
     if(action==='set'){
-      const raw=prompt(`Giacenza disponibile per ${item.name}. Inserisci un numero intero; lascia vuoto per disattivare il conteggio.`,item.stockTracked?String(item.stockQty??0):'');
+      const raw=prompt(`Giacenza FACOLTATIVA per ${item.name}. Inserisci un numero intero per attivare il conteggio; lascia vuoto per mantenere il conteggio disattivato.`,item.stockTracked?String(item.stockQty??0):'');
       if(raw===null)return;
       if(raw.trim()===''){item.stockTracked=false;delete item.stockQty;}
       else {const n=Number(raw);if(!Number.isInteger(n)||n<0)return toast('Inserisci una quantità intera pari o superiore a zero');item.stockTracked=true;item.stockQty=n;item.soldOut=n===0;}
     }
     if(action==='plus'||action==='minus'){
-      if(!item.stockTracked){const raw=prompt(`Imposta prima la giacenza iniziale per ${item.name}`,'1');if(raw===null)return;const n=Number(raw);if(!Number.isInteger(n)||n<0)return toast('Quantità non valida');item.stockTracked=true;item.stockQty=n;}
+      if(!item.stockTracked){const raw=prompt(`Il conteggio è facoltativo. Inserisci la giacenza iniziale per ${item.name} per attivarlo; annulla per lasciare la gestione senza quantità.`,'1');if(raw===null)return;const n=Number(raw);if(!Number.isInteger(n)||n<0)return toast('Quantità non valida');item.stockTracked=true;item.stockQty=n;}
       else item.stockQty=Math.max(0,(Number(item.stockQty)||0)+(action==='plus'?1:-1));
       item.soldOut=Number(item.stockQty)<=0;
     }
@@ -4647,7 +4672,7 @@ document.addEventListener('click',async e=>{
 /* V28 — preserva posizione di scorrimento e focus durante il cambio filtro/gruppo nel composer multigusto. */
 window.AmalfitanaV28Diagnostics=()=>({version:'V28',multiComposerRenderPreservesScroll:true,modifierGroupFilterFocusRestored:true,cartMultiEditHandler:typeof composeMulti==='function'});
 // V29 diagnostic hooks for pre-release testing and secure OpenAI backend integration.
-window.AmalfitanaAIHubV29={version:'V29',inventoryMode:'manual-quantity-with-sold-out-at-zero',openAI:{readyForBackendIntegration:true,apiKeyInBrowser:false,requiredEnvironmentVariable:'OPENAI_API_KEY'},getInventorySummary(){const out={products:0,modifiers:0,soldOutProducts:0,soldOutModifiers:0,tracked:0};state.categories.forEach(c=>(c.items||[]).forEach(p=>{out.products++;if(p.soldOut)out.soldOutProducts++;if(p.stockTracked)out.tracked++}));state.modifierGroups.forEach(g=>(g.items||[]).forEach(m=>{out.modifiers++;if(m.soldOut)out.soldOutModifiers++;if(m.stockTracked)out.tracked++}));return out}};
+window.AmalfitanaAIHubV29={version:'V29.2',inventoryMode:'optional-manual-quantity-with-sold-out-at-zero',inventorySearchAndFilters:true,autoListsCategoryProductsAndModifierItems:true,openAI:{readyForBackendIntegration:true,apiKeyInBrowser:false,requiredEnvironmentVariable:'OPENAI_API_KEY'},getInventorySummary(){const out={products:0,modifiers:0,soldOutProducts:0,soldOutModifiers:0,tracked:0};state.categories.forEach(c=>(c.items||[]).forEach(p=>{out.products++;if(p.soldOut)out.soldOutProducts++;if(p.stockTracked)out.tracked++}));state.modifierGroups.forEach(g=>(g.items||[]).forEach(m=>{out.modifiers++;if(m.soldOut)out.soldOutModifiers++;if(m.stockTracked)out.tracked++}));return out}};
 </script>
 
 </body>
