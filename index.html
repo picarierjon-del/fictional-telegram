@@ -4530,11 +4530,55 @@ document.addEventListener('click',async e=>{
   });
 })();
 
-/* V27 — fix definitivo: script eseguibile, categorie, scrolling e colori: eliminazione robusta, scrolling fluido, colori per categoria. */
+/* V27 — categorie fluide. Non usare scrollIntoView sulla categoria attiva:
+   su iOS può spostare l'intera pagina in alto dopo ogni modifica. */
 (function installV26CategoryUX(){
   const oldRenderEntryV26=renderEntry;
-  renderEntry=function(){const result=oldRenderEntryV26();try{const tabs=document.querySelector('#view-entry .tabs'),active=tabs?.querySelector('[data-cat].active');if(tabs){tabs.style.scrollBehavior='smooth';tabs.style.webkitOverflowScrolling='touch';tabs.style.scrollbarWidth='none';tabs.querySelectorAll('[data-cat]').forEach(b=>{b.draggable=true;b.style.flex='0 0 auto';});if(active&&typeof active.scrollIntoView==='function')active.scrollIntoView({behavior:'smooth',block:'nearest',inline:'nearest'});}}catch(e){console.warn('V27 tab scroll',e)}return result};
-  window.AmalfitanaV26Diagnostics=function(){return {version:'V27',categoryDeleteHandlerPatched:true,categoryColorEditable:true,categoryColorsSaved:(state.categories||[]).filter(c=>/^#[0-9a-f]{6}$/i.test(c.color||'')).length,scrollbarHidden:true,smoothHorizontalScroll:true,categories:(state.categories||[]).length,products:(state.categories||[]).reduce((n,c)=>n+(c.items||[]).length,0)}};
+  renderEntry=function(){
+    const pageY=window.scrollY||window.pageYOffset||0;
+    const previousTabs=document.querySelector('#view-entry .tabs');
+    const tabsX=previousTabs?previousTabs.scrollLeft:0;
+    const result=oldRenderEntryV26();
+    try{
+      const tabs=document.querySelector('#view-entry .tabs');
+      if(tabs){
+        tabs.style.scrollBehavior='auto';
+        tabs.style.webkitOverflowScrolling='touch';
+        tabs.style.scrollbarWidth='none';
+        tabs.querySelectorAll('[data-cat]').forEach(b=>{b.draggable=true;b.style.flex='0 0 auto';});
+        tabs.scrollLeft=tabsX;
+      }
+      requestAnimationFrame(()=>window.scrollTo({top:pageY,left:0,behavior:'auto'}));
+    }catch(e){console.warn('V27 tab scroll',e)}
+    return result;
+  };
+  window.AmalfitanaV26Diagnostics=function(){return {version:'V28.1',categoryDeleteHandlerPatched:true,categoryColorEditable:true,categoryColorsSaved:(state.categories||[]).filter(c=>/^#[0-9a-f]{6}$/i.test(c.color||'')).length,scrollbarHidden:true,smoothHorizontalScroll:true,preventPageJump:true,categories:(state.categories||[]).length,products:(state.categories||[]).reduce((n,c)=>n+(c.items||[]).length,0)}};
+})();
+
+/* V28.1 — selezione dal carrello: apri la card dei modificatori senza salto in cima.
+   I tocchi sui modificatori mantengono invece la posizione corrente della pagina. */
+(function installV281CartModifierNavigation(){
+  document.addEventListener('click',function(e){
+    const row=e.target.closest('#view-entry [data-line]');
+    if(!row || e.target.closest('button')) return;
+    const index=Number(row.dataset.line);
+    if(!Number.isInteger(index) || !state.draft?.lines?.[index]) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    ui.selectedLine=index;
+    renderEntry();
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const view=document.querySelector('#view-entry');
+      const card=[...(view?.querySelectorAll('.card')||[])].find(c=>{
+        const h=c.querySelector('h3'); return h && /^Modifica:/.test(h.textContent||'');
+      });
+      if(card){
+        const y=card.getBoundingClientRect().top+(window.scrollY||window.pageYOffset)-12;
+        window.scrollTo({top:Math.max(0,y),left:0,behavior:'auto'});
+      }
+    }));
+  },true);
+  window.AmalfitanaV281Diagnostics=()=>({version:'V28.1',cartLineOpensModifiers:true,modifierSelectionPreservesPagePosition:true,categoryScrollDoesNotMovePage:true});
 })();
 
 
