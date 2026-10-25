@@ -4412,6 +4412,9 @@ const AMALFITANA_MENU_SOURCE = [{"id":"web_1","name":"Margherita","price":6.0,"c
 function integrateAmalfitanaCatalog(){
   try {
     if(typeof state==='undefined' || !Array.isArray(state.categories)) return;
+    // V30.10 FIX: il catalogo viene integrato una sola volta. Non ricreare categorie
+    // che l'utente ha eliminato nelle sessioni successive.
+    if(state.amalfitanaMenuIntegratedAt) return;
     const slug=s=>String(s||'categoria').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
     // Unifica solo Pizza tradizionale + L’Amalfitana consiglia in una categoria Pizza.
     // Conserva la provenienza originale in menuCategory e le impostazioni visive già scelte.
