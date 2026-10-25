@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Amalfitana AI Smart Hub V26 — Categorie, scorrimento e colori</title>
+  <title>Amalfitana AI Smart Hub V27 — Fix script, categorie, scorrimento e colori</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -4530,15 +4530,14 @@ document.addEventListener('click',async e=>{
   });
 })();
 
-</script>
-
-
-/* V26 — collaudo categorie: eliminazione robusta, scrolling fluido, colori per categoria. */
+/* V27 — fix definitivo: script eseguibile, categorie, scrolling e colori: eliminazione robusta, scrolling fluido, colori per categoria. */
 (function installV26CategoryUX(){
   const oldRenderEntryV26=renderEntry;
-  renderEntry=function(){const result=oldRenderEntryV26();try{const tabs=document.querySelector('#view-entry .tabs'),active=tabs?.querySelector('[data-cat].active');if(tabs){tabs.style.scrollBehavior='smooth';tabs.style.webkitOverflowScrolling='touch';tabs.style.scrollbarWidth='none';tabs.querySelectorAll('[data-cat]').forEach(b=>{b.draggable=true;b.style.flex='0 0 auto';});if(active&&typeof active.scrollIntoView==='function')active.scrollIntoView({behavior:'smooth',block:'nearest',inline:'nearest'});}}catch(e){console.warn('V26 tab scroll',e)}return result};
-  window.AmalfitanaV26Diagnostics=function(){return {version:'V26',categoryDeleteHandlerPatched:true,categoryColorEditable:true,categoryColorsSaved:(state.categories||[]).filter(c=>/^#[0-9a-f]{6}$/i.test(c.color||'')).length,scrollbarHidden:true,smoothHorizontalScroll:true,categories:(state.categories||[]).length,products:(state.categories||[]).reduce((n,c)=>n+(c.items||[]).length,0)}};
+  renderEntry=function(){const result=oldRenderEntryV26();try{const tabs=document.querySelector('#view-entry .tabs'),active=tabs?.querySelector('[data-cat].active');if(tabs){tabs.style.scrollBehavior='smooth';tabs.style.webkitOverflowScrolling='touch';tabs.style.scrollbarWidth='none';tabs.querySelectorAll('[data-cat]').forEach(b=>{b.draggable=true;b.style.flex='0 0 auto';});if(active&&typeof active.scrollIntoView==='function')active.scrollIntoView({behavior:'smooth',block:'nearest',inline:'nearest'});}}catch(e){console.warn('V27 tab scroll',e)}return result};
+  window.AmalfitanaV26Diagnostics=function(){return {version:'V27',categoryDeleteHandlerPatched:true,categoryColorEditable:true,categoryColorsSaved:(state.categories||[]).filter(c=>/^#[0-9a-f]{6}$/i.test(c.color||'')).length,scrollbarHidden:true,smoothHorizontalScroll:true,categories:(state.categories||[]).length,products:(state.categories||[]).reduce((n,c)=>n+(c.items||[]).length,0)}};
 })();
+
+</script>
 
 </body>
 </html>
