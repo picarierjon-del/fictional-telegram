@@ -262,6 +262,22 @@
   #multiDialog .picker-results{max-height:min(28vh,230px);overscroll-behavior:contain}
   @media(max-width:600px){#multiDialog{width:calc(100% - 10px);max-height:96dvh}#multiDialog .dialog-body{max-height:calc(96dvh - 112px)}#multiDialog .selected-taste-summary{align-items:flex-start}#multiDialog .selected-taste-summary .btn{font-size:.78rem;padding:8px}}
 
+
+  /* V30.7: pannello ordine persistente durante lo scorrimento desktop.
+     Non applicato su telefono, dove resta nel flusso della pagina. */
+  @media (min-width:781px){
+    #view-entry .layout{align-items:start!important}
+    #view-entry .sticky-card{
+      position:sticky!important;
+      top:82px!important;
+      align-self:start!important;
+      max-height:calc(100vh - 100px);
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      z-index:8;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -613,7 +629,23 @@
   function checksum(value){const s=typeof value==='string'?value:JSON.stringify(value);let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16).padStart(8,'0')}
   const SafetyDB={name:'PizzeriaSmartSafetyV10',version:1,db:null,stores:['settings','menu','customers','orders','archive','core','operations','snapshots','printQueue'],async open(){if(this.db)return this.db;if(!('indexedDB'in window))return null;return new Promise(res=>{const q=indexedDB.open(this.name,this.version);q.onupgradeneeded=()=>this.stores.forEach(n=>{if(!q.result.objectStoreNames.contains(n))q.result.createObjectStore(n,{keyPath:'id'})});q.onsuccess=()=>res(this.db=q.result);q.onerror=()=>res(null);q.onblocked=()=>res(null)})},tx(db,names,mode='readonly'){try{return db.transaction(names,mode,{durability:mode==='readwrite'?'strict':'default'})}catch{return db.transaction(names,mode)}},async one(store,id='main'){const db=await this.open();if(!db)return null;return new Promise(res=>{const q=this.tx(db,[store]).objectStore(store).get(id);q.onsuccess=()=>res(q.result?.value??null);q.onerror=()=>res(null)})},async all(store){const db=await this.open();if(!db)return[];return new Promise(res=>{const q=this.tx(db,[store]).objectStore(store).getAll();q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([])})},async clearStores(names){const db=await this.open();if(!db)return false;const safe=names.filter(n=>this.stores.includes(n));if(!safe.length)return true;return new Promise(res=>{const tx=this.tx(db,safe,'readwrite');safe.forEach(n=>tx.objectStore(n).clear());tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);tx.onabort=()=>res(false)})},async pruneRecords(store,keep=200){const db=await this.open(),all=await this.all(store);if(!db||all.length<=keep)return;const drop=all.sort((a,b)=>String(b.value?.committedAt||b.value?.at||'').localeCompare(String(a.value?.committedAt||a.value?.at||''))).slice(keep);await new Promise(res=>{const tx=this.tx(db,[store],'readwrite'),os=tx.objectStore(store);drop.forEach(x=>os.delete(x.id));tx.oncomplete=()=>res();tx.onerror=()=>res()})},async journal(op){const db=await this.open();if(!db)return false;return new Promise(res=>{const tx=this.tx(db,['operations'],'readwrite');tx.objectStore('operations').put({id:op.id,value:op});tx.oncomplete=()=>res(true);tx.onerror=()=>res(false)})},split(data){const core=clone(data);['settings','categories','modifierGroups','zones','drivers','customers','orders','archive','printQueue'].forEach(k=>delete core[k]);return{settings:data.settings,menu:{categories:data.categories,modifierGroups:data.modifierGroups,zones:data.zones,drivers:data.drivers},customers:data.customers,orders:data.orders,archive:data.archive,core,printQueue:data.printQueue||[]}},async mirror(data,reason='salvataggio'){const db=await this.open();if(!db)return false;const id=uid('op'),started={id,status:'pending',reason,at:new Date().toISOString(),schema:V10_SCHEMA};await this.journal(started);const parts=this.split(clone(data)),names=['settings','menu','customers','orders','archive','core','printQueue','operations'];return new Promise(res=>{const tx=this.tx(db,names,'readwrite');Object.entries(parts).forEach(([name,value])=>tx.objectStore(name).put({id:'main',value,checksum:checksum(value),updatedAt:new Date().toISOString()}));tx.objectStore('operations').put({id,value:{...started,status:'committed',committedAt:new Date().toISOString(),checksum:checksum(parts)}});tx.oncomplete=async()=>{await this.pruneRecords('operations',200);res(true)};tx.onerror=()=>res(false);tx.onabort=()=>res(false)})},async recover(){const values=await Promise.all(['settings','menu','customers','orders','archive','core','printQueue'].map(x=>this.one(x)));if(!values[0]||!values[1]||!values[5])return null;const [settings,menu,customers,orders,archive,core,printQueue]=values;return{...core,settings,categories:menu.categories||[],modifierGroups:menu.modifierGroups||[],zones:menu.zones||[],drivers:menu.drivers||[],customers:customers||[],orders:orders||[],archive:archive||[],printQueue:printQueue||[]}},async snapshot(data,reason='automatico'){const db=await this.open();if(!db)return false;const now=new Date(),day=today(),week=`${now.getFullYear()}-${String(Math.ceil((((now-new Date(now.getFullYear(),0,1))/86400000)+new Date(now.getFullYear(),0,1).getDay()+1)/7)).padStart(2,'0')}`,month=day.slice(0,7),items=[['daily-'+day,'daily'],['weekly-'+week,'weekly'],['monthly-'+month,'monthly']].map(([id,tier])=>({id,value:{at:now.toISOString(),reason,tier,checksum:checksum(data),data:clone(data)}}));return new Promise(res=>{const tx=this.tx(db,['snapshots'],'readwrite'),os=tx.objectStore('snapshots');items.forEach(x=>os.put(x));tx.oncomplete=async()=>{await this.pruneSnapshots();res(true)};tx.onerror=()=>res(false)})},async pruneSnapshots(){const db=await this.open(),all=await this.all('snapshots');if(!db)return;const limits={daily:7,weekly:4,monthly:12},drop=[];Object.keys(limits).forEach(t=>all.filter(x=>x.value?.tier===t).sort((a,b)=>String(b.value.at).localeCompare(String(a.value.at))).slice(limits[t]).forEach(x=>drop.push(x.id)));if(!drop.length)return;await new Promise(res=>{const tx=this.tx(db,['snapshots'],'readwrite'),os=tx.objectStore('snapshots');drop.forEach(id=>os.delete(id));tx.oncomplete=()=>res();tx.onerror=()=>res()})},async queuePrint(job){const db=await this.open();if(!db)return false;return new Promise(res=>{const tx=this.tx(db,['printQueue'],'readwrite');tx.objectStore('printQueue').put({id:job.id,value:job});tx.oncomplete=()=>res(true);tx.onerror=()=>res(false)})}};
   let safetyChain=Promise.resolve(),channel=null;try{channel='BroadcastChannel'in window?new BroadcastChannel('pizzeria-smart-v10'):null;channel&&(channel.onmessage=e=>{if(e.data?.type==='saved'&&e.data.tab!==V10_TAB){setSave('Aggiornato da altra finestra');if(!state.draft?.lines?.length)setTimeout(load,100)}})}catch{}
-  const saveV9=save;save=function(reason='salvataggio'){state.metaSavedAt=new Date().toISOString();saveV9();const copy=clone(state);safetyChain=safetyChain.then(()=>navigator.locks?.request?navigator.locks.request('pizzeria-smart-write',()=>SafetyDB.mirror(copy,reason)):SafetyDB.mirror(copy,reason)).then(ok=>{if(ok)channel?.postMessage({type:'saved',tab:V10_TAB,at:Date.now()})}).catch(()=>{})};
+  const saveV9=save;save=function(reason='salvataggio'){
+    state.metaSavedAt=new Date().toISOString();
+    // Snapshot locale immediato: la chiusura della scheda non deve perdere
+    // una modifica mentre il debounce/IndexedDB è ancora in coda.
+    try{
+      const raw=JSON.stringify(state);
+      localStorage.setItem('pizzeria_smart_v2',raw);
+      localStorage.setItem('pizzeria_smart_last_good',JSON.stringify({at:state.metaSavedAt,data:JSON.parse(raw)}));
+    }catch(e){console.error('Salvataggio locale fallito',e);setSave('ERRORE SALVATAGGIO LOCALE');}
+    saveV9();
+    const copy=clone(state);
+    safetyChain=safetyChain.then(()=>navigator.locks?.request
+      ?navigator.locks.request('pizzeria-smart-write',()=>SafetyDB.mirror(copy,reason))
+      :SafetyDB.mirror(copy,reason))
+      .then(ok=>{if(ok)channel?.postMessage({type:'saved',tab:V10_TAB,at:Date.now()})})
+      .catch(e=>console.error('Salvataggio IndexedDB protetto fallito',e));
+  };
   function validState(x){return !!(x&&x.settings&&Array.isArray(x.categories)&&Array.isArray(x.orders)&&Array.isArray(x.archive))}
   async function load(){
     // V30.2: ogni fonte di recupero ha un limite di attesa; l'archivio di sicurezza
@@ -624,11 +656,18 @@
     try{const x=JSON.parse(localStorage.getItem('pizzeria_smart_v2')||'null');if(validState(x))candidates.push(x)}catch{}
     try{const x=await bounded(SafetyDB.recover(),1800,null);if(validState(x))candidates.push(x)}catch{}
     try{const x=JSON.parse(localStorage.getItem('pizzeria_smart_last_good')||'null')?.data;if(validState(x))candidates.push(x)}catch{}
-    const score=x=>{if(!validState(x))return -1;const products=(x.categories||[]).reduce((n,c)=>n+(c.items||[]).length,0),mods=(x.modifierGroups||[]).reduce((n,g)=>n+(g.items||[]).length,0);return products*100+mods*20+(x.suppliers||[]).length*10+(x.drivers||[]).length*10+(x.orders||[]).length*3+(x.archive||[]).length+(Object.keys(x.settings||{}).length);};
-    candidates.sort((a,b)=>{const d=score(b)-score(a);if(d!==0)return d;return String(b.metaSavedAt||'').localeCompare(String(a.metaSavedAt||''))});
+    // V30.7: la fonte più ricca NON è necessariamente la più aggiornata.
+    // Prima si sceglie la copia con timestamp di salvataggio più recente, così
+    // una vecchia IndexedDB non sovrascrive menu e modifiche appena salvati.
+    const stamp=x=>{const v=x?.metaSavedAt||x?.updatedAt||x?.savedAt||x?.lastModified||'';const n=Date.parse(v);return Number.isFinite(n)?n:0};
+    candidates.sort((a,b)=>stamp(b)-stamp(a));
     state=mergeDefaults(repairText(candidates[0]||null));ensureV9State();ensureV10State();
     // Prima di qualunque scrittura, conserva una copia recuperabile del menu/configurazione scelti.
-    try{const raw=localStorage.getItem('pizzeria_smart_v2');if(raw){const parsed=JSON.parse(raw);if(validState(parsed)){localStorage.setItem('pizzeria_smart_last_good',JSON.stringify({at:new Date().toISOString(),data:parsed}));}}}catch{}
+    try{
+      const selected=JSON.stringify(state);
+      localStorage.setItem('pizzeria_smart_v2',selected);
+      localStorage.setItem('pizzeria_smart_last_good',JSON.stringify({at:new Date().toISOString(),data:JSON.parse(selected)}));
+    }catch(e){console.error('Backup locale iniziale non riuscito',e)}
     applyTheme();renderAll();
     // Le verifiche protette continuano in background se il database non risponde.
     bounded(startupProtection(),2200,false).catch(()=>{});
@@ -5128,7 +5167,7 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
 
 
 <script>
-/* V30.6 PROTEZIONE DATI: copia di recupero indipendente e nessun reset del menu. */
+/* V30.7: recupero dati ordinato per timestamp, snapshot immediato e ordine sticky desktop. */
 (function(){
  'use strict';
  const KEY='pizzeria_smart_v2', RECOVERY='pizzeria_smart_last_good', BACKUP='pizzeria_smart_recovery_ring';
