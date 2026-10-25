@@ -4902,5 +4902,152 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
 
 </script>
 
+<script>
+
+(function(){
+  'use strict';
+  const VERSION='V30.4';
+  const STORAGE_KEY='pizzeria_smart_v2';
+  let localSnapshot='';
+  let pendingTimer=null, flushTimer=null, flushing=false, pending=false;
+  let lastReason='salvataggio', lastChangeAt=0, lastShownStatus='';
+  try{localSnapshot=localStorage.getItem(STORAGE_KEY)||''}catch{}
+  function snapshot(){
+    state.version=2;
+    return clone(state);
+  }
+  function statusOnce(value){
+    if(value===lastShownStatus)return;
+    lastShownStatus=value;
+    try{setSave(value)}catch{}
+  }
+  function saveLocal(){
+    try{
+      const data=snapshot();
+      const serialized=JSON.stringify(data);
+      if(serialized!==localSnapshot){
+        data.metaSavedAt=new Date().toISOString();
+        state.metaSavedAt=data.metaSavedAt;
+        const updated=JSON.stringify(data);
+        localStorage.setItem(STORAGE_KEY,updated);
+        localSnapshot=updated;
+      }
+      return true;
+    }catch(error){return false}
+  }
+  function queueFlush(){
+    clearTimeout(flushTimer);
+    flushTimer=setTimeout(flush,900);
+  }
+  save=function(reason='modifiche gestionale'){
+    lastReason=reason;
+    const before=localSnapshot;
+    const ok=saveLocal();
+    const changed=localSnapshot!==before;
+    if(!ok){statusOnce('Errore copia locale · controllare spazio e permessi');return false}
+    if(!changed)return true; // Nessun salvataggio ripetuto se lo stato non è cambiato.
+    lastChangeAt=Date.now();
+    pending=true;
+    if(!['Modifiche in attesa…','Salvataggio…'].includes(lastShownStatus))statusOnce('Modifiche in attesa…');
+    clearTimeout(pendingTimer);
+    pendingTimer=setTimeout(()=>{saveLocal();queueFlush()},700);
+    return true;
+  };
+  async function bounded(promise,ms){
+    let timerId;
+    try{return await Promise.race([Promise.resolve().then(()=>promise),new Promise(resolve=>{timerId=setTimeout(()=>resolve(false),ms)})])}
+    finally{clearTimeout(timerId)}
+  }
+  async function flush(){
+    if(flushing){pending=true;return}
+    flushing=true;
+    pending=false;
+    const changeAt=lastChangeAt, reason=lastReason, data=snapshot();
+    let mainOK=false,mirrorOK=false;
+    try{
+      mainOK=!!(await bounded(DB.put(clone(data)),2500));
+    }catch{}
+    try{
+      const mirrorPromise=Promise.resolve().then(()=>navigator.locks?.request
+        ? navigator.locks.request('pizzeria-smart-write',()=>SafetyDB.mirror(clone(data),reason))
+        : SafetyDB.mirror(clone(data),reason));
+      mirrorOK=!!(await bounded(mirrorPromise,2200));
+    }catch{}
+    if(mainOK||mirrorOK){
+      ui.lastSaved=new Date();
+      statusOnce('Salvato '+ui.lastSaved.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}));
+      try{if(channel)channel.postMessage({type:'saved',tab:V10_TAB,at:Date.now(),reason})}catch{}
+    }else{
+      statusOnce(saveLocal()?'Copia locale salvata · archivio da verificare':'Errore salvataggio · esportare backup');
+    }
+    flushing=false;
+    if(pending||lastChangeAt>changeAt){pending=true;clearTimeout(pendingTimer);pendingTimer=setTimeout(()=>{saveLocal();queueFlush()},250)}
+  }
+  // Correzione del loop tra finestre: un messaggio di salvataggio non richiama load(),
+  // perché load() salva a sua volta e può generare una raffica infinita di messaggi.
+  try{
+    if(channel)channel.onmessage=e=>{
+      if(e.data?.type==='saved'&&e.data.tab!==V10_TAB){
+        statusOnce('Dati aggiornati da un’altra finestra · ricarica solo se non hai modifiche aperte');
+      }
+    };
+  }catch{}
+  // Salva i campi della scheda corrente prima di usare il comando Salva tutto,
+  // senza sovrascrivere campi appartenenti a schede non aperte.
+  const previousSaveSettingsForm=saveSettingsForm;
+  saveSettingsForm=function(){
+    const root=$('#view-settings');
+    if(root?.querySelector('[name="v123-bridgeEnabled"]'))v123SaveExtraSettings();
+    if(ui.settingsTab==='smartHub'&&typeof v13ReadHubSettings==='function')v13ReadHubSettings();
+    if(ui.settingsTab==='print'&&typeof readStationSettingsFromDom==='function')readStationSettingsFromDom();
+    return previousSaveSettingsForm();
+  };
+  // Toggle salvati al cambio, senza renderSettings/renderAll che riporta il checkbox al valore vecchio.
+  document.addEventListener('change',e=>{
+    const t=e.target;
+    if(!t||!t.name)return;
+    const root=$('#view-settings');
+    if(!root||!root.contains(t))return;
+    const n=t.name;
+    try{
+      if(['v123-bridgeEnabled','v123-bridgeUrl','v123-bridgeTimeout','v123-bridgeRetry'].includes(n)){
+        v123SaveExtraSettings();save('configurazione Print Bridge');statusOnce('Modifiche in attesa…');return;
+      }
+      if(['v13-hubEnabled','v13-autoPrint','v13-fiscalWhen','v13-defaultPayment'].includes(n)){
+        v13ReadHubSettings();save('configurazione Smart Hub');statusOnce('Modifiche in attesa…');return;
+      }
+      if(['v1234-alphaEnabled','v1234-alphaBars','v1234-alphaCards','v1234-alphaSoft'].includes(n)||t.matches('[data-alpha-color]')){
+        v1235ReadAlphabetFromDom();
+        if(ui.view==='entry')v1234ApplyAlphabetToEntry();
+        save('preferenze ordine alfabetico');
+      }
+    }catch(error){console.error('Salvataggio impostazioni',error);statusOnce('Errore impostazioni · premi Salva tutto')}
+  },true);
+  // Sessione: ogni interazione reale rinnova l'attività, ma non riattiva una sessione scaduta.
+  function renewSession(){
+    try{
+      if(typeof v1232Session!=='undefined'&&v1232Session.role&&typeof v1232SessionExpired==='function'&&!v1232SessionExpired()){
+        v1232Session.lastActivity=Date.now();
+      }
+    }catch{}
+  }
+  ['pointerdown','keydown','input','change','touchstart'].forEach(type=>
+    document.addEventListener(type,renewSession,{capture:true,passive:true})
+  );
+  window.addEventListener('pagehide',()=>{saveLocal()});
+  window.AmalfitanaAIHubV304Diagnostics=()=>({
+    version:VERSION,
+    localStorageDebouncedByChange:true,
+    indexedDBAndSafetyMirrorSerialized:true,
+    duplicateSaveMessagesSuppressed:true,
+    broadcastReloadLoopDisabled:true,
+    printBridgeTogglePersists:true,
+    smartHubTogglePersists:true,
+    sessionActivityRenewal:true,
+    menuSafePurgeRetained:true
+  });
+})();
+
+</script>
 </body>
 </html>
