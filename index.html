@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Amalfitana AI Smart Hub V30.1 — Salvataggio stabile e non bloccante</title>
+  <title>Amalfitana AI Smart Hub V30.2 — Avvio protetto e salvataggio non bloccante</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -615,7 +615,20 @@
   let safetyChain=Promise.resolve(),channel=null;try{channel='BroadcastChannel'in window?new BroadcastChannel('pizzeria-smart-v10'):null;channel&&(channel.onmessage=e=>{if(e.data?.type==='saved'&&e.data.tab!==V10_TAB){setSave('Aggiornato da altra finestra');if(!state.draft?.lines?.length)setTimeout(load,100)}})}catch{}
   const saveV9=save;save=function(reason='salvataggio'){state.metaSavedAt=new Date().toISOString();saveV9();const copy=clone(state);safetyChain=safetyChain.then(()=>navigator.locks?.request?navigator.locks.request('pizzeria-smart-write',()=>SafetyDB.mirror(copy,reason)):SafetyDB.mirror(copy,reason)).then(ok=>{if(ok)channel?.postMessage({type:'saved',tab:V10_TAB,at:Date.now()})}).catch(()=>{})};
   function validState(x){return !!(x&&x.settings&&Array.isArray(x.categories)&&Array.isArray(x.orders)&&Array.isArray(x.archive))}
-  async function load(){const candidates=[];try{const x=await DB.get();if(validState(x))candidates.push(x)}catch{}try{const x=JSON.parse(localStorage.getItem('pizzeria_smart_v2')||'null');if(validState(x))candidates.push(x)}catch{}try{const x=await SafetyDB.recover();if(validState(x))candidates.push(x)}catch{}candidates.sort((a,b)=>String(b.metaSavedAt||'').localeCompare(String(a.metaSavedAt||'')));state=mergeDefaults(repairText(candidates[0]||null));ensureV9State();ensureV10State();applyTheme();renderAll();await startupProtection();save('avvio verificato');setSave('Pronto - offline protetto')}
+  async function load(){
+    // V30.2: ogni fonte di recupero ha un limite di attesa; l'archivio di sicurezza
+    // non deve mai lasciare la schermata bloccata su «Avvio…».
+    const bounded=(promise,ms,fallback=null)=>Promise.race([Promise.resolve().then(()=>promise),new Promise(resolve=>setTimeout(()=>resolve(fallback),ms))]);
+    const candidates=[];
+    try{const x=await bounded(DB.get(),1800,null);if(validState(x))candidates.push(x)}catch{}
+    try{const x=JSON.parse(localStorage.getItem('pizzeria_smart_v2')||'null');if(validState(x))candidates.push(x)}catch{}
+    try{const x=await bounded(SafetyDB.recover(),1800,null);if(validState(x))candidates.push(x)}catch{}
+    candidates.sort((a,b)=>String(b.metaSavedAt||'').localeCompare(String(a.metaSavedAt||'')));
+    state=mergeDefaults(repairText(candidates[0]||null));ensureV9State();ensureV10State();applyTheme();renderAll();
+    // Le verifiche protette continuano in background se il database non risponde.
+    bounded(startupProtection(),2200,false).catch(()=>{});
+    save('avvio verificato');setSave('Pronto - offline protetto');
+  }
   function ensureV10State(){if(String(state.schemaVersion)!=='10.1')state.schemaVersion=V10_SCHEMA;state.printQueue=Array.isArray(state.printQueue)?state.printQueue.slice(0,100):[];state.health=state.health||{status:'ok',checkedAt:null,issues:[]};state.settings.safety={persistentRequested:false,lastExternalBackup:null,...(state.settings.safety||{})}}
   async function storageInfo(){if(!navigator.storage)return{supported:false,persisted:false,usage:0,quota:0};let persisted=false,estimate={};try{persisted=await navigator.storage.persisted();estimate=await navigator.storage.estimate()}catch{}return{supported:true,persisted,usage:estimate.usage||0,quota:estimate.quota||0}}
   async function clearColdArchive(){const db=await ColdArchive.open();if(!db)return false;return new Promise(res=>{const tx=db.transaction(['orders','nights'],'readwrite');tx.objectStore('orders').clear();tx.objectStore('nights').clear();tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);tx.onabort=()=>res(false)})}
@@ -4795,9 +4808,99 @@ window.AmalfitanaAIHubV298Diagnostics=()=>({version:'V29.8',finalCommitWrapped:t
 // V29 diagnostic hooks for pre-release testing and secure OpenAI backend integration.
 window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto-decrement-on-final-commit-with-live-draft-countdown',inventorySearchAndFilters:true,autoListsCategoryProductsAndModifierItems:true,automaticStockConsumption:true,openAI:{readyForBackendIntegration:true,apiKeyInBrowser:false,requiredEnvironmentVariable:'OPENAI_API_KEY'},getInventorySummary(){const out={products:0,modifiers:0,soldOutProducts:0,soldOutModifiers:0,tracked:0};state.categories.forEach(c=>(c.items||[]).forEach(p=>{out.products++;if(p.soldOut)out.soldOutProducts++;if(p.stockTracked)out.tracked++}));state.modifierGroups.forEach(g=>(g.items||[]).forEach(m=>{out.modifiers++;if(m.soldOut)out.soldOutModifiers++;if(m.stockTracked)out.tracked++}));return out}};
 
-/* V30.1 — persistenza non bloccante e pulizia rigorosamente limitata ai dati d'ordine. */
+/* V30.2 — avvio protetto, persistenza non bloccante e pulizia rigorosamente limitata ai dati d'ordine. */
 (function(){
-  const V30_VERSION='V30.1';
+  const V30_VERSION='V30.2';
   // Scrive subito la copia locale, IndexedDB primaria e archivio di sicurezza dopo ogni modifica.
   const saveV30Previous=save;
-  let v30SaveTimer=null,v30PendingRea
+  let v30SaveTimer=null,v30PendingReason='salvataggio',v30WriteQueued=false,v30LastRequested=0;
+  // Autosalvataggio non bloccante: una raffica di click/input viene accorpata nell'ultima versione.
+  save=function(reason='salvataggio V30.1'){
+    v30PendingReason=reason;v30LastRequested=Date.now();
+    try{clearTimeout(saveTimer)}catch{}
+    try{clearTimeout(v30SaveTimer)}catch{}
+    state.version=2;state.metaSavedAt=new Date().toISOString();
+    try{localStorage.setItem('pizzeria_smart_v2',JSON.stringify(clone(state)))}catch(err){try{setSave('Avviso: copia locale non disponibile')}catch{}}
+    try{setSave('Modifiche in salvataggio…')}catch{}
+    v30SaveTimer=setTimeout(()=>{if(!v30WriteQueued)v30FlushSave()},220);
+  };
+  async function v30FlushSave(){
+    if(v30WriteQueued)return;
+    v30WriteQueued=true;
+    const reason=v30PendingReason,requestedAt=v30LastRequested,snapshot=clone(state);
+    try{
+      safetyChain=safetyChain.then(async()=>{
+        let mainOk=false,safeOk=false;
+        try{mainOk=await DB.put(clone(snapshot))}catch{}
+        try{safeOk=await (navigator.locks?.request ? navigator.locks.request('pizzeria-smart-write',()=>SafetyDB.mirror(clone(snapshot),reason)) : SafetyDB.mirror(clone(snapshot),reason))}catch{}
+        if(mainOk||safeOk){ui.lastSaved=new Date();try{setSave(`Salvato ${ui.lastSaved.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}`)}catch{};try{channel?.postMessage({type:'saved',tab:V10_TAB,at:Date.now()})}catch{}}
+        else {try{setSave('Copia locale salvata; archivio da verificare')}catch{}}
+      });
+      await safetyChain;
+    }catch(err){try{setSave('Errore salvataggio: copia locale mantenuta')}catch{}}
+    finally{
+      v30WriteQueued=false;
+      // Se sono arrivate altre modifiche durante la scrittura, salva l'ultimo stato senza accumulare una coda.
+      if(v30LastRequested>requestedAt){clearTimeout(v30SaveTimer);v30SaveTimer=setTimeout(()=>v30FlushSave(),80)}
+    }
+  }
+  // Le opzioni alfabetiche si aggiornano nello stato senza ricreare la schermata ad ogni click.
+  // Questo evita che il checkbox venga ridisegnato con il valore precedente mentre IndexedDB salva.
+  document.addEventListener('change',e=>{
+    const t=e.target;
+    if(!t?.matches?.('[name="v1234-alphaEnabled"],[name="v1234-alphaBars"],[name="v1234-alphaCards"],[name="v1234-alphaSoft"],[data-alpha-color]'))return;
+    try{
+      if(typeof v1235ReadAlphabetFromDom==='function')v1235ReadAlphabetFromDom();
+      save('preferenze ordine alfabetico');
+      if(typeof v1234ApplyAlphabetToEntry==='function'&&ui.view==='entry')v1234ApplyAlphabetToEntry();
+      toast('Preferenza aggiornata');
+    }catch(err){console.warn('Salvataggio preferenze alfabetiche',err)}
+  },true);
+  // La pulizia non tocca mai menu, categorie, prodotti, modificatori, prezzi, fornitori, fattorini,
+  // impostazioni, preferiti, configurazioni multigusto, giacenze, clienti, diagnostica o backup.
+  // Ogni modalità agisce solo sugli ordini indicati dal pulsante.
+  purgeOperationalData=async function(mode){
+    const clearActive=mode==='active'||mode==='all';
+    const clearHistory=mode==='history'||mode==='all';
+    if(!clearActive&&!clearHistory)throw new Error('Modalità di pulizia non valida');
+    const removedActive=clearActive?(state.orders||[]).length:0;
+    const removedHistory=clearHistory?(state.archive||[]).length:0;
+    clearTimeout(saveTimer);
+    if(clearActive)state.orders=[];
+    if(clearHistory){
+      state.archive=[];
+      // Chiusure e cestino storico sono dati associati allo storico degli ordini; non si eliminano altri dati.
+      state.eveningClosures=Array.isArray(state.eveningClosures)?state.eveningClosures:[];
+      state.trash=(state.trash||[]).filter(x=>x.kind!=='archive');
+      await deleteDatabaseV104('PizzeriaSmartArchivio',ColdArchive);
+    }
+    // Manteniamo coda di stampa, registro attività, snapshots, cache, settings e menu.
+    audit('Pulizia ordini V30.0',`${removedActive} ordini attivi rimossi; ${removedHistory} ordini storici rimossi`);
+    await persistStateNow('pulizia ordini V30.0');
+    renderAll();
+    await refreshReliabilityPanel();
+    toast(`Pulizia completata: ${removedActive} attivi, ${removedHistory} storici. Menu e impostazioni conservati.`);
+    return true;
+  };
+  // Blocca anche le vecchie azioni legacy che potevano sostituire DEFAULTS e quindi azzerare il menu.
+  document.addEventListener('click',async function(e){
+    const b=e.target.closest('button[data-action="reset-all"],button[data-action="reset-settings"]');
+    if(!b)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(b.dataset.action==='reset-all'){
+      if(!confirm('Questa pulizia cancellerà soltanto gli ordini attivi e lo storico. Menu, pizze, bibite, categorie, modificatori, fornitori, prezzi, fattorini e impostazioni resteranno invariati. Continuare?'))return;
+      await purgeOperationalData('all');
+    }else{
+      if(!confirm('Ripristinare soltanto le preferenze di aspetto? Menu, categorie, prodotti, modificatori, prezzi, fornitori, fattorini, ordini e impostazioni operative resteranno invariati.'))return;
+      const fresh=clone(DEFAULTS.settings);
+      ['businessName','currency','accent','accent2','background','appFont','labels','print'].forEach(k=>state.settings[k]=fresh[k]);
+      save('ripristino sicuro solo aspetto V30.0');await persistStateNow('ripristino sicuro solo aspetto V30.0');renderAll();toast('Aspetto ripristinato; menu e dati operativi conservati');
+    }
+  },true);
+  window.AmalfitanaAIHubV30Diagnostics=()=>({version:V30_VERSION,startupTimeoutProtection:true,categoryTabsWrap:true,immediateLocalStorageWrite:true,debouncedSerializedIndexedDBWrite:true,alphabetCheckboxNoRerender:true,purgeLimitedToOrders:true,menuPreservedByPurge:true,settingsPreservedByPurge:true,multigustoProductFieldsPersisted:true});
+})();
+
+</script>
+
+</body>
+</html>
