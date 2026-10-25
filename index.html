@@ -623,8 +623,13 @@
     try{const x=await bounded(DB.get(),1800,null);if(validState(x))candidates.push(x)}catch{}
     try{const x=JSON.parse(localStorage.getItem('pizzeria_smart_v2')||'null');if(validState(x))candidates.push(x)}catch{}
     try{const x=await bounded(SafetyDB.recover(),1800,null);if(validState(x))candidates.push(x)}catch{}
-    candidates.sort((a,b)=>String(b.metaSavedAt||'').localeCompare(String(a.metaSavedAt||'')));
-    state=mergeDefaults(repairText(candidates[0]||null));ensureV9State();ensureV10State();applyTheme();renderAll();
+    try{const x=JSON.parse(localStorage.getItem('pizzeria_smart_last_good')||'null')?.data;if(validState(x))candidates.push(x)}catch{}
+    const score=x=>{if(!validState(x))return -1;const products=(x.categories||[]).reduce((n,c)=>n+(c.items||[]).length,0),mods=(x.modifierGroups||[]).reduce((n,g)=>n+(g.items||[]).length,0);return products*100+mods*20+(x.suppliers||[]).length*10+(x.drivers||[]).length*10+(x.orders||[]).length*3+(x.archive||[]).length+(Object.keys(x.settings||{}).length);};
+    candidates.sort((a,b)=>{const d=score(b)-score(a);if(d!==0)return d;return String(b.metaSavedAt||'').localeCompare(String(a.metaSavedAt||''))});
+    state=mergeDefaults(repairText(candidates[0]||null));ensureV9State();ensureV10State();
+    // Prima di qualunque scrittura, conserva una copia recuperabile del menu/configurazione scelti.
+    try{const raw=localStorage.getItem('pizzeria_smart_v2');if(raw){const parsed=JSON.parse(raw);if(validState(parsed)){localStorage.setItem('pizzeria_smart_last_good',JSON.stringify({at:new Date().toISOString(),data:parsed}));}}}catch{}
+    applyTheme();renderAll();
     // Le verifiche protette continuano in background se il database non risponde.
     bounded(startupProtection(),2200,false).catch(()=>{});
     save('avvio verificato');setSave('Pronto - offline protetto');
@@ -748,7 +753,23 @@
   async function savePrintJobV104(job,reason){ensureV104State();const i=state.printQueue.findIndex(x=>x.id===job.id);if(i>=0)state.printQueue[i]=clone(job);else state.printQueue.unshift(clone(job));state.printQueue=state.printQueue.slice(0,100);const rowOk=await SafetyDB.queuePrint(clone(job));const stateOk=await persistStateNow(reason);const saved=state.printQueue.find(x=>x.id===job.id);return !!(saved&&saved.status===job.status&&(rowOk||stateOk))}
   async function markPrintV104(id){const job=state.printQueue.find(x=>x.id===id);if(!job)return toast('Stampa non trovata');job.status='printed';job.printedAt=new Date().toISOString();job.confirmedManually=true;const ok=await savePrintJobV104(job,'stampa confermata V10.4');renderSettings();await refreshReliabilityPanel();toast(ok?'Stampa segnata correttamente':'Conferma non salvata: riprova')}
   async function retryPrintV104(id){const old=state.printQueue.find(x=>x.id===id);if(!old)return toast('Stampa non trovata');old.status='retrying';old.attempts=(old.attempts||0)+1;await savePrintJobV104(old,'ristampa V10.4');printOrder(old.order,old.type)}
-  async function purgeOperationalDataV104(mode){ensureV104State();const clearActive=mode==='active'||mode==='all',clearHistory=mode==='history'||mode==='all',removed=(clearActive?state.orders.length:0)+(clearHistory?state.archive.length:0);clearTimeout(saveTimer);if(clearActive)state.orders=[];if(clearHistory){state.archive=[];state.eveningClosures=[];state.trash=(state.trash||[]).filter(x=>x.kind!=='archive')}state.printQueue=[];state.audit=[];state.health={status:'ok',checkedAt:new Date().toISOString(),issues:[]};try{localStorage.removeItem('pizzeria_smart_snapshots')}catch{}if('caches'in window)try{const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('pizzeria-smart')).map(k=>caches.delete(k)))}catch{}if(clearHistory)await deleteDatabaseV104('PizzeriaSmartArchivio',ColdArchive);await deleteDatabaseV104(SafetyDB.name,SafetyDB);await SafetyDB.open();audit('Pulizia V10.4',`${removed} ordini rimossi; archivi operativi ricostruiti`);await persistStateNow(`pulizia fisica V10.4 ${mode}`);await SafetyDB.snapshot(state,'base pulita V10.4');await new Promise(r=>setTimeout(r,500));renderAll();await refreshReliabilityPanel();return true}
+  async function purgeOperationalDataV104(mode){
+    ensureV104State();
+    const clearActive=mode==='active'||mode==='all', clearHistory=mode==='history'||mode==='all';
+    const removed=(clearActive?state.orders.length:0)+(clearHistory?state.archive.length:0);
+    // Protezione rigorosa: questa funzione può intervenire soltanto sugli ordini selezionati.
+    // Non elimina database, snapshot, backup, cache, menu, categorie, modificatori o impostazioni.
+    try{const backup={at:new Date().toISOString(),data:clone(state)};localStorage.setItem('pizzeria_smart_last_good',JSON.stringify(backup));}catch{}
+    clearTimeout(saveTimer);
+    if(clearActive)state.orders=[];
+    if(clearHistory){state.archive=[];state.eveningClosures=[];state.trash=(state.trash||[]).filter(x=>x.kind!=='archive');try{await clearColdArchive()}catch{}}
+    state.printQueue=Array.isArray(state.printQueue)?state.printQueue:[];
+    audit('Pulizia ordini protetta',`${removed} ordini rimossi; menu e impostazioni conservati`);
+    const ok=await persistStateNow(`pulizia ordini protetta ${mode}`);
+    if(!ok){toast('Attenzione: ordini aggiornati in memoria, ma salvataggio persistente da verificare');return false}
+    await SafetyDB.snapshot(state,'prima/dopo pulizia ordini protetta');
+    renderAll();await refreshReliabilityPanel();return true
+  }
   const renderAllV104=renderAll;renderAll=function(){ensureV104State();renderAllV104()};
   const renderSettingsV104=renderSettings;renderSettings=function(){ensureV104State();renderSettingsV104();if(ui.settingsTab==='data'){const box=$('#view-settings');$$('[data-action="mark-print-ok"]',box).forEach(b=>b.dataset.action='mark-print-v104');$$('[data-action="retry-print"]',box).forEach(b=>b.dataset.action='retry-print-v104');const h=$('#v10Reliability')?.closest('.card')?.querySelector('h2');if(h)h.textContent='Protezione V10.4';const badge=$('#v10Reliability')?.closest('.card')?.querySelector('.page-head .badge');if(badge)badge.textContent='V10.4'}};
   purgeOperationalData=purgeOperationalDataV104;
@@ -5048,6 +5069,77 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
   });
 })();
 
+</script>
+<style>
+/* V30.5: ordine sempre leggibile durante la consultazione del catalogo */
+@media(min-width:781px){#view-entry .sticky-card{position:sticky!important;top:84px!important;max-height:calc(100vh - 110px);overflow-y:auto;overscroll-behavior:contain;z-index:5}}
+#editorDialog .line-editor-mods{max-height:42vh;overflow:auto}
+#editorDialog .mod-count-row{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+#editorDialog .mod-count-row input{width:100%;min-height:40px}
+@media(max-width:780px){#view-entry .sticky-card{position:sticky!important;bottom:66px!important;top:auto!important;max-height:34vh;overflow-y:auto;z-index:20;box-shadow:0 -5px 18px #0001}}
+</style>
+<script>
+/* V30.5 patch: modifica in modo puntuale le aggiunte e migliora la visibilità dell'ordine. */
+(function(){
+  const v305BaseEdit=window.editOrderLine;
+  if(typeof v305BaseEdit==='function'){
+    window.editOrderLine=function(index){
+      const l=state.draft?.lines?.[index]; if(!l)return;
+      const all=state.modifierGroups.filter(g=>g.enabled!==false).flatMap(g=>(g.items||[]).filter(m=>m.enabled!==false).map(m=>({g,m,key:`${g.id}::${m.id}`})));
+      const counts=new Map();
+      (l.modifiers||[]).forEach(m=>{
+        const found=all.find(x=>x.m.id===m.modifierId || x.m.id===m.id || `${x.g.name}: ${x.m.name}`===m.name || x.m.name===m.name);
+        if(found)counts.set(found.key,(counts.get(found.key)||0)+1);
+      });
+      const groups=state.modifierGroups.filter(g=>g.enabled!==false).map(g=>{
+        const rows=(g.items||[]).filter(m=>m.enabled!==false).map(m=>{
+          const key=`${g.id}::${m.id}`,count=counts.get(key)||0;
+          return `<label class="mod-count-row"><span><b>${esc(m.name)}</b><small style="display:block;color:var(--muted)">${esc(g.name)} · ${m.price?`+${money(m.price)}`:'incluso'}</small></span><input class="input" type="number" min="0" max="99" step="1" name="modcount:${esc(key)}" value="${count}" aria-label="Quantità ${esc(m.name)}"></label>`;
+        }).join('');
+        return rows?`<details ${counts.size===0?'':'open'} style="margin:8px 0"><summary style="font-weight:800;cursor:pointer;padding:8px 0">${esc(g.name)}</summary>${rows}</details>`:'';
+      }).join('');
+      const unknown=(l.modifiers||[]).filter(m=>!all.some(x=>x.m.id===m.modifierId||x.m.id===m.id||`${x.g.name}: ${x.m.name}`===m.name||x.m.name===m.name));
+      openEditor(`Modifica prodotto · ${l.name}`,`<div class="grid two">${field('Nome prodotto','lineName',l.name)}${numField('Prezzo unitario','linePrice',l.unitPrice,0,9999,.1)}${numField('Quantità prodotto','lineQty',l.qty,1,999,1)}</div>${l.slots?.length?`<div class="notice" style="margin-top:10px">Per modificare i gusti usa la matita dedicata. Le aggiunte generali qui sotto possono essere modificate indipendentemente.</div>`:''}<h3 style="margin-top:12px">Aggiunte e modificatori</h3><p class="order-meta">Imposta 0 per togliere un'aggiunta, 1 per una porzione, 2 per doppia porzione e così via. Le modifiche sono applicate solo a questa riga dell'ordine.</p><div class="line-editor-mods">${groups||'<div class="order-meta">Nessun modificatore configurato.</div>'}${unknown.length?`<details><summary>Altre aggiunte già presenti</summary>${unknown.map((m,i)=>`<label class="mod-count-row"><span>${esc(m.name)} <small>${money(m.price||0)}</small></span><input class="input" type="number" min="0" max="99" name="unknownmod:${i}" value="1"></label>`).join('')}</details>`:''}</div>`,fd=>{
+        const name=String(fd.get('lineName')||'').trim();if(!name){toast('Inserisci il nome del prodotto');return false}
+        l.name=name;l.unitPrice=Math.max(0,+fd.get('linePrice')||0);l.qty=Math.max(1,Math.min(999,+fd.get('lineQty')||1));
+        const next=[];
+        for(const {g,m,key} of all){const n=Math.max(0,Math.min(99,Math.floor(+fd.get(`modcount:${key}`)||0)));for(let i=0;i<n;i++)next.push({id:uid('lm'),modifierId:m.id,name:`${g.name}: ${m.name}`,price:+m.price||0,printStyle:m.printStyle||'normal',stockTracked:!!m.stockTracked});}
+        unknown.forEach((m,i)=>{const n=Math.max(0,Math.min(99,Math.floor(+fd.get(`unknownmod:${i}`)||0)));for(let k=0;k<n;k++)next.push(clone(m))});
+        l.modifiers=next;ui.selectedLine=index;save('modificatori ordine modificati');renderEntry();toast('Aggiunte aggiornate');
+      });
+    };
+  }
+  // Il browser non consente di enumerare in silenzio tutte le porte: si possono vedere le autorizzate
+  // e chiedere all'operatore di selezionare una porta con un gesto esplicito.
+  const baseRenderSettings=window.renderSettings;
+  if(typeof baseRenderSettings==='function')window.renderSettings=function(){const out=baseRenderSettings();try{if(ui.settingsTab==='print'){
+    const panel=document.querySelector('#view-settings [data-panel="print"]');
+    if(panel&&!panel.querySelector('#v305PrinterDiscovery'))panel.insertAdjacentHTML('beforeend',`<div class="card" id="v305PrinterDiscovery" style="margin-top:12px"><h3>Rilevamento stampanti e porte</h3><p class="order-meta">Per sicurezza il browser non può scandire automaticamente tutte le porte USB/seriali. Può mostrare le porte già autorizzate oppure chiederti di selezionarne una.</p><div class="row"><button type="button" class="btn primary" data-action="v305-list-ports">Mostra porte autorizzate</button><button type="button" class="btn ghost" data-action="v305-request-port">Cerca / seleziona porta</button></div><div id="v305PortResults" class="order-meta" style="margin-top:8px">Nessuna scansione eseguita.</div></div>`);
+  }}catch{}return out};
+  document.addEventListener('click',async e=>{const b=e.target.closest('[data-action="v305-list-ports"],[data-action="v305-request-port"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();const out=document.querySelector('#v305PortResults');if(!out)return;
+    if(!('serial' in navigator)){out.textContent='Web Serial non supportato da questo browser/dispositivo. Usa la stampa di sistema o Print Bridge.';return}
+    try{if(b.dataset.action==='v305-request-port'){const port=await navigator.serial.requestPort();out.textContent='Porta selezionata e autorizzata dal browser. Per inviare comandi di stampa diretti serve configurare il protocollo/baud rate corretto o utilizzare Print Bridge.';window.__amalfitanaSelectedSerialPort=port;return}
+      const ports=await navigator.serial.getPorts();out.textContent=ports.length?`${ports.length} porta/e già autorizzata/e dal browser. La selezione non identifica automaticamente il modello o il protocollo di stampa.`:'Nessuna porta già autorizzata. Premi “Cerca / seleziona porta”.';
+    }catch(err){out.textContent=`Rilevamento annullato o non riuscito: ${String(err?.message||err)}`}
+  },true);
+  window.AmalfitanaV305Diagnostics=()=>({version:'V30.5',orderLineModifierQuantitiesEditable:typeof window.editOrderLine==='function',desktopOrderPanelSticky:true,mobileOrderPanelSticky:true,printerDiscovery:'Web Serial: autorizzazione esplicita; non è possibile enumerare tutte le porte in automatico'});
+})();
+</script>
+
+
+<script>
+/* V30.6 PROTEZIONE DATI: copia di recupero indipendente e nessun reset del menu. */
+(function(){
+ 'use strict';
+ const KEY='pizzeria_smart_v2', RECOVERY='pizzeria_smart_last_good', BACKUP='pizzeria_smart_recovery_ring';
+ function valid(x){return !!(x&&typeof x==='object'&&x.settings&&Array.isArray(x.categories)&&Array.isArray(x.modifierGroups)&&Array.isArray(x.orders)&&Array.isArray(x.archive))}
+ function protect(){try{const raw=localStorage.getItem(KEY);if(!raw)return;const x=JSON.parse(raw);if(!valid(x))return;const item={at:new Date().toISOString(),data:x};localStorage.setItem(RECOVERY,JSON.stringify(item));let ring=[];try{ring=JSON.parse(localStorage.getItem(BACKUP)||'[]')}catch{}ring.unshift(item);localStorage.setItem(BACKUP,JSON.stringify(ring.slice(0,5)))}catch(e){console.error('Protezione copia recupero',e)}}
+ // Conserva uno storico limitato delle copie valide, senza scritture periodiche o loop.
+ window.addEventListener('pagehide',protect);
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')protect()});
+ window.addEventListener('error',()=>protect());
+ window.AmalfitanaPersistenceProtection={version:'V30.6',hasLocalRecovery(){try{return valid(JSON.parse(localStorage.getItem(RECOVERY)||'null')?.data)}catch{return false}},backupCount(){try{return JSON.parse(localStorage.getItem(BACKUP)||'[]').length}catch{return 0}}};
+})();
 </script>
 </body>
 </html>
