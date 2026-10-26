@@ -281,7 +281,7 @@
 .order-mod-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:4px 0}.order-mod-chip{display:inline-flex;align-items:center;gap:4px;background:#f3f5f8;border:1px solid var(--line,#d7dde5);border-radius:999px;padding:3px 6px;margin:2px;color:var(--text,#202833)}.order-mod-remove{border:0!important;border-radius:50%!important;width:22px!important;height:22px!important;min-width:22px!important;padding:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;background:#b91c1c!important;color:#fff!important;font-weight:800!important;cursor:pointer}</style>
 </head>
 <body>
-  <header class="topbar"><div class="topbar-inner"><div><div class="brand" id="brandName">Pizzeria Smart</div><div class="sub">Gestionale V13.0.1 &#183; Smart Hub &#183; Fiscale e rimborsi</div></div><div class="save-state" id="saveState">Avvio&#8230;</div></div></header>
+  <header class="topbar"><div class="topbar-inner"><div><div class="brand" id="brandName">Pizzeria Smart</div><div class="sub">Gestione ordini, menu e disponibilità</div></div><div class="save-state" id="saveState">Avvio&#8230;</div></div></header>
   <main>
     <section class="view active" data-view="entry" id="view-entry"></section>
     <section class="view" data-view="orders" id="view-orders"></section>
@@ -582,7 +582,7 @@
   document.addEventListener('click',e=>{const b=e.target.closest('button[data-action="cancel-finalize"],button[data-action="close-evening"],button[data-action="run-maintenance"],button[data-action="export-cold-archive"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();if(b.dataset.action==='cancel-finalize')$('#orderDialog').close();if(b.dataset.action==='close-evening')closeEvening();if(b.dataset.action==='run-maintenance')smartMaintenance(true).then(refreshColdCount);if(b.dataset.action==='export-cold-archive')exportColdArchive()},true);
   document.addEventListener('click',e=>{const b=e.target.closest('button[data-action="save-settings"]');if(!b||ui.settingsTab!=='data')return;e.preventDefault();e.stopImmediatePropagation();ensureV9State();const root=$('#view-settings');state.settings.maintenance.auto=!!$('[name="maintenance-auto"]',root)?.checked;state.settings.maintenance.maxRecentOrders=Math.max(50,+$('[name="maintenance-max"]',root)?.value||500);state.settings.maintenance.keepDays=Math.max(1,+$('[name="maintenance-days"]',root)?.value||60);audit('Manutenzione configurata',`${state.settings.maintenance.maxRecentOrders} ordini \u00b7 ${state.settings.maintenance.keepDays} giorni`);save();renderSettings();toast('Impostazioni salvate')},true);
   function applyTheme(){const s=state.settings,root=document.documentElement.style,p=s.print||{};root.setProperty('--accent',s.accent);root.setProperty('--accent2',s.accent2);root.setProperty('--bg',s.background);root.setProperty('--app-font',`${s.appFont}px`);root.setProperty('--print-margin',`${p.margin??2}mm`);root.setProperty('--print-line-height',p.lineHeight||1.25);$('#brandName').textContent=s.businessName;document.title=`${s.businessName} - Amalfitana AI V18`;const l=s.labels;$('#navEntry').textContent=l.entry;$('#navOrders').textContent=l.orders;$('#navHistory').textContent=l.history;$('#navSettings').textContent=l.settings;document.querySelector('meta[name="theme-color"]').content=s.accent}
-  function diagnosticsHtml(){const idb='indexedDB'in window?'Disponibile':'Non disponibile',sw='serviceWorker'in navigator?(navigator.serviceWorker.controller?'Attivo':'Disponibile'):'Non supportato',storage=(()=>{try{localStorage.setItem('_ps_test','1');localStorage.removeItem('_ps_test');return'Disponibile'}catch{return'Bloccato'}})(),device=/iPhone|iPad|iPod/.test(navigator.userAgent)?'Apple iOS/iPadOS':/Android/.test(navigator.userAgent)?'Android':'Computer / altro';return `<div class="diagnostic-grid"><div class="diagnostic-item"><b>Dispositivo</b>${device}</div><div class="diagnostic-item"><b>Archivio IndexedDB</b>${idb}</div><div class="diagnostic-item"><b>Copia locale</b>${storage}</div><div class="diagnostic-item"><b>Modalita offline</b>${sw}</div><div class="diagnostic-item"><b>Connessione</b>${navigator.onLine?'Online':'Offline'}</div><div class="diagnostic-item"><b>Backup automatici</b>${snapshotCount()}/7</div><div class="diagnostic-item"><b>Versione</b>Amalfitana AI V18</div></div>`}
+  function diagnosticsHtml(){const idb='indexedDB'in window?'Disponibile':'Non disponibile',sw='serviceWorker'in navigator?(navigator.serviceWorker.controller?'Attivo':'Disponibile'):'Non supportato',storage=(()=>{try{localStorage.setItem('_ps_test','1');localStorage.removeItem('_ps_test');return'Disponibile'}catch{return'Bloccato'}})(),device=/iPhone|iPad|iPod/.test(navigator.userAgent)?'Apple iOS/iPadOS':/Android/.test(navigator.userAgent)?'Android':'Computer / altro';return `<div class="diagnostic-grid"><div class="diagnostic-item"><b>Dispositivo</b>${device}</div><div class="diagnostic-item"><b>Archivio IndexedDB</b>${idb}</div><div class="diagnostic-item"><b>Copia locale</b>${storage}</div><div class="diagnostic-item"><b>Modalita offline</b>${sw}</div><div class="diagnostic-item"><b>Connessione</b>${navigator.onLine?'Online':'Offline'}</div><div class="diagnostic-item"><b>Backup automatici</b>${snapshotCount()}/7</div></div>`}
   function printMod(m){const cls=m.printStyle==='highlight'?'mod-highlight':m.printStyle==='bold'?'mod-bold':'mod-normal';let raw=String(m.name||'').trim(),group='',item=raw;const colon=raw.indexOf(':');if(colon>0){group=raw.slice(0,colon).trim().toLocaleLowerCase('it-IT');item=raw.slice(colon+1).trim()}const norm=group.normalize('NFD').replace(/[\u0300-\u036f]/g,'');let sign='+';if(norm==='senza'||/^senza\s+/i.test(item)){sign='−';item=item.replace(/^senza\s+/i,'').trim()}else if(norm==='poco'||/^poco\s+/i.test(item)){sign='POCO';item=item.replace(/^poco\s+/i,'').trim()}else if(norm==='abbondante'||/^abbondante\s+/i.test(item)){sign='ABB.';item=item.replace(/^abbondante\s+/i,'').trim()}else if(norm==='piu'||norm==='più'||/^extra\s+/i.test(item)){sign='+';item=item.replace(/^extra\s+/i,'').trim()}if(!item)item=raw;return `<span class="print-mod ${cls}"><b>${esc(sign)}</b> ${esc(item)}</span>`}
   function printOrder(o,type){const p=state.settings.print,driver=state.drivers.find(d=>d.id===o.driverId);document.documentElement.style.setProperty('--print-width',`${p.paperWidth}mm`);document.documentElement.style.setProperty('--print-font',p.font);document.documentElement.style.setProperty('--print-body-size',`${p.bodySize}px`);document.documentElement.style.setProperty('--print-title-size',`${p.titleSize}px`);document.documentElement.style.setProperty('--print-heading-size',`${p.headingSize}px`);document.documentElement.style.setProperty('--print-total-size',`${p.totalSize}px`);$('#print-area').innerHTML=`<h1>${esc(p.businessName)}</h1>${p.header?`<div style="text-align:center">${esc(p.header)}</div>`:''}<h2>${type==='kitchen'?'COMANDA CUCINA':'RIEPILOGO ORDINE'} #${esc(o.id)}</h2><div><b>${new Date(o.dateTime).toLocaleString('it-IT')}</b> \u00b7 ${esc(o.mode)}</div>${o.customer?`<div><b>Cliente:</b> ${esc(o.customer)}</div>`:''}${p.showPhone&&o.phone?`<div><b>Tel:</b> ${esc(o.phone)}</div>`:''}${p.showAddress&&o.address?`<div><b>Indirizzo:</b> ${esc(o.address)}</div>`:''}${driver?`<div><b>Fattorino:</b> ${esc(driver.name)}</div>`:''}<div class="cut"></div>${o.lines.map(l=>`<div style="border-bottom:2px solid #000;padding:6px 0"><div class="print-line"><b>${l.qty}\u00d7 ${esc(l.name)}</b>${p.showPrices&&type!=='kitchen'?`<b>${money(lineTotal(l))}</b>`:''}</div>${l.slots?.map((s,i)=>`<div class="print-taste"><b>GUSTO ${i+1}: ${esc(s.taste)}</b>${(s.modifiers||[]).map(printMod).join('')}</div>`).join('')||''}${(l.modifiers||[]).map(printMod).join('')}</div>`).join('')}${o.notes?`<div class="print-note">NOTE: ${esc(o.notes)}</div>`:''}${type!=='kitchen'?`<div class="print-total print-line"><span>TOTALE</span><span>${money(o.total)}</span></div>${p.showPayment?`<div>Pagamento: ${esc(o.payment||'')}</div>`:''}`:''}${p.showFooter?`<div class="cut"></div><div style="text-align:center">${esc(p.footer)}</div>`:''}`;setTimeout(()=>window.print(),80)}
   function saveSettingsForm(){const f=$('#view-settings'),s=state.settings,p=s.print;const val=n=>f.querySelector(`[name="${n}"]`)?.value,has=n=>!!f.querySelector(`[name="${n}"]`)?.checked;if(ui.settingsTab==='general'){s.businessName=val('set-business')||s.businessName;s.accent=val('set-accent')||s.accent;s.accent2=val('set-accent2')||s.accent2;s.background=val('set-background')||s.background;s.appFont=+val('set-appfont')||16;s.defaultLeadMinutes=+val('set-lead')||0;Object.keys(s.labels).forEach(k=>{const v=val(`label-${k}`);if(v)s.labels[k]=v});['showPhone','showAddress','showTable','showNotes','showPayment','deliveryEnabled'].forEach(k=>s[k]=has(k))}if(ui.settingsTab==='delivery'){s.capacity={enabled:has('capacity-enabled'),limit:Math.max(1,+val('capacity-limit')||15),minutes:Math.max(5,+val('capacity-minutes')||5)}}if(ui.settingsTab==='print'){p.profile=val('print-profile')||'thermal80';['businessName','font','header','footer'].forEach(k=>p[k]=val(`print-${k}`)??p[k]);['paperWidth','margin','lineHeight','bodySize','titleSize','headingSize','totalSize'].forEach(k=>p[k]=+val(`print-${k}`)||p[k]);['showCustomer','showPhone','showAddress','showPayment','showPrices','showFooter','autoPrintKitchen'].forEach(k=>p[k]=has(`print-${k}`));audit('Impostazioni stampa',`${p.profile} \u00b7 ${p.paperWidth} mm`)}save();applyTheme();renderAll();toast('Impostazioni salvate')}
@@ -784,7 +784,7 @@
   document.addEventListener('click',e=>{const b=e.target.closest('button[data-action="save-settings"]');if(!b||ui.settingsTab!=='delivery')return;const root=$('#view-settings'),g=state.settings.deliveryGrouping;g.enabled=!!$('[name="grouping-enabled"]',root)?.checked;g.toleranceMinutes=Math.max(5,+$('[name="grouping-tolerance"]',root)?.value||10);g.autoDriver=!!$('[name="grouping-driver"]',root)?.checked},true);
   function exportData(){const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pizzeria-smart-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup esportato')}
   function applyTheme(){const s=state.settings,root=document.documentElement.style,p=s.print||{};root.setProperty('--accent',s.accent);root.setProperty('--accent2',s.accent2);root.setProperty('--bg',s.background);root.setProperty('--app-font',`${s.appFont}px`);root.setProperty('--print-margin',`${p.margin??2}mm`);root.setProperty('--print-line-height',p.lineHeight||1.25);$('#brandName').textContent=s.businessName;document.title=`${s.businessName} - Gestionale V10.4`;const l=s.labels;$('#navEntry').textContent=l.entry;$('#navOrders').textContent=l.orders;$('#navHistory').textContent=l.history;$('#navSettings').textContent=l.settings;document.querySelector('meta[name="theme-color"]').content=s.accent}
-  function diagnosticsHtml(){const idb='indexedDB'in window?'Disponibile':'Non disponibile',sw='serviceWorker'in navigator?(navigator.serviceWorker.controller?'Attivo':'Disponibile'):'Non supportato',storage=(()=>{try{localStorage.setItem('_ps_test','1');localStorage.removeItem('_ps_test');return'Disponibile'}catch{return'Bloccato'}})(),device=/iPhone|iPad|iPod/.test(navigator.userAgent)?'Apple iOS/iPadOS':/Android/.test(navigator.userAgent)?'Android':'Computer / altro';return `<div class="diagnostic-grid"><div class="diagnostic-item"><b>Dispositivo</b>${device}</div><div class="diagnostic-item"><b>Archivio IndexedDB</b>${idb}</div><div class="diagnostic-item"><b>Copia locale</b>${storage}</div><div class="diagnostic-item"><b>Modalita offline</b>${sw}</div><div class="diagnostic-item"><b>Connessione</b>${navigator.onLine?'Online':'Offline'}</div><div class="diagnostic-item"><b>Backup automatici</b>${snapshotCount()}/7</div><div class="diagnostic-item"><b>Versione</b>Gestionale V10</div></div>`}
+  function diagnosticsHtml(){const idb='indexedDB'in window?'Disponibile':'Non disponibile',sw='serviceWorker'in navigator?(navigator.serviceWorker.controller?'Attivo':'Disponibile'):'Non supportato',storage=(()=>{try{localStorage.setItem('_ps_test','1');localStorage.removeItem('_ps_test');return'Disponibile'}catch{return'Bloccato'}})(),device=/iPhone|iPad|iPod/.test(navigator.userAgent)?'Apple iOS/iPadOS':/Android/.test(navigator.userAgent)?'Android':'Computer / altro';return `<div class="diagnostic-grid"><div class="diagnostic-item"><b>Dispositivo</b>${device}</div><div class="diagnostic-item"><b>Archivio IndexedDB</b>${idb}</div><div class="diagnostic-item"><b>Copia locale</b>${storage}</div><div class="diagnostic-item"><b>Modalita offline</b>${sw}</div><div class="diagnostic-item"><b>Connessione</b>${navigator.onLine?'Online':'Offline'}</div><div class="diagnostic-item"><b>Backup automatici</b>${snapshotCount()}/7</div></div>`}
   $('#importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const raw=JSON.parse(await file.text()),data=raw.format==='PIZZERIA_SMART_BACKUP'?raw.data:raw;if(raw.format==='PIZZERIA_SMART_BACKUP'&&checksum(data)!==raw.checksum)throw Error('checksum');if(!data.settings||!Array.isArray(data.categories))throw Error('formato');if(confirm('Sostituire tutti i dati con questo backup verificato?')){state=mergeDefaults(data);ensureV9State();ensureV10State();runSelfTest(true);save('importazione backup');renderAll();toast('Backup verificato e ripristinato')}}catch{alert('Backup non valido o danneggiato')}e.target.value=''})
   /* V10.4: coda stampa coerente e pulizia fisica degli archivi operativi */
   const V104_SCHEMA='10.4';
@@ -986,7 +986,7 @@
   const printInvoiceReminderV12Base=printInvoiceReminder;printInvoiceReminder=function(o){ensureV12State();try{return printInvoiceReminderV12Base(o)}finally{ensureV12State()}};
   const startupProtectionV12Base=startupProtection;startupProtection=async function(){ensureV12State();state.v12.lastBootAt=new Date().toISOString();await startupProtectionV12Base();ensureV12State();const modules=V12Modules.inspect();if(!modules.every(x=>x.ok))recordV11Error('avvio moduli V12',modules.filter(x=>!x.ok).map(x=>x.name).join(', '));await SafetyDB.snapshot(state,'avvio V12');return modules};
   const renderAllV12Base=renderAll;renderAll=function(){ensureV12State();const start=window.performance?.now?window.performance.now():Date.now(),out=renderAllV12Base();ensureV12State();const elapsed=Math.max(0,(window.performance?.now?window.performance.now():Date.now())-start),p=state.v12.performance;p.lastRenderMs=Math.round(elapsed);p.maxRenderMs=Math.max(p.maxRenderMs,p.lastRenderMs);p.renderCount++;if(elapsed>250)p.slowRenders++;return out};
-  const renderSettingsV12Base=renderSettings;renderSettings=function(){ensureV12State();const out=renderSettingsV12Base();ensureV12State();if(ui.settingsTab==='data'){const panel=$('[data-panel="data"]',$('#view-settings')),modules=V12Modules.inspect(),ok=modules.filter(x=>x.ok).length,protection=$('#v10Reliability')?.closest('.card'),heading=protection?.querySelector('h2'),badge=protection?.querySelector('.page-head .badge');if(heading)heading.textContent='Protezione V12 Professional';if(badge)badge.textContent='V12';if(panel&&!$('#v12Modules'))panel.insertAdjacentHTML('afterbegin',`<div class="card ${ok===modules.length?'health-ok':'health-warn'}" id="v12Modules"><div class="page-head"><div><h2>Moduli V12</h2><div class="order-meta">Architettura controllata: ${ok}/${modules.length} moduli operativi.</div></div><span class="badge">V12.0</span></div><div class="diagnostic-grid">${modules.map(m=>`<div class="diagnostic-item ${m.ok?'health-ok':'health-warn'}"><b>${esc(m.label)}</b>${m.ok?'Operativo':'Da controllare'}</div>`).join('')}</div><div class="row" style="margin-top:10px"><button class="btn primary" data-action="v12-full-check">Controlla tutti i moduli</button><button class="btn ghost" data-action="v12-snapshot">Crea copia protetta</button><button class="btn ghost" data-action="v12-export-diagnostics">Esporta diagnostica</button></div><div class="order-meta" style="margin-top:8px">Ultimo controllo: ${state.v12.lastFullCheckAt?new Date(state.v12.lastFullCheckAt).toLocaleString('it-IT'):'non ancora eseguito'} - Render: ${state.v12.performance.lastRenderMs} ms</div></div>`);$$('.card h2',$('#view-settings')).forEach(h=>{if(h.textContent==='Registro anomalie V11.3')h.textContent='Registro anomalie V12'});const status=$('#v11Status .order-meta');if(status)status.textContent='Schema 12 - migrazione automatica - registro errori - scrittura verificata'}return out};
+  const renderSettingsV12Base=renderSettings;renderSettings=function(){ensureV12State();const out=renderSettingsV12Base();ensureV12State();if(ui.settingsTab==='data'){const panel=$('[data-panel="data"]',$('#view-settings')),modules=V12Modules.inspect(),ok=modules.filter(x=>x.ok).length,protection=$('#v10Reliability')?.closest('.card'),heading=protection?.querySelector('h2'),badge=protection?.querySelector('.page-head .badge');if(heading)heading.textContent='Protezione V12 Professional';if(badge)badge.textContent='V12';if(panel&&!$('#v12Modules'))panel.insertAdjacentHTML('afterbegin',`<div class="card ${ok===modules.length?'health-ok':'health-warn'}" id="v12Modules"><div class="page-head"><div><h2>Moduli V12</h2><div class="order-meta">Architettura controllata: ${ok}/${modules.length} moduli operativi.</div></div></div><div class="diagnostic-grid">${modules.map(m=>`<div class="diagnostic-item ${m.ok?'health-ok':'health-warn'}"><b>${esc(m.label)}</b>${m.ok?'Operativo':'Da controllare'}</div>`).join('')}</div><div class="row" style="margin-top:10px"><button class="btn primary" data-action="v12-full-check">Controlla tutti i moduli</button><button class="btn ghost" data-action="v12-snapshot">Crea copia protetta</button><button class="btn ghost" data-action="v12-export-diagnostics">Esporta diagnostica</button></div><div class="order-meta" style="margin-top:8px">Ultimo controllo: ${state.v12.lastFullCheckAt?new Date(state.v12.lastFullCheckAt).toLocaleString('it-IT'):'non ancora eseguito'} - Render: ${state.v12.performance.lastRenderMs} ms</div></div>`);$$('.card h2',$('#view-settings')).forEach(h=>{if(h.textContent==='Registro anomalie V11.3')h.textContent='Registro anomalie V12'});const status=$('#v11Status .order-meta');if(status)status.textContent='Schema 12 - migrazione automatica - registro errori - scrittura verificata'}return out};
 
   downloadVerifiedBackup=async function(){ensureV12State();const data=clone(state),payload={format:'PIZZERIA_SMART_BACKUP',schema:V12_SCHEMA,appVersion:V12_VERSION,createdAt:new Date().toISOString(),checksum:checksum(data),data},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pizzeria-smart-v12-backup-verificato-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);state.settings.safety.lastExternalBackup=payload.createdAt;await SafetyDB.snapshot(state,'backup esterno V12');await persistStateNow('backup verificato V12');toast('Backup V12 verificato creato')};
 
@@ -5021,6 +5021,86 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
     renderEntryAvailable:typeof renderEntry==='function',
     modifierGroups:Array.isArray(state?.modifierGroups)?state.modifierGroups.length:0
   });
+})();
+</script>
+
+
+<script>
+/* Pizzeria Smart — consolidamento operativo: giacenze, orario obbligatorio e marchio pulito. */
+(function installPizzeriaSmartOperationalPatch(){
+  if(window.PizzeriaSmartOperationalPatchV1)return;
+  window.PizzeriaSmartOperationalPatchV1=true;
+  const originalOpenFinalize=openFinalize;
+  let openingFinalize=false;
+  // Prima apertura: nessun orario precompilato; cambio modalità/aggiornamento conserva la scelta.
+  openFinalize=function(){
+    const wasOpen=!!$('#orderDialog')?.open;
+    const previousValue=wasOpen?($('#orderBody [name="dateTime"]')?.value||''):'';
+    originalOpenFinalize();
+    const dt=$('#orderBody [name="dateTime"]');
+    if(dt){
+      dt.required=true;
+      dt.setAttribute('aria-required','true');
+      dt.setAttribute('step','300');
+      dt.setAttribute('inputmode','numeric');
+      if(!wasOpen){dt.value='';}
+      else if(previousValue){dt.value=previousValue;}
+      let hint=dt.parentElement?.querySelector('.ps-time-required-hint');
+      if(!hint){hint=document.createElement('small');hint.className='ps-time-required-hint';hint.style.cssText='display:block;color:#b91c1c;font-weight:700;margin-top:5px';dt.insertAdjacentElement('afterend',hint)}
+      hint.textContent='Seleziona obbligatoriamente data e ora (intervalli di 5 minuti).';
+    }
+  };
+  // Validazione in capture: blocca ogni invio se l'orario non è stato scelto esplicitamente.
+  document.addEventListener('submit',function(e){
+    if(e.target?.id!=='orderForm')return;
+    const dt=$('#orderBody [name="dateTime"]');
+    const value=String(dt?.value||'').trim();
+    if(!value||!Number.isFinite(new Date(value).getTime())){
+      e.preventDefault();e.stopImmediatePropagation();
+      toast('Seleziona data e ora prima di inviare l’ordine.');
+      dt?.focus();
+      if(dt){dt.style.borderColor='#b91c1c';dt.style.boxShadow='0 0 0 2px #b91c1c22'}
+      return;
+    }
+    if(state.draft)state.draft.dateTime=value;
+  },true);
+  // Rete di sicurezza idempotente: al termine, scala le giacenze solo se il salvataggio
+  // dell'ordine è avvenuto e il flusso precedente non le ha già scalate.
+  const previousCommit=commitFinalOrder;
+  commitFinalOrder=async function(e){
+    const before=new Set((state.orders||[]).map(o=>String(o.id)));
+    await previousCommit(e);
+    const added=(state.orders||[]).find(o=>!before.has(String(o.id)));
+    if(!added)return;
+    try{
+      if(!added.stockConsumedAt&&!added._stockConsumed&&typeof v294ConsumeTrackedStock==='function'){
+        const result=v294ConsumeTrackedStock(added);
+        if(result&&(result.products||result.modifiers)){
+          await persistStateNow('giacenze ordine confermato');
+          renderAll();
+          toast('Ordine salvato: giacenze aggiornate');
+        }
+      }
+    }catch(err){console.error('Aggiornamento giacenze dopo ordine',err);toast('Ordine salvato; verifica le giacenze')}
+  };
+  // Pulisce solo le etichette visibili: i moduli legacy restano interni per compatibilità.
+  const previousApplyTheme=applyTheme;
+  applyTheme=function(){const result=previousApplyTheme();try{document.title=`${state.settings.businessName||'Pizzeria Smart'} - Pizzeria Smart`;}catch{}return result;};
+  if(typeof diagnosticsHtml==='function'){
+    const previousDiagnosticsHtml=diagnosticsHtml;
+    diagnosticsHtml=function(){return String(previousDiagnosticsHtml()).replace(/(?:Amalfitana AI|Gestionale) V\d+(?:\.\d+)*(?:[^<]*)/g,'Pizzeria Smart').replace(/<b>Versione<\/b>[^<]*/g,'<b>Applicazione<\/b>Pizzeria Smart');};
+  }
+  // Diagnostica leggibile senza esporre numerazioni storiche nella schermata Dati.
+  window.PizzeriaSmartOperationalDiagnostics=function(){
+    const trackedProducts=(state.categories||[]).flatMap(c=>c.items||[]).filter(x=>x.stockTracked);
+    const trackedMods=(state.modifierGroups||[]).flatMap(g=>g.items||[]).filter(x=>x.stockTracked);
+    return {app:'Pizzeria Smart',timeRequired:true,capacityOverrideConfirmation:true,
+      trackedProducts:trackedProducts.length,trackedModifiers:trackedMods.length,
+      soldOutProducts:trackedProducts.filter(x=>x.soldOut||Number(x.stockQty)<=0).length,
+      soldOutModifiers:trackedMods.filter(x=>x.soldOut||Number(x.stockQty)<=0).length,
+      stockConsumer:typeof v294ConsumeTrackedStock==='function',
+      save:typeof save==='function',finalize:typeof commitFinalOrder==='function'};
+  };
 })();
 </script>
 
