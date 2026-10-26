@@ -4965,8 +4965,34 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
 (function(){
  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('it').trim();
  const stockLeft=m=>Math.max(0,(Number(m?.stockQty)||0)-(typeof v298DraftUseCount==='function'?v298DraftUseCount(m):0));
- function updateModifierStock(){try{document.querySelectorAll('#view-entry button[data-mod]').forEach(b=>{const m=(state.modifierGroups||[]).flatMap(g=>g.items||[]).find(x=>String(x.id)===String(b.dataset.mod));if(!m?.stockTracked)return;const left=stockLeft(m),out=!!m.soldOut||left<=0;b.disabled=out;b.classList.toggle('soldout',out);const label=b.querySelector('.stock-availability');if(label){label.textContent=out?'ESAURITO':`DISPONIBILI: ${left}`;label.style.color=out?'#b91c1c':'#168a52'}})}catch(e){console.warn(e)}}
- const entry=document.querySelector('#view-entry');if(entry&&window.MutationObserver){new MutationObserver(()=>updateModifierStock()).observe(entry,{childList:true,subtree:true});setTimeout(updateModifierStock,0)}
+ // V30.16: aggiornamento idempotente. Non riscrivere textContent se invariato:
+ // la versione precedente attivava il MutationObserver all'infinito e congelava iOS.
+ let stockObserverQueued=false, stockObserverRunning=false;
+ function updateModifierStock(){
+   if(stockObserverRunning)return;
+   stockObserverRunning=true;
+   try{
+     const byId=new Map((state.modifierGroups||[]).flatMap(g=>g.items||[]).map(x=>[String(x.id),x]));
+     document.querySelectorAll('#view-entry button[data-mod]').forEach(b=>{
+       const m=byId.get(String(b.dataset.mod));if(!m?.stockTracked)return;
+       const left=stockLeft(m),out=!!m.soldOut||left<=0;
+       if(b.disabled!==out)b.disabled=out;
+       if(b.classList.contains('soldout')!==out)b.classList.toggle('soldout',out);
+       const label=b.querySelector('.stock-availability');
+       if(label){const txt=out?'ESAURITO':`DISPONIBILI: ${left}`;if(label.textContent!==txt)label.textContent=txt;const color=out?'#b91c1c':'#168a52';if(label.style.color!==color)label.style.color=color}
+     });
+   }catch(e){console.warn('Aggiornamento giacenze modificatori',e)}finally{stockObserverRunning=false}
+ }
+ const entry=document.querySelector('#view-entry');
+ if(entry&&window.MutationObserver){
+   const observer=new MutationObserver(()=>{
+     if(stockObserverQueued||stockObserverRunning)return;
+     stockObserverQueued=true;
+     requestAnimationFrame(()=>{stockObserverQueued=false;updateModifierStock()});
+   });
+   observer.observe(entry,{childList:true,subtree:true});
+   setTimeout(updateModifierStock,0);
+ }
  document.addEventListener('click',e=>{const b=e.target.closest('#view-entry button[data-mod]');if(!b)return;const m=(state.modifierGroups||[]).flatMap(g=>g.items||[]).find(x=>String(x.id)===String(b.dataset.mod));if(m?.stockTracked&&(m.soldOut||stockLeft(m)<=0)){e.preventDefault();e.stopImmediatePropagation();toast('Impasto non disponibile: giacenza esaurita.');updateModifierStock()}},true);
  function liveStock(x){return !!x&&!x.soldOut&&(!x.stockTracked||Number(x.stockQty)>0)}
  function catalogCategories(){return (state.categories||[]).filter(c=>c.enabled!==false)}
@@ -4979,15 +5005,17 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
 </script>
 
 <script>
-/* V30.15 FIX CRASH MODIFICATORI
+/* V30.16 FIX LOOP MUTATION OBSERVER MODIFICATORI
    Rimosso l'handler globale V30.14 che intercettava ogni button[data-mod] e scavalcava
    le logiche storiche per scelta singola, quantità e gruppi. I gestori nativi del gestionale
    gestiscono ora l'aggiunta e il render; questo blocco aggiunge solo una diagnostica non invasiva. */
 (function installV3015ModifierStability(){
-  if(window.AmalfitanaV3015Installed) return;
+  if(window.AmalfitanaV3016Installed) return;
   window.AmalfitanaV3015Installed=true;
-  window.AmalfitanaV3015Diagnostics=()=>({
+  window.AmalfitanaV3016Diagnostics=()=>({
     installed:true,
+    version:'V30.16',
+    stockObserverIdempotent:true,
     interceptAllModifierClicks:false,
     legacyModifierHandlersPreserved:true,
     renderEntryAvailable:typeof renderEntry==='function',
