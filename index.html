@@ -4979,39 +4979,20 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
 </script>
 
 <script>
-/* V30.14 FIX: selezione modificatori indipendente dal filtro attivo. */
-(function installV3014ModifierClickFix(){
-  if(window.AmalfitanaV3014Installed) return;
-  window.AmalfitanaV3014Installed=true;
-  document.addEventListener('click',function(e){
-    const btn=e.target.closest('#view-entry button[data-mod]');
-    if(!btn) return;
-    const id=String(btn.dataset.mod);
-    const groups=Array.isArray(state?.modifierGroups)?state.modifierGroups:[];
-    let group=null, mod=null;
-    for(const g of groups){
-      const found=(g.items||[]).find(m=>String(m.id)===id);
-      if(found){group=g;mod=found;break;}
-    }
-    const line=state?.draft?.lines?.[ui?.selectedLine];
-    if(!group||!mod||!line) {
-      e.preventDefault(); e.stopImmediatePropagation();
-      if(!line) toast('Seleziona prima una pizza nel riepilogo, poi scegli il modificatore.');
-      else toast('Modificatore non trovato: aggiorna il gestionale e riprova.');
-      return;
-    }
-    if(mod.soldOut || (mod.stockTracked && (Number(mod.stockQty)||0) - (typeof v298DraftUseCount==='function'?v298DraftUseCount(mod):0) <= 0)){
-      e.preventDefault();e.stopImmediatePropagation();toast('Questo impasto o modificatore è esaurito.');return;
-    }
-    e.preventDefault(); e.stopImmediatePropagation();
-    line.modifiers=Array.isArray(line.modifiers)?line.modifiers:[];
-    const existing=line.modifiers.find(x=>String(x.modifierId||'')===String(mod.id));
-    if(existing){toast('Questo modificatore è già presente su questa pizza.');return;}
-    line.modifiers.push({id:typeof uid==='function'?uid('lm'):`lm_${Date.now()}`,modifierId:mod.id,groupId:group.id,name:`${group.name}: ${mod.name}`,price:Number(mod.price)||0,printStyle:mod.printStyle||'normal'});
-    try{save('modificatore aggiunto');}catch(_){try{save()}catch(__){}}
-    try{renderEntry()}catch(err){console.error('V30.14 render modifier',err);toast('Modificatore aggiunto, ma aggiornamento schermata non riuscito.');}
-  },true);
-  window.AmalfitanaV3014Diagnostics=()=>({installed:true,modifierClickUsesGlobalGroupLookup:true,requiresSelectedOrderLine:true});
+/* V30.15 FIX CRASH MODIFICATORI
+   Rimosso l'handler globale V30.14 che intercettava ogni button[data-mod] e scavalcava
+   le logiche storiche per scelta singola, quantità e gruppi. I gestori nativi del gestionale
+   gestiscono ora l'aggiunta e il render; questo blocco aggiunge solo una diagnostica non invasiva. */
+(function installV3015ModifierStability(){
+  if(window.AmalfitanaV3015Installed) return;
+  window.AmalfitanaV3015Installed=true;
+  window.AmalfitanaV3015Diagnostics=()=>({
+    installed:true,
+    interceptAllModifierClicks:false,
+    legacyModifierHandlersPreserved:true,
+    renderEntryAvailable:typeof renderEntry==='function',
+    modifierGroups:Array.isArray(state?.modifierGroups)?state.modifierGroups.length:0
+  });
 })();
 </script>
 
