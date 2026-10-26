@@ -4977,5 +4977,43 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
  window.AmalfitanaAIHubV312={version:'V30.13',getLiveAvailability(){return {catalog:catalogCategories().map(c=>({id:c.id,name:c.name,items:(c.items||[]).filter(liveStock).map(p=>({id:p.id,name:p.name,price:Number(p.price)||0,remaining:p.stockTracked?Number(p.stockQty)||0:null}))})),dough:(state.modifierGroups||[]).filter(g=>g.enabled!==false).map(g=>({group:g.name,items:(g.items||[]).filter(liveStock).map(m=>({id:m.id,name:m.name,price:Number(m.price)||0,remaining:m.stockTracked?stockLeft(m):null}))})),schedule:clone(state.settings.schedule||{}),capacity:clone(state.settings.capacity||{}),generatedAt:new Date().toISOString()}},getOrderAssistantInstructions(){return `Sei l'operatore telefonico di Pizzeria L’Amalfitana. Durante la raccolta dell'ordine, dopo aver registrato le pizze e prima di confermare, chiedi in modo naturale: “Per le pizze ordinate desidera un impasto particolare? Posso verificare gli impasti disponibili, ad esempio integrale, Kamut, senza glutine, Verace Rivisitato e gli altri presenti nel gestionale. Altrimenti lasciamo il classico.” NON usare un elenco fisso: leggi ogni volta getLiveAvailability().dough e proponi soltanto gli impasti attivi, disponibili e con giacenza sufficiente. Se il cliente vuole impasti diversi per pizza, chiarisci a quali pizze si riferisce. Comunica eventuali supplementi prima di aggiungerli e chiedi conferma. Per il senza glutine, verifica la disponibilità reale e non fare promesse su assenza di contaminazione se il gestionale non certifica la procedura. Se il cliente rifiuta o sceglie il classico, accetta subito e non ripetere la domanda. Prima della conferma ricontrolla prodotti, impasti, prezzi, giacenze e fascia oraria/capacità consultando getLiveAvailability(); se un articolo è esaurito, proponi un'alternativa disponibile senza aggiungerla automaticamente. Solo dopo aver riepilogato l'ordine, fai UNA sola proposta breve e facoltativa: una bibita OPPURE un dolce realmente disponibile nel catalogo gestionale; scegli le categorie e i prodotti presenti in getLiveAvailability().catalog, senza inventare nomi o prezzi. Se il cliente rifiuta, prosegui immediatamente senza insistere. Non dichiarare mai che l'ordine è confermato finché il gestionale/server non ha confermato il salvataggio.`}};
 })();
 </script>
+
+<script>
+/* V30.14 FIX: selezione modificatori indipendente dal filtro attivo. */
+(function installV3014ModifierClickFix(){
+  if(window.AmalfitanaV3014Installed) return;
+  window.AmalfitanaV3014Installed=true;
+  document.addEventListener('click',function(e){
+    const btn=e.target.closest('#view-entry button[data-mod]');
+    if(!btn) return;
+    const id=String(btn.dataset.mod);
+    const groups=Array.isArray(state?.modifierGroups)?state.modifierGroups:[];
+    let group=null, mod=null;
+    for(const g of groups){
+      const found=(g.items||[]).find(m=>String(m.id)===id);
+      if(found){group=g;mod=found;break;}
+    }
+    const line=state?.draft?.lines?.[ui?.selectedLine];
+    if(!group||!mod||!line) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      if(!line) toast('Seleziona prima una pizza nel riepilogo, poi scegli il modificatore.');
+      else toast('Modificatore non trovato: aggiorna il gestionale e riprova.');
+      return;
+    }
+    if(mod.soldOut || (mod.stockTracked && (Number(mod.stockQty)||0) - (typeof v298DraftUseCount==='function'?v298DraftUseCount(mod):0) <= 0)){
+      e.preventDefault();e.stopImmediatePropagation();toast('Questo impasto o modificatore è esaurito.');return;
+    }
+    e.preventDefault(); e.stopImmediatePropagation();
+    line.modifiers=Array.isArray(line.modifiers)?line.modifiers:[];
+    const existing=line.modifiers.find(x=>String(x.modifierId||'')===String(mod.id));
+    if(existing){toast('Questo modificatore è già presente su questa pizza.');return;}
+    line.modifiers.push({id:typeof uid==='function'?uid('lm'):`lm_${Date.now()}`,modifierId:mod.id,groupId:group.id,name:`${group.name}: ${mod.name}`,price:Number(mod.price)||0,printStyle:mod.printStyle||'normal'});
+    try{save('modificatore aggiunto');}catch(_){try{save()}catch(__){}}
+    try{renderEntry()}catch(err){console.error('V30.14 render modifier',err);toast('Modificatore aggiunto, ma aggiornamento schermata non riuscito.');}
+  },true);
+  window.AmalfitanaV3014Diagnostics=()=>({installed:true,modifierClickUsesGlobalGroupLookup:true,requiresSelectedOrderLine:true});
+})();
+</script>
+
 </body>
 </html>
