@@ -4465,6 +4465,7 @@ let amAiVoicePc=null, amAiVoiceStream=null, amAiVoiceChannel=null;
 function amAiLiveStatus(message,ok=false){const el=$('#am-ai-live-status');if(el){el.textContent=message;el.style.background=ok?'#eaf7ef':'#fff7e6';el.style.borderColor=ok?'#a9d8b7':'#ead8ad'}}
 function amAiAppendTranscript(message){const el=$('#am-ai-transcript');if(el){el.textContent+=(el.textContent?'\n':'')+message;el.scrollTop=el.scrollHeight}}
 async function amAiStopVoice(){
+  try{if(typeof amAiGreetingWatchdog!=='undefined'&&amAiGreetingWatchdog)clearTimeout(amAiGreetingWatchdog)}catch{}
   try{if(amAiVoiceChannel)amAiVoiceChannel.close()}catch{}
   try{if(amAiVoicePc){amAiVoicePc.getSenders().forEach(s=>{try{s.track?.stop()}catch{}});amAiVoicePc.close()}}catch{}
   try{if(amAiVoiceStream)amAiVoiceStream.getTracks().forEach(t=>t.stop())}catch{}
@@ -4490,7 +4491,9 @@ async function amAiStartVoice(){
   amAiVoiceChannel=amAiVoicePc.createDataChannel('oai-events');
   let amAiSessionConfigured=false;
   let amAiGreetingPlaying=false;
-  let amAiFirstCustomerTurn=true;
+  let amAiResponseInProgress=false;
+  let amAiGreetingWatchdog=null;
+  let amAiLastResponseAt=0;
   function amAiBuildVoiceInstructions(){
     let live={catalog:[],dough:[]}, extra='';
     try{if(window.AmalfitanaAIHubV312?.getLiveAvailability)live=window.AmalfitanaAIHubV312.getLiveAvailability()||live;}catch(e){console.warn('Catalogo live non leggibile',e)}
@@ -4521,9 +4524,20 @@ REGOLA CRITICA SUI TURNI: non parlare mai spontaneamente dopo aver finito una ri
 
 È SOLO UNA PROVA VOCALE: non creare, salvare, confermare o inviare ordini e non modificare giacenze. Non fingere che la nota sia stata salvata nel gestionale; durante il test ripetila nel riepilogo come nota simulata.`;
   }
-  amAiVoiceChannel.onopen=()=>{amAiLiveStatus('Connessa. Configuro menu e istruzioni…',true);try{amAiVoiceChannel.send(JSON.stringify({type:'session.update',session:{type:'realtime',instructions:amAiBuildVoiceInstructions(),audio:{input:{noise_reduction:{type:'near_field'},turn_detection:{type:'semantic_vad',eagerness:'low',create_response:false,interrupt_response:false},transcription:{model:'gpt-4o-mini-transcribe'}},output:{voice:'coral'}}}}));}catch(e){console.warn(e)}};
-  amAiVoiceChannel.onmessage=event=>{try{const msg=JSON.parse(event.data);if(msg.type==='error')amAiAppendTranscript('Errore voce: '+(msg.error?.message||'errore non specificato'));if(msg.type==='session.updated'&&!amAiSessionConfigured){amAiSessionConfigured=true;amAiGreetingPlaying=true;amAiLiveStatus('Menu del gestionale caricato. Puoi parlare con Amalfitana AI.',true);amAiVoiceChannel.send(JSON.stringify({type:'response.create',response:{instructions:'Con voce femminile italiana coral, giovane, calda, morbida e professionale, pronuncia una sola volta esclusivamente questa frase: L’Amalfitana, buonasera! Non dire «dimmi pure», non aggiungere altro e poi resta in silenzio in attesa del cliente.'}}));}if(msg.type==='response.audio.done'&&amAiGreetingPlaying){amAiGreetingPlaying=false;}if(msg.type==='input_audio_buffer.speech_stopped'){if(amAiSessionConfigured&&!amAiGreetingPlaying&&amAiVoiceChannel&&amAiVoiceChannel.readyState==='open'){amAiVoiceChannel.send(JSON.stringify({type:'response.create'}));}}if(msg.type==='response.audio_transcript.done'&&msg.transcript)amAiAppendTranscript('Amalfitana AI: '+msg.transcript);if(msg.type==='conversation.item.input_audio_transcription.completed'&&msg.transcript)amAiAppendTranscript('Tu: '+msg.transcript)}catch{}};
-  amAiVoicePc.onconnectionstatechange=()=>{if(amAiVoicePc&&['failed','disconnected','closed'].includes(amAiVoicePc.connectionState))amAiLiveStatus('Connessione audio interrotta: '+amAiVoicePc.connectionState)};
+  amAiVoiceChannel.onopen=()=>{amAiLiveStatus('Connessione dati pronta. Configuro voce e menu…',true);try{amAiVoiceChannel.send(JSON.stringify({type:'session.update',session:{type:'realtime',instructions:amAiBuildVoiceInstructions(),output_modalities:['audio'],audio:{input:{noise_reduction:{type:'near_field'},turn_detection:{type:'server_vad',threshold:0.55,prefix_padding_ms:300,silence_duration_ms:650,create_response:true,interrupt_response:false},transcription:{model:'gpt-4o-mini-transcribe',language:'it'}},output:{voice:'coral'}}}}));}catch(e){amAiAppendTranscript('Errore configurazione voce: '+(e.message||e));amAiLiveStatus('Errore durante la configurazione della voce. Termina e riprova.');}};
+  amAiVoiceChannel.onmessage=event=>{let msg;try{msg=JSON.parse(event.data)}catch(e){amAiAppendTranscript('Evento voce non leggibile.');return}
+    if(msg.type==='error'){const er=msg.error||{};amAiAppendTranscript('Errore OpenAI: '+(er.message||'errore non specificato')+(er.code?' ['+er.code+']':''));amAiLiveStatus('OpenAI ha restituito un errore: '+(er.code||er.type||'controlla il messaggio'));if(amAiGreetingWatchdog){clearTimeout(amAiGreetingWatchdog);amAiGreetingWatchdog=null;}return;}
+    if(msg.type==='session.updated'&&!amAiSessionConfigured){amAiSessionConfigured=true;amAiGreetingPlaying=true;amAiLiveStatus('Menu caricato. L’assistente sta pronunciando il saluto…',true);try{amAiVoiceChannel.send(JSON.stringify({type:'response.create',response:{output_modalities:['audio'],max_output_tokens:100,instructions:'Pronuncia in italiano con voce femminile naturale, calda e cordiale, senza scandire le parole: «L’Amalfitana, buonasera!» Pronuncia soltanto questa frase, senza aggiungere altro. Poi attendi il cliente.'}}));amAiGreetingWatchdog=setTimeout(()=>{if(amAiGreetingPlaying){amAiGreetingPlaying=false;amAiLiveStatus('Il saluto non è partito entro il tempo previsto. Controlla l’errore qui sotto o termina e riprova.');}},10000);}catch(e){amAiGreetingPlaying=false;amAiAppendTranscript('Impossibile avviare il saluto: '+(e.message||e));}}
+    if(msg.type==='response.created'){amAiResponseInProgress=true;amAiLastResponseAt=Date.now();}
+    if(msg.type==='response.audio.done'&&amAiGreetingPlaying){amAiGreetingPlaying=false;if(amAiGreetingWatchdog){clearTimeout(amAiGreetingWatchdog);amAiGreetingWatchdog=null;}amAiLiveStatus('Saluto completato. Puoi parlare.',true);}
+    if(msg.type==='response.done'){amAiResponseInProgress=false;if(amAiGreetingWatchdog){clearTimeout(amAiGreetingWatchdog);amAiGreetingWatchdog=null;}if(msg.response?.status==='failed'){const detail=msg.response?.status_details?.error?.message||msg.response?.status_details?.reason||'risposta non completata';amAiAppendTranscript('Risposta non completata: '+detail);amAiLiveStatus('La risposta AI non è stata completata: '+detail);}}
+    if(msg.type==='response.audio_transcript.done'&&msg.transcript)amAiAppendTranscript('Amalfitana AI: '+msg.transcript);
+    if(msg.type==='conversation.item.input_audio_transcription.completed'&&msg.transcript)amAiAppendTranscript('Tu: '+msg.transcript);
+    if(msg.type==='input_audio_buffer.speech_started'&&amAiSessionConfigured&&!amAiGreetingPlaying)amAiLiveStatus('Ti ascolto…',true);
+    if(msg.type==='input_audio_buffer.speech_stopped'&&amAiSessionConfigured&&!amAiGreetingPlaying)amAiLiveStatus('Ho ricevuto la tua voce. Sto preparando la risposta…',true);
+  };
+  amAiVoicePc.onconnectionstatechange=()=>{if(amAiVoicePc&&['failed','disconnected','closed'].includes(amAiVoicePc.connectionState)){amAiLiveStatus('Connessione audio interrotta: '+amAiVoicePc.connectionState);amAiAppendTranscript('Connessione WebRTC: '+amAiVoicePc.connectionState+'. Premi Termina conversazione e riprova.')}};
+  amAiVoicePc.oniceconnectionstatechange=()=>{if(amAiVoicePc&&['failed','disconnected'].includes(amAiVoicePc.iceConnectionState)){amAiLiveStatus('Collegamento audio instabile: '+amAiVoicePc.iceConnectionState);}};
   const offer=await amAiVoicePc.createOffer();await amAiVoicePc.setLocalDescription(offer);
   await new Promise((resolve,reject)=>{if(!amAiVoicePc)return reject(Error('Connessione interrotta.'));if(amAiVoicePc.iceGatheringState==='complete')return resolve();const timeout=setTimeout(resolve,2500);amAiVoicePc.addEventListener('icegatheringstatechange',()=>{if(amAiVoicePc?.iceGatheringState==='complete'){clearTimeout(timeout);resolve()}},{once:false})});
   amAiLiveStatus('Collego l’audio a OpenAI Realtime…');
