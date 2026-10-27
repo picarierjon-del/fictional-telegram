@@ -4465,6 +4465,7 @@ let amAiVoicePc=null, amAiVoiceStream=null, amAiVoiceChannel=null;
 function amAiLiveStatus(message,ok=false){const el=$('#am-ai-live-status');if(el){el.textContent=message;el.style.background=ok?'#eaf7ef':'#fff7e6';el.style.borderColor=ok?'#a9d8b7':'#ead8ad'}}
 function amAiAppendTranscript(message){const el=$('#am-ai-transcript');if(el){el.textContent+=(el.textContent?'\n':'')+message;el.scrollTop=el.scrollHeight}}
 async function amAiStopVoice(){
+  try{if(typeof amAiUserTurnTimer!=='undefined'&&amAiUserTurnTimer)clearTimeout(amAiUserTurnTimer)}catch{}
   try{if(typeof amAiGreetingWatchdog!=='undefined'&&amAiGreetingWatchdog)clearTimeout(amAiGreetingWatchdog)}catch{}
   try{if(amAiVoiceChannel)amAiVoiceChannel.close()}catch{}
   try{if(amAiVoicePc){amAiVoicePc.getSenders().forEach(s=>{try{s.track?.stop()}catch{}});amAiVoicePc.close()}}catch{}
@@ -4494,6 +4495,10 @@ async function amAiStartVoice(){
   let amAiResponseInProgress=false;
   let amAiGreetingWatchdog=null;
   let amAiLastResponseAt=0;
+  let amAiUserTurnTimer=null;
+  let amAiResponseRequested=false;
+  let amAiPendingToolCall=null;
+  async function amAiHandlePendingToolCall(){if(!amAiPendingToolCall)return;const call=amAiPendingToolCall;amAiPendingToolCall=null;let result;try{const args=JSON.parse(call.arguments||'{}');result=await amAiCreateTestOrder(args)}catch(err){result={ok:false,message:err.message||'Errore nella creazione dell’ordine di prova.'}}try{amAiVoiceChannel.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.call_id,output:JSON.stringify(result)}}));amAiVoiceChannel.send(JSON.stringify({type:'response.create',response:{output_modalities:['audio']}}));}catch(err){amAiAppendTranscript('Errore nel restituire il risultato dello strumento: '+(err.message||err));}}
   function amAiBuildVoiceInstructions(){
     let live={catalog:[],dough:[]}, extra='';
     try{if(window.AmalfitanaAIHubV312?.getLiveAvailability)live=window.AmalfitanaAIHubV312.getLiveAvailability()||live;}catch(e){console.warn('Catalogo live non leggibile',e)}
@@ -4522,19 +4527,20 @@ GESTIONE DEL PRIMO TURNO: dopo aver detto «L’Amalfitana, buonasera!» attendi
 
 REGOLA CRITICA SUI TURNI: non parlare mai spontaneamente dopo aver finito una risposta e non completare da sola una conversazione. Dopo il saluto iniziale, resta in silenzio finché il cliente non ha parlato. Dopo ogni risposta, attendi una nuova frase del cliente. Non interpretare il tuo stesso audio, il silenzio o i rumori di fondo come parole del cliente. Non interrompere il cliente durante le pause brevi; aspetta che abbia concluso. Se non hai capito davvero, chiedi con calma «Scusami, non ho capito bene: me lo ripeti?». Non dire spontaneamente che ci sono rumori.
 
-È SOLO UNA PROVA VOCALE: non creare, salvare, confermare o inviare ordini e non modificare giacenze. Non fingere che la nota sia stata salvata nel gestionale; durante il test ripetila nel riepilogo come nota simulata.`;
+È UNA PROVA OPERATIVA: puoi creare un ordine di prova SOLO dopo conferma esplicita e tramite lo strumento disponibile. Non modificare giacenze e non stampare mai automaticamente. Specifica che è un ordine TEST AI.`;
   }
-  amAiVoiceChannel.onopen=()=>{amAiLiveStatus('Connessione dati pronta. Configuro voce e menu…',true);try{amAiVoiceChannel.send(JSON.stringify({type:'session.update',session:{type:'realtime',instructions:amAiBuildVoiceInstructions(),output_modalities:['audio'],audio:{input:{noise_reduction:{type:'near_field'},turn_detection:{type:'server_vad',threshold:0.55,prefix_padding_ms:300,silence_duration_ms:650,create_response:true,interrupt_response:false},transcription:{model:'gpt-4o-mini-transcribe',language:'it'}},output:{voice:'coral'}}}}));}catch(e){amAiAppendTranscript('Errore configurazione voce: '+(e.message||e));amAiLiveStatus('Errore durante la configurazione della voce. Termina e riprova.');}};
+  amAiVoiceChannel.onopen=()=>{amAiLiveStatus('Connessione dati pronta. Configuro voce e menu…',true);try{amAiVoiceChannel.send(JSON.stringify({type:'session.update',session:{type:'realtime',instructions:amAiBuildVoiceInstructions()+`\n\nINTEGRAZIONE OPERATIVA DI TEST: puoi creare un ordine di prova nel gestionale usando lo strumento create_ai_test_order. Prima raccogli prodotti, quantità, modalità, orario e dettagli necessari; riepiloga il tutto e chiedi conferma esplicita. SOLO dopo un sì esplicito usa lo strumento con confirmed=true. Non dichiarare mai che l'ordine è stato salvato finché lo strumento non restituisce successo. Gli ordini creati sono marcati TEST AI, non devono mai essere stampati automaticamente. Non inventare prodotti o prezzi; se un prodotto non corrisponde esattamente al menu, chiedi chiarimento. Se la capienza è piena, non forzare l'inserimento: proponi di scegliere un altro orario.`,tools:[{type:'function',name:'create_ai_test_order',description:'Crea nel gestionale un ordine chiaramente marcato come TEST AI, solo dopo conferma esplicita del cliente. Controlla menu e capienza prima del salvataggio. Non stampa.',parameters:{type:'object',properties:{items:{type:'array',items:{type:'object',properties:{name:{type:'string'},quantity:{type:'integer',minimum:1,maximum:20}},required:['name','quantity'],additionalProperties:false}},mode:{type:'string',enum:['pickup','delivery']},dateTime:{type:'string',description:'Data e ora locale ISO, ad esempio 2026-10-27T20:15'},customer:{type:'string'},phone:{type:'string'},address:{type:'string'},notes:{type:'string'},confirmed:{type:'boolean'}},required:['items','mode','dateTime','confirmed'],additionalProperties:false}}],tool_choice:'auto',audio:{input:{noise_reduction:{type:'near_field'},turn_detection:{type:'server_vad',threshold:0.55,prefix_padding_ms:300,silence_duration_ms:650,create_response:false,interrupt_response:false},transcription:{model:'gpt-4o-mini-transcribe',language:'it'}},output:{voice:'coral'}}}}));}catch(e){amAiAppendTranscript('Errore configurazione voce: '+(e.message||e));amAiLiveStatus('Errore durante la configurazione della voce. Termina e riprova.');}};
   amAiVoiceChannel.onmessage=event=>{let msg;try{msg=JSON.parse(event.data)}catch(e){amAiAppendTranscript('Evento voce non leggibile.');return}
     if(msg.type==='error'){const er=msg.error||{};amAiAppendTranscript('Errore OpenAI: '+(er.message||'errore non specificato')+(er.code?' ['+er.code+']':''));amAiLiveStatus('OpenAI ha restituito un errore: '+(er.code||er.type||'controlla il messaggio'));if(amAiGreetingWatchdog){clearTimeout(amAiGreetingWatchdog);amAiGreetingWatchdog=null;}return;}
+    if(msg.type==='response.function_call_arguments.done' && msg.name==='create_ai_test_order'){amAiPendingToolCall={call_id:msg.call_id,arguments:msg.arguments||'{}'};}
     if(msg.type==='session.updated'&&!amAiSessionConfigured){amAiSessionConfigured=true;amAiGreetingPlaying=true;amAiLiveStatus('Menu caricato. L’assistente sta pronunciando il saluto…',true);try{amAiVoiceChannel.send(JSON.stringify({type:'response.create',response:{output_modalities:['audio'],max_output_tokens:100,instructions:'Pronuncia in italiano con voce femminile naturale, calda e cordiale, senza scandire le parole: «L’Amalfitana, buonasera!» Pronuncia soltanto questa frase, senza aggiungere altro. Poi attendi il cliente.'}}));amAiGreetingWatchdog=setTimeout(()=>{if(amAiGreetingPlaying){amAiGreetingPlaying=false;amAiLiveStatus('Il saluto non è partito entro il tempo previsto. Controlla l’errore qui sotto o termina e riprova.');}},10000);}catch(e){amAiGreetingPlaying=false;amAiAppendTranscript('Impossibile avviare il saluto: '+(e.message||e));}}
-    if(msg.type==='response.created'){amAiResponseInProgress=true;amAiLastResponseAt=Date.now();}
+    if(msg.type==='response.created'){amAiResponseInProgress=true;amAiResponseRequested=false;amAiLastResponseAt=Date.now();}
     if(msg.type==='response.audio.done'&&amAiGreetingPlaying){amAiGreetingPlaying=false;if(amAiGreetingWatchdog){clearTimeout(amAiGreetingWatchdog);amAiGreetingWatchdog=null;}amAiLiveStatus('Saluto completato. Puoi parlare.',true);}
-    if(msg.type==='response.done'){amAiResponseInProgress=false;if(amAiGreetingWatchdog){clearTimeout(amAiGreetingWatchdog);amAiGreetingWatchdog=null;}if(msg.response?.status==='failed'){const detail=msg.response?.status_details?.error?.message||msg.response?.status_details?.reason||'risposta non completata';amAiAppendTranscript('Risposta non completata: '+detail);amAiLiveStatus('La risposta AI non è stata completata: '+detail);}}
+    if(msg.type==='response.done'){amAiResponseInProgress=false;amAiResponseRequested=false;if(amAiPendingToolCall){setTimeout(()=>amAiHandlePendingToolCall(),100);}if(amAiGreetingWatchdog){clearTimeout(amAiGreetingWatchdog);amAiGreetingWatchdog=null;}if(msg.response?.status==='failed'){const detail=msg.response?.status_details?.error?.message||msg.response?.status_details?.reason||'risposta non completata';amAiAppendTranscript('Risposta non completata: '+detail);amAiLiveStatus('La risposta AI non è stata completata: '+detail);}}
     if(msg.type==='response.audio_transcript.done'&&msg.transcript)amAiAppendTranscript('Amalfitana AI: '+msg.transcript);
     if(msg.type==='conversation.item.input_audio_transcription.completed'&&msg.transcript)amAiAppendTranscript('Tu: '+msg.transcript);
     if(msg.type==='input_audio_buffer.speech_started'&&amAiSessionConfigured&&!amAiGreetingPlaying)amAiLiveStatus('Ti ascolto…',true);
-    if(msg.type==='input_audio_buffer.speech_stopped'&&amAiSessionConfigured&&!amAiGreetingPlaying)amAiLiveStatus('Ho ricevuto la tua voce. Sto preparando la risposta…',true);
+    if(msg.type==='input_audio_buffer.speech_stopped'&&amAiSessionConfigured&&!amAiGreetingPlaying){amAiLiveStatus('Ho ricevuto la tua voce. Sto preparando la risposta…',true);if(amAiUserTurnTimer)clearTimeout(amAiUserTurnTimer);amAiUserTurnTimer=setTimeout(()=>{amAiUserTurnTimer=null;if(!amAiVoiceChannel||amAiVoiceChannel.readyState!=='open'||amAiGreetingPlaying||amAiResponseInProgress||amAiResponseRequested)return;try{amAiResponseRequested=true;amAiVoiceChannel.send(JSON.stringify({type:'response.create',response:{output_modalities:['audio']}}));amAiLiveStatus('Sto preparando la risposta vocale…',true);}catch(err){amAiResponseRequested=false;amAiAppendTranscript('Non riesco ad avviare la risposta: '+(err.message||err));amAiLiveStatus('Risposta non avviata. Termina e riprova.');}},350);}
   };
   amAiVoicePc.onconnectionstatechange=()=>{if(amAiVoicePc&&['failed','disconnected','closed'].includes(amAiVoicePc.connectionState)){amAiLiveStatus('Connessione audio interrotta: '+amAiVoicePc.connectionState);amAiAppendTranscript('Connessione WebRTC: '+amAiVoicePc.connectionState+'. Premi Termina conversazione e riprova.')}};
   amAiVoicePc.oniceconnectionstatechange=()=>{if(amAiVoicePc&&['failed','disconnected'].includes(amAiVoicePc.iceConnectionState)){amAiLiveStatus('Collegamento audio instabile: '+amAiVoicePc.iceConnectionState);}};
@@ -5190,6 +5196,46 @@ window.AmalfitanaAIHubV29={version:'V29.8',inventoryMode:'optional-quantity-auto
       save:typeof save==='function',finalize:typeof commitFinalOrder==='function'};
   };
 })();
+
+/* V13 — ordini vocali di test collegati al gestionale + interruttore stampa */
+async function amAiCreateTestOrder(args){
+  if(!args || args.confirmed!==true) return {ok:false,message:'Per sicurezza serve la conferma esplicita del cliente prima di salvare.'};
+  if(!Array.isArray(args.items)||!args.items.length) return {ok:false,message:'Non risultano prodotti da inserire.'};
+  if(!['pickup','delivery'].includes(args.mode)) return {ok:false,message:'Modalità non valida: chiedi se è asporto o domicilio.'};
+  const dt=new Date(args.dateTime); if(!args.dateTime||isNaN(dt.getTime())) return {ok:false,message:'Data o ora non valida: chiedi al cliente un orario preciso.'};
+  if(args.mode==='delivery'&&(!String(args.customer||'').trim()||!String(args.phone||'').trim()||!String(args.address||'').trim())) return {ok:false,message:'Per il domicilio servono nome, telefono e indirizzo completo.'};
+  const lines=[];
+  for(const requested of args.items){
+    const name=String(requested.name||'').trim(),qty=Math.max(1,Math.min(20,Math.floor(Number(requested.quantity)||1)));
+    const matches=[];
+    for(const c of (state.categories||[])) for(const p of (c.items||[])) if(String(p.name||'').trim().toLocaleLowerCase('it')===name.toLocaleLowerCase('it')) matches.push({c,p});
+    const available=matches.filter(x=>x.p.soldOut!==true && !(x.p.stockTracked&&Number(x.p.stockQty)<=0));
+    if(available.length!==1) return {ok:false,message:matches.length===0?`«${name}» non corrisponde esattamente a un prodotto del menu. Chiedi di ripetere il nome.`:`Il prodotto «${name}» non è disponibile o non è univoco nel gestionale. Chiedi chiarimento.`};
+    const {c,p}=available[0]; if(c.type==='multi') return {ok:false,message:`«${name}» richiede la composizione dei gusti dal gestionale. Per questo ordine di prova chiedi i gusti uno per uno e non salvarlo automaticamente.`};
+    lines.push({id:uid('l'),categoryId:c.id,productId:p.id,name:p.name,unitPrice:Number(p.price)||0,qty,modifiers:[]});
+  }
+  const units=pizzaUnits(lines),cfg=state.settings.capacity||{enabled:true,limit:15,minutes:5};
+  const ms=Math.max(5,Number(cfg.minutes)||5)*60000,t=dt.getTime(),start=Math.floor(t/ms)*ms,end=start+ms;
+  const usedOrders=[...(state.orders||[]),...(state.archive||[])].filter(o=>{const x=new Date(o.dateTime).getTime();return x>=start&&x<end});
+  const used=usedOrders.reduce((n,o)=>n+pizzaUnits(o.lines),0),limit=Math.max(1,Number(cfg.limit)||15);
+  if(cfg.enabled!==false && used+units>limit) return {ok:false,capacityFull:true,message:`La fascia ${new Date(start).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})} è piena: ${used} pizze già registrate, ${units} richieste, limite ${limit}. Proponi un altro orario e non salvare.`};
+  const order={id:nextOrderId(),createdAt:new Date().toISOString(),dateTime:args.dateTime,mode:args.mode,customer:String(args.customer||'TEST AI').trim()||'TEST AI',phone:String(args.phone||'').trim(),address:String(args.address||'').trim(),zoneId:state.zones?.[0]?.id||'',driverId:'',payment:'Da pagare',deposit:0,notes:['ORDINE TEST AI — NON PREPARARE',String(args.notes||'').trim()].filter(Boolean).join(' · '),lines,status:state.settings.statuses?.[0]?.id||'new',total:lines.reduce((sum,l)=>sum+lineTotal(l),0)+(args.mode==='delivery'?zonePrice(state.zones?.[0]?.id):0),deliveryCost:args.mode==='delivery'?zonePrice(state.zones?.[0]?.id):0,isAiTest:true,source:'AMALFITANA AI TEST',capacityOverride:false};
+  state.orders.push(order);state.customers=upsertCustomer(order,state.customers||[]);audit('Ordine TEST AI creato',`#${order.id} · ${new Date(order.dateTime).toLocaleString('it-IT')} · ${money(order.total)} · nessuna stampa`);save('ordine TEST AI');renderAll();
+  return {ok:true,orderId:order.id,total:order.total,mode:order.mode,dateTime:order.dateTime,items:lines.map(l=>({name:l.name,quantity:l.qty,price:l.unitPrice})),message:`Ordine di prova TEST AI numero ${order.id} salvato nel gestionale per ${new Date(order.dateTime).toLocaleString('it-IT')}, totale ${money(order.total)}. Nessuna stampa eseguita.`};
+}
+(function installAiPrintToggle(){
+  function mount(){const card=document.querySelector('[data-action="am-ai-voice-start"]')?.closest('.card, section, div');if(!card||document.getElementById('am-ai-print-toggle'))return;
+    const enabled=state.settings.amalfitanaAI?.printEnabled===true;
+    const wrap=document.createElement('div');wrap.style.cssText='margin-top:12px;display:flex;flex-direction:column;gap:8px';
+    wrap.innerHTML=`<button type="button" id="am-ai-print-toggle" class="btn ${enabled?'success':'ghost'}" style="min-height:48px">🖨️ Stampa ordini: ${enabled?'ATTIVA':'DISATTIVATA'}</button><small id="am-ai-print-help">La stampa è disattivata per impostazione iniziale. Gli ordini TEST AI non stampano mai automaticamente.</small>`;
+    const start=card.querySelector('[data-action="am-ai-voice-start"]');(start?.parentElement||card).appendChild(wrap);
+  }
+  document.addEventListener('DOMContentLoaded',mount);setTimeout(mount,500);setTimeout(mount,1800);
+  document.addEventListener('click',e=>{if(e.target.closest('#am-ai-print-toggle')){const enabled=state.settings.amalfitanaAI?.printEnabled!==true;state.settings.amalfitanaAI={...(state.settings.amalfitanaAI||{}),printEnabled:enabled};save('interruttore stampa AI');const b=document.getElementById('am-ai-print-toggle');if(b){b.textContent=`🖨️ Stampa ordini: ${enabled?'ATTIVA':'DISATTIVATA'}`;b.className=`btn ${enabled?'success':'ghost'}`}toast(enabled?'Stampa attivata. Controlla la stampante prima di usarla.':'Stampa disattivata.');}});
+})();
+const amAiPrintOrderOriginal=printOrder;
+printOrder=function(order,type){if(state.settings.amalfitanaAI?.printEnabled!==true){toast('Stampa disattivata. Premi «Stampa ordini: ATTIVA» per abilitarla.');return;}return amAiPrintOrderOriginal(order,type)};
+
 </script>
 
 </body>
