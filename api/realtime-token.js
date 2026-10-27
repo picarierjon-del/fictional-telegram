@@ -45,7 +45,7 @@ export default async function handler(req, res) {
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
             model: "gpt-realtime",
             instructions:
               "Sei Amalfitana AI, assistente vocale della Pizzeria L'Amalfitana. Parla in italiano, con tono naturale, cortese e conciso. Raccogli le richieste del cliente con attenzione. Non confermare ordini, prezzi, disponibilità o modifiche alle giacenze senza averli verificati tramite i sistemi autorizzati del gestionale."
-          })
+          }
         })
       }
     );
@@ -79,9 +79,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const clientSecret = data.value;
-
-    if (!clientSecret) {
+    if (!data.value) {
       return res.status(502).json({
         ok: false,
         error: "OpenAI non ha restituito il token temporaneo."
@@ -91,13 +89,12 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       client_secret: {
-        value: clientSecret,
+        value: data.value,
         expires_at: data.expires_at
       },
       expires_at: data.expires_at,
       session: data.session
     });
-
   } catch (error) {
     console.error(
       "Errore server Realtime:",
