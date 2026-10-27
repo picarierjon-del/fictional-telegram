@@ -4454,15 +4454,56 @@ renderSettings=function(){
   <div class="field"><label>Indirizzo server Amalfitana AI</label><input class="input" id="am-ai-backend" type="url" placeholder="https://tuo-servizio.example.com" value="${esc(cfg.backendUrl||'')}"><small>Inserisci l’URL del server quando sarà pubblicato. Per ora non è attivo alcun centralino telefonico.</small></div><div class="field"><label>Chiave amministratore server (ADMIN_API_KEY)</label><input class="input" id="am-ai-admin-key" type="password" autocomplete="off" placeholder="Solo per test e comandi protetti"><small>Non viene salvata nel gestionale. Non è la chiave OpenAI.</small></div>
   <div class="grid two"><div class="field"><label>Modalità telefonica</label><select class="input" id="am-ai-mode"><option value="A" ${cfg.mode==='A'?'selected':''}>A — AI risponde sempre</option><option value="B" ${(!cfg.mode||cfg.mode==='B')?'selected':''}>B — AI se non rispondi / sei occupato</option><option value="C" ${cfg.mode==='C'?'selected':''}>C — AI con trasferimento al titolare</option></select></div><div class="field"><label>Ordini grandi o complessi</label><select class="input" id="am-ai-complexity"><option value="manual_on_complex" ${cfg.maxComplexity==='manual_on_complex'?'selected':''}>Trasferisci se complessi; gestisci quelli chiari</option><option value="manual_priority">Priorità operatore più alta</option></select></div></div>
   <div class="row"><button class="btn primary" data-action="am-ai-save">Salva impostazioni AI</button><button class="btn ghost" data-action="am-ai-health">Testa collegamento</button><button class="btn ghost" data-action="am-ai-voice-test">Testa API voce</button></div><div id="am-ai-status" class="notice" role="status" style="margin-top:10px">Server non verificato in questa sessione.</div>
+  <div class="card" id="am-ai-live-voice" style="margin-top:12px;background:#fffdf7;border:1px solid #d9bd83"><h3>Prova conversazione vocale (test, non telefonia)</h3><p class="footnote">Avvia una conversazione diretta con OpenAI Realtime dal browser. Non crea né conferma ordini e non aggiorna le giacenze.</p><div class="row"><button class="btn primary" data-action="am-ai-voice-start">🎙️ Avvia conversazione</button><button class="btn warn" data-action="am-ai-voice-stop" disabled>Termina conversazione</button></div><div id="am-ai-live-status" class="notice" role="status" style="margin-top:8px">Conversazione non avviata.</div><audio id="am-ai-remote-audio" autoplay playsinline style="display:none"></audio><div id="am-ai-transcript" aria-live="polite" style="margin-top:8px;max-height:180px;overflow:auto;white-space:pre-wrap"></div></div>
   <div class="splitline"></div><h3>Disponibilità ingredienti (server)</h3><div class="field"><label>Ingrediente da esaurire / ripristinare</label><input class="input" id="am-ai-ingredient" placeholder="Es. mozzarella senza lattosio"></div><div class="row"><button class="btn warn" data-action="am-ai-unavailable">Segna esaurito</button><button class="btn success" data-action="am-ai-available">Ripristina disponibilità</button></div><p class="footnote">La modifica viene salvata sul server solo se il collegamento risponde correttamente. La sincronizzazione automatica con ogni prodotto e con le telefonate richiede il server pubblicato e configurato.</p></div>`);
   return out;
 };
 function amAiBase(){return String(state.settings.amalfitanaAI?.backendUrl||'').trim().replace(/\/$/,'')}
 function amAiStatus(msg,ok=false){const el=$('#am-ai-status');if(el){el.textContent=msg;el.style.background=ok?'#eaf7ef':'#fff7e6';el.style.borderColor=ok?'#a9d8b7':'#ead8ad'}}
 async function amAiRequest(path,options={}){const base=amAiBase();if(!base)throw Error('Inserisci prima l’indirizzo del server pubblicato.');const r=await fetch(base+path,{...options,headers:{'Content-Type':'application/json','x-admin-key':String($('#am-ai-admin-key')?.value||''),...(options.headers||{})}});let data={};try{data=await r.json()}catch{}if(!r.ok)throw Error(data.error||`Server: HTTP ${r.status}`);return data}
+let amAiVoicePc=null, amAiVoiceStream=null, amAiVoiceChannel=null;
+function amAiLiveStatus(message,ok=false){const el=$('#am-ai-live-status');if(el){el.textContent=message;el.style.background=ok?'#eaf7ef':'#fff7e6';el.style.borderColor=ok?'#a9d8b7':'#ead8ad'}}
+function amAiAppendTranscript(message){const el=$('#am-ai-transcript');if(el){el.textContent+=(el.textContent?'\n':'')+message;el.scrollTop=el.scrollHeight}}
+async function amAiStopVoice(){
+  try{if(amAiVoiceChannel)amAiVoiceChannel.close()}catch{}
+  try{if(amAiVoicePc){amAiVoicePc.getSenders().forEach(s=>{try{s.track?.stop()}catch{}});amAiVoicePc.close()}}catch{}
+  try{if(amAiVoiceStream)amAiVoiceStream.getTracks().forEach(t=>t.stop())}catch{}
+  amAiVoicePc=null;amAiVoiceStream=null;amAiVoiceChannel=null;
+  const audio=$('#am-ai-remote-audio');if(audio){audio.pause();audio.srcObject=null}
+  const start=$('[data-action="am-ai-voice-start"]'),stop=$('[data-action="am-ai-voice-stop"]');if(start)start.disabled=false;if(stop)stop.disabled=true;
+  amAiLiveStatus('Conversazione terminata. Il microfono è stato disattivato.');
+}
+async function amAiStartVoice(){
+  if(!window.isSecureContext){throw Error('Apri il gestionale tramite HTTPS per usare il microfono.')}
+  if(!navigator.mediaDevices?.getUserMedia||!window.RTCPeerConnection){throw Error('Questo browser non supporta il microfono o WebRTC.')}
+  const start=$('[data-action="am-ai-voice-start"]'),stop=$('[data-action="am-ai-voice-stop"]');if(start)start.disabled=true;if(stop)stop.disabled=false;
+  amAiLiveStatus('Richiedo il permesso per usare il microfono…');
+  amAiVoiceStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  amAiLiveStatus('Richiedo un token temporaneo al server…');
+  const tokenData=await amAiRequest('/api/realtime-token',{method:'POST',body:JSON.stringify({})});
+  const ephemeral=tokenData?.client_secret?.value;
+  if(!ephemeral)throw Error('Il server non ha restituito il token temporaneo.');
+  amAiVoicePc=new RTCPeerConnection();
+  const audio=$('#am-ai-remote-audio');
+  amAiVoicePc.ontrack=event=>{if(audio){audio.srcObject=event.streams[0];audio.play().catch(()=>amAiLiveStatus('Connessione pronta: tocca lo schermo per consentire l’audio.',true))}};
+  amAiVoiceStream.getTracks().forEach(track=>amAiVoicePc.addTrack(track,amAiVoiceStream));
+  amAiVoiceChannel=amAiVoicePc.createDataChannel('oai-events');
+  amAiVoiceChannel.onopen=()=>{amAiLiveStatus('Connessa. Puoi parlare con Amalfitana AI.',true);try{amAiVoiceChannel.send(JSON.stringify({type:'session.update',session:{instructions:"Sei Amalfitana AI, assistente di prova della Pizzeria L'Amalfitana. Parla in italiano, con tono naturale, cortese e conciso. Questa è una prova: non creare, confermare o inviare ordini, non promettere prezzi o disponibilità e non modificare giacenze. Spiega che stai facendo una dimostrazione vocale."}}));amAiVoiceChannel.send(JSON.stringify({type:'response.create',response:{instructions:'Saluta in italiano e chiedi come puoi aiutare. Ricorda che è una prova e non prendere ordini reali.'}}))}catch(e){console.warn(e)}};
+  amAiVoiceChannel.onmessage=event=>{try{const msg=JSON.parse(event.data);if(msg.type==='error')amAiAppendTranscript('Errore voce: '+(msg.error?.message||'errore non specificato'));if(msg.type==='response.audio_transcript.done'&&msg.transcript)amAiAppendTranscript('Amalfitana AI: '+msg.transcript);if(msg.type==='conversation.item.input_audio_transcription.completed'&&msg.transcript)amAiAppendTranscript('Tu: '+msg.transcript)}catch{}};
+  amAiVoicePc.onconnectionstatechange=()=>{if(amAiVoicePc&&['failed','disconnected','closed'].includes(amAiVoicePc.connectionState))amAiLiveStatus('Connessione audio interrotta: '+amAiVoicePc.connectionState)};
+  const offer=await amAiVoicePc.createOffer();await amAiVoicePc.setLocalDescription(offer);
+  await new Promise((resolve,reject)=>{if(!amAiVoicePc)return reject(Error('Connessione interrotta.'));if(amAiVoicePc.iceGatheringState==='complete')return resolve();const timeout=setTimeout(resolve,2500);amAiVoicePc.addEventListener('icegatheringstatechange',()=>{if(amAiVoicePc?.iceGatheringState==='complete'){clearTimeout(timeout);resolve()}},{once:false})});
+  amAiLiveStatus('Collego l’audio a OpenAI Realtime…');
+  const answer=await fetch('https://api.openai.com/v1/realtime/calls?model=gpt-realtime',{method:'POST',headers:{Authorization:'Bearer '+ephemeral,'Content-Type':'application/sdp'},body:amAiVoicePc.localDescription.sdp});
+  const answerText=await answer.text();if(!answer.ok)throw Error('OpenAI Realtime HTTP '+answer.status+': '+answerText.slice(0,240));
+  await amAiVoicePc.setRemoteDescription({type:'answer',sdp:answerText});
+  amAiLiveStatus('Connessione audio avviata. Attendi la risposta e prova a parlare.',true);
+}
 document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-action^="am-ai-"]');if(!b)return; e.preventDefault();
  try{
+  if(b.dataset.action==='am-ai-voice-start'){try{await amAiStartVoice()}catch(err){await amAiStopVoice();amAiLiveStatus('Test vocale non riuscito: '+(err.message||'errore sconosciuto'));amAiStatus('Test vocale non riuscito: '+(err.message||'errore sconosciuto'));}return}
+  if(b.dataset.action==='am-ai-voice-stop'){await amAiStopVoice();return}
   if(b.dataset.action==='am-ai-save'){state.settings.amalfitanaAI={...(state.settings.amalfitanaAI||{}),backendUrl:$('#am-ai-backend').value.trim().replace(/\/$/,''),mode:$('#am-ai-mode').value,maxComplexity:$('#am-ai-complexity').value,updatedAt:new Date().toISOString()};save('impostazioni Amalfitana AI');toast('Impostazioni AI salvate');amAiStatus('Impostazioni salvate. Il server va ancora verificato.');return}
   if(b.dataset.action==='am-ai-health'){state.settings.amalfitanaAI={...(state.settings.amalfitanaAI||{}),backendUrl:$('#am-ai-backend').value.trim().replace(/\/$/,'')};save('URL server AI');b.disabled=true;const d=await amAiRequest('/api/health');amAiStatus(`Collegamento OK · ${d.app||'server'} · Telefonia: ${d.telephony||'non verificata'} · POS: ${d.pos||'non collegato'} · Stampanti: ${d.printers||'non collegate'}`,true);return}
   if(b.dataset.action==='am-ai-voice-test'){state.settings.amalfitanaAI={...(state.settings.amalfitanaAI||{}),backendUrl:$('#am-ai-backend').value.trim().replace(/\/$/,'')};save('URL server AI');b.disabled=true;amAiStatus('Verifico la configurazione voce…');const d=await amAiRequest('/api/realtime-token',{method:'POST',body:JSON.stringify({})});amAiStatus(d.client_secret?'API voce collegata: token temporaneo ricevuto. La telefonia non è ancora attiva.':'Il server ha risposto ma non ha restituito il token voce.',!!d.client_secret);return}
