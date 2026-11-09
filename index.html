@@ -5065,5 +5065,83 @@ window.PizzeriaSmartStockDiagnostics=()=>({version:'V29.8',finalCommitWrapped:tr
 
 </script>
 
+
+<style id="v31-responsive-style">
+:root{--v31-tile-width:122px;--v31-tile-height:74px;--v31-tile-font:14px;--v31-cart-width:34%}
+#v31-layout-tools{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:9px 11px;margin-bottom:10px;background:var(--surface,#fff);border:1px solid var(--line,#ddd);border-radius:12px}
+#v31-layout-tools label{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:750}
+#v31-layout-tools input[type=range]{width:110px;accent-color:var(--accent,#a00)}
+#v31-layout-tools output{font-variant-numeric:tabular-nums;min-width:37px}
+#view-entry .grid.products{grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--v31-tile-width)),1fr))!important;gap:7px!important}
+#view-entry .product{min-height:var(--v31-tile-height)!important;padding:7px!important}
+#view-entry .product strong{font-size:var(--v31-tile-font)!important}
+@media(min-width:781px){
+ #view-entry .layout{grid-template-columns:minmax(0,1fr) minmax(280px,var(--v31-cart-width))!important;align-items:start!important}
+ #view-entry .sticky-card{position:sticky!important;top:80px!important;max-height:calc(100dvh - 94px)!important;overflow-y:auto!important}
+}
+@media(max-width:780px) and (orientation:portrait){
+ #view-entry .layout{display:flex!important;flex-direction:column!important}
+ #view-entry .layout>aside{position:static!important;max-height:none!important}
+}
+@media(max-width:950px) and (orientation:landscape){
+ #view-entry .layout{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(235px,var(--v31-cart-width))!important;gap:8px!important;align-items:start!important;overflow:visible!important}
+ #view-entry .layout>div{order:unset!important;width:auto!important;min-width:0!important}
+ #view-entry .layout>aside.sticky-card{order:unset!important;width:100%!important;position:sticky!important;top:55px!important;align-self:start!important;max-height:calc(100dvh - 64px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;z-index:12!important}
+ #view-entry .grid.products{grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--v31-tile-width)),1fr))!important}
+ #v31-layout-tools{gap:5px;padding:6px}
+ #v31-layout-tools input[type=range]{width:76px}
+}
+@media(max-width:550px) and (orientation:landscape){
+ #view-entry .layout{grid-template-columns:minmax(0,1fr) minmax(190px,40%)!important}
+}
+</style>
+<script id="v31-responsive-script">
+(function(){
+'use strict';
+const KEY='amalfitana_v31_layout';
+const defaults={width:122,height:74,font:14,cart:34};
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
+const conf={...defaults,...saved};
+const ranges={width:[85,210],height:[55,140],font:[11,20],cart:[27,48]};
+function clamp(k,v){return Math.max(ranges[k][0],Math.min(ranges[k][1],Number(v)||defaults[k]))}
+function apply(){
+ Object.keys(ranges).forEach(k=>conf[k]=clamp(k,conf[k]));
+ const root=document.documentElement.style;
+ root.setProperty('--v31-tile-width',conf.width+'px');
+ root.setProperty('--v31-tile-height',conf.height+'px');
+ root.setProperty('--v31-tile-font',conf.font+'px');
+ root.setProperty('--v31-cart-width',conf.cart+'%');
+ try{localStorage.setItem(KEY,JSON.stringify(conf))}catch(e){}
+}
+function build(){
+ const view=document.querySelector('#view-entry');
+ if(!view||!view.classList.contains('active'))return;
+ const layout=view.querySelector('.layout');
+ if(!layout||view.querySelector('#v31-layout-tools'))return;
+ const tools=document.createElement('section');
+ tools.id='v31-layout-tools';
+ tools.setAttribute('aria-label','Personalizzazione dimensioni pulsanti e carrello');
+ const specs=[['width','Larghezza pizze','px'],['height','Altezza tasti','px'],['font','Testo','px'],['cart','Carrello','%']];
+ specs.forEach(([key,label,unit])=>{
+  const wrap=document.createElement('label');wrap.textContent=label+' ';
+  const range=document.createElement('input');range.type='range';range.min=ranges[key][0];range.max=ranges[key][1];range.step=1;range.value=conf[key];range.setAttribute('aria-label',label);
+  const output=document.createElement('output');output.textContent=conf[key]+unit;
+  range.addEventListener('input',()=>{conf[key]=clamp(key,range.value);output.textContent=conf[key]+unit;apply()});
+  wrap.append(range,output);tools.append(wrap);
+ });
+ const reset=document.createElement('button');reset.type='button';reset.className='btn';reset.textContent='Ripristina dimensioni';
+ reset.addEventListener('click',()=>{Object.assign(conf,defaults);apply();tools.remove();build()});
+ tools.append(reset);
+ layout.parentElement.insertBefore(tools,layout);
+}
+apply();
+const observer=new MutationObserver(()=>{if(!document.querySelector('#v31-layout-tools'))build()});
+observer.observe(document.body,{subtree:true,childList:true});
+document.addEventListener('DOMContentLoaded',build);
+build();
+window.PizzeriaSmartV31Layout={get:()=>({...conf}),reset:()=>{Object.assign(conf,defaults);apply()}};
+})();
+</script>
+
 </body>
 </html>
