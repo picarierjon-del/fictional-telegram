@@ -319,7 +319,7 @@
   function trashItem(kind,item,parentId=''){if(!item)return;state.trash=state.trash||[];state.trash.unshift({id:uid('trash'),kind,parentId,item:clone(item),deletedAt:new Date().toISOString()});if(state.trash.length>200)state.trash.length=200;audit('Spostato nel cestino',`${kind} \u00b7 ${item.name||item.id||''}`)}
   function restoreTrash(id){const t=state.trash.find(x=>x.id===id);if(!t)return;if(t.kind==='category')state.categories.push(t.item);if(t.kind==='modgroup')state.modifierGroups.push(t.item);if(t.kind==='product'){const c=state.categories.find(x=>x.id===t.parentId);if(!c)return toast('Categoria originale non disponibile');c.items.push(t.item)}if(t.kind==='modifier'){const g=state.modifierGroups.find(x=>x.id===t.parentId);if(!g)return toast('Gruppo originale non disponibile');g.items.push(t.item)}if(t.kind==='archive')state.archive.push(t.item);state.trash=state.trash.filter(x=>x.id!==id);audit('Elemento ripristinato',t.item.name||t.item.id||t.kind);save();renderAll();toast('Elemento ripristinato')}
   function trashLabel(t){return({category:'Categoria',modgroup:'Gruppo modificatori',product:'Prodotto',modifier:'Modificatore',archive:'Ordine'})[t.kind]||t.kind}
-  function diagnosticsHtml(){const idb='indexedDB'in window?'Disponibile':'Non disponibile',sw='serviceWorker'in navigator?(navigator.serviceWorker.controller?'Attivo':'Disponibile'):'Non supportato',storage=(()=>{try{localStorage.setItem('_ps_test','1');localStorage.removeItem('_ps_test');return'Disponibile'}catch{return'Bloccato'}})(),device=/iPhone|iPad|iPod/.test(navigator.userAgent)?'Apple iOS/iPadOS':/Android/.test(navigator.userAgent)?'Android':'Computer / altro';return `<div class="diagnostic-grid"><div class="diagnostic-item"><b>Dispositivo</b>${device}</div><div class="diagnostic-item"><b>Archivio IndexedDB</b>${idb}</div><div class="diagnostic-item"><b>Copia locale</b>${storage}</div><div class="diagnostic-item"><b>Modalit\u00e0 offline</b>${sw}</div><div class="diagnostic-item"><b>Connessione</b>${navigator.onLine?'Online':'Offline'}</div><div class="diagnostic-item"><b>Backup automatici</b>${snapshotCount()}/7</div><div class="diagnostic-item"><b>Versione</b>Gestionale V8</div></div>`}
+  function diagnosticsHtml(){const idb='indexedDB'in window?'Disponibile':'Non disponibile',sw='serviceWorker'in navigator?(navigator.serviceWorker.controller?'Attivo':'Disponibile'):'Non supportato',storage=(()=>{try{localStorage.setItem('_ps_test','1');localStorage.removeItem('_ps_test');return'Disponibile'}catch{return'Bloccato'}})(),device=/iPhone|iPad|iPod/.test(navigator.userAgent)?'Apple iOS/iPadOS':/Android/.test(navigator.userAgent)?'Android':'Computer / altro';return `<div class="diagnostic-grid"><div class="diagnostic-item"><b>Dispositivo</b>${device}</div><div class="diagnostic-item"><b>Archivio IndexedDB</b>${idb}</div><div class="diagnostic-item"><b>Copia locale</b>${storage}</div><div class="diagnostic-item"><b>Modalit\u00e0 offline</b>${sw}</div><div class="diagnostic-item"><b>Connessione</b>${navigator.onLine?'Online':'Offline'}</div><div class="diagnostic-item"><b>Backup automatici</b>${snapshotCount()}/7</div><div class="diagnostic-item"><b>Versione</b>Gestionale V34</div></div>`}
   function applyPrintProfile(profile,form=document){const widths={thermal80:80,thermal58:58,a4:210,system:80},width=form.querySelector('[name="print-paperWidth"]');if(width)width.value=widths[profile]||80;const font=form.querySelector('[name="print-font"]');if(font&&!font.value)font.value='Arial'}
   function calibratePrint(){const p=state.settings.print;document.documentElement.style.setProperty('--print-width',`${p.paperWidth}mm`);document.documentElement.style.setProperty('--print-margin',`${p.margin??2}mm`);$('#print-area').innerHTML=`<h1>CALIBRAZIONE STAMPA</h1><h2>${p.paperWidth} mm \u00b7 ${esc(p.font)}</h2><div>ABCDEFGHIJKLMNOPQRSTUVWXYZ</div><div>abcdefghijklmnopqrstuvwxyz</div><div>0123456789 \u20ac 1,00 10,00 100,00</div><div class="cut"></div><div style="font-size:10px">Test 10 px</div><div style="font-size:14px;font-weight:bold">Test 14 px grassetto</div><div style="font-size:20px;font-weight:900">Test 20 px</div><div class="cut"></div><div class="mod-highlight">EVIDENZIATO / ALLERGENE</div><p>Se il contenuto viene tagliato, riduci larghezza o margine nelle impostazioni.</p>`;audit('Stampa calibrazione',`${p.paperWidth} mm`);save();setTimeout(()=>window.print(),80)}
   function repairText(value){
@@ -585,7 +585,21 @@ if(id==='general')return `<div class="card stack"><h2>Aspetto e testi</h2>${fiel
   document.addEventListener('click',e=>{const b=e.target.closest('button[data-action="save-settings"]');if(!b||ui.settingsTab!=='data')return;e.preventDefault();e.stopImmediatePropagation();ensureV9State();const root=$('#view-settings');state.settings.maintenance.auto=!!$('[name="maintenance-auto"]',root)?.checked;state.settings.maintenance.maxRecentOrders=Math.max(50,+$('[name="maintenance-max"]',root)?.value||500);state.settings.maintenance.keepDays=Math.max(1,+$('[name="maintenance-days"]',root)?.value||60);audit('Manutenzione configurata',`${state.settings.maintenance.maxRecentOrders} ordini \u00b7 ${state.settings.maintenance.keepDays} giorni`);save();renderSettings();toast('Impostazioni salvate')},true);
   function applyTheme(){const s=state.settings,root=document.documentElement.style,p=s.print||{};root.setProperty('--accent',s.accent);root.setProperty('--accent2',s.accent2);root.setProperty('--bg',s.background);root.setProperty('--app-font',`${s.appFont}px`);root.setProperty('--print-margin',`${p.margin??2}mm`);root.setProperty('--print-line-height',p.lineHeight||1.25);$('#brandName').textContent=s.businessName;document.title=`${s.businessName} - Gestionale Pizzeria L’Amalfitana`;const l=s.labels;$('#navEntry').textContent=l.entry;$('#navOrders').textContent=l.orders;$('#navHistory').textContent=l.history;$('#navSettings').textContent=l.settings;document.querySelector('meta[name="theme-color"]').content=s.accent}
   function diagnosticsHtml(){const idb='indexedDB'in window?'Disponibile':'Non disponibile',sw='serviceWorker'in navigator?(navigator.serviceWorker.controller?'Attivo':'Disponibile'):'Non supportato',storage=(()=>{try{localStorage.setItem('_ps_test','1');localStorage.removeItem('_ps_test');return'Disponibile'}catch{return'Bloccato'}})(),device=/iPhone|iPad|iPod/.test(navigator.userAgent)?'Apple iOS/iPadOS':/Android/.test(navigator.userAgent)?'Android':'Computer / altro';return `<div class="diagnostic-grid"><div class="diagnostic-item"><b>Dispositivo</b>${device}</div><div class="diagnostic-item"><b>Archivio IndexedDB</b>${idb}</div><div class="diagnostic-item"><b>Copia locale</b>${storage}</div><div class="diagnostic-item"><b>Modalita offline</b>${sw}</div><div class="diagnostic-item"><b>Connessione</b>${navigator.onLine?'Online':'Offline'}</div><div class="diagnostic-item"><b>Backup automatici</b>${snapshotCount()}/7</div></div>`}
-  function printMod(m){const cls=m.printStyle==='highlight'?'mod-highlight':m.printStyle==='bold'?'mod-bold':'mod-normal';let raw=String(m.name||'').trim(),group='',item=raw;const colon=raw.indexOf(':');if(colon>0){group=raw.slice(0,colon).trim().toLocaleLowerCase('it-IT');item=raw.slice(colon+1).trim()}const norm=group.normalize('NFD').replace(/[\u0300-\u036f]/g,'');let sign='+';if(norm==='senza'||/^senza\s+/i.test(item)){sign='−';item=item.replace(/^senza\s+/i,'').trim()}else if(norm==='poco'||/^poco\s+/i.test(item)){sign='POCO';item=item.replace(/^poco\s+/i,'').trim()}else if(norm==='abbondante'||/^abbondante\s+/i.test(item)){sign='ABB.';item=item.replace(/^abbondante\s+/i,'').trim()}else if(norm==='piu'||norm==='più'||/^extra\s+/i.test(item)){sign='+';item=item.replace(/^extra\s+/i,'').trim()}if(!item)item=raw;return `<span class="print-mod ${cls}"><b>${esc(sign)}</b> ${esc(item)}</span>`}
+  function printMod(m){
+    const style=['normal','bold','highlight'].includes(m?.printStyle)?m.printStyle:'normal';
+    const cls=style==='highlight'?'mod-highlight':style==='bold'?'mod-bold':'mod-normal';
+    let raw=String(m?.name||'').trim(),group='',item=raw;
+    const colon=raw.indexOf(':');
+    if(colon>0){group=raw.slice(0,colon).trim().toLocaleLowerCase('it-IT');item=raw.slice(colon+1).trim()}
+    const norm=group.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    let sign='+';
+    if(norm==='senza'||/^senza\s+/i.test(item)){sign='−';item=item.replace(/^senza\s+/i,'').trim()}
+    else if(norm==='poco'||/^poco\s+/i.test(item)){sign='POCO';item=item.replace(/^poco\s+/i,'').trim()}
+    else if(norm==='abbondante'||/^abbondante\s+/i.test(item)){sign='ABB.';item=item.replace(/^abbondante\s+/i,'').trim()}
+    else if(norm==='piu'||norm==='più'||/^extra\s+/i.test(item)){sign='+';item=item.replace(/^extra\s+/i,'').trim()}
+    if(!item)item=raw;
+    return `<span class="print-mod ${cls}" data-print-style="${style}"><b>${esc(sign)}</b> ${esc(item)}</span>`;
+  }
   function printOrder(o,type){const p=state.settings.print,driver=state.drivers.find(d=>d.id===o.driverId);document.documentElement.style.setProperty('--print-width',`${p.paperWidth}mm`);document.documentElement.style.setProperty('--print-font',p.font);document.documentElement.style.setProperty('--print-body-size',`${p.bodySize}px`);document.documentElement.style.setProperty('--print-title-size',`${p.titleSize}px`);document.documentElement.style.setProperty('--print-heading-size',`${p.headingSize}px`);document.documentElement.style.setProperty('--print-total-size',`${p.totalSize}px`);$('#print-area').innerHTML=`<h1>${esc(p.businessName)}</h1>${p.header?`<div style="text-align:center">${esc(p.header)}</div>`:''}<h2>${type==='kitchen'?'COMANDA CUCINA':'RIEPILOGO ORDINE'} #${esc(o.id)}</h2><div><b>${new Date(o.dateTime).toLocaleString('it-IT')}</b> \u00b7 ${esc(o.mode)}</div>${o.customer?`<div><b>Cliente:</b> ${esc(o.customer)}</div>`:''}${p.showPhone&&o.phone?`<div><b>Tel:</b> ${esc(o.phone)}</div>`:''}${p.showAddress&&o.address?`<div><b>Indirizzo:</b> ${esc(o.address)}</div>`:''}${driver?`<div><b>Fattorino:</b> ${esc(driver.name)}</div>`:''}<div class="cut"></div>${o.lines.map(l=>`<div style="border-bottom:2px solid #000;padding:6px 0"><div class="print-line"><b>${l.qty}\u00d7 ${esc(l.name)}</b>${p.showPrices&&type!=='kitchen'?`<b>${money(lineTotal(l))}</b>`:''}</div>${l.slots?.map((s,i)=>`<div class="print-taste"><b>GUSTO ${i+1}: ${esc(s.taste)}</b>${(s.modifiers||[]).map(printMod).join('')}</div>`).join('')||''}${(l.modifiers||[]).map(printMod).join('')}</div>`).join('')}${o.notes?`<div class="print-note">NOTE: ${esc(o.notes)}</div>`:''}${type!=='kitchen'?`<div class="print-total print-line"><span>TOTALE</span><span>${money(o.total)}</span></div>${p.showPayment?`<div>Pagamento: ${esc(o.payment||'')}</div>`:''}`:''}${p.showFooter?`<div class="cut"></div><div style="text-align:center">${esc(p.footer)}</div>`:''}`;setTimeout(()=>window.print(),80)}
   function saveSettingsForm(){const f=$('#view-settings'),s=state.settings,p=s.print;const val=n=>f.querySelector(`[name="${n}"]`)?.value,has=n=>!!f.querySelector(`[name="${n}"]`)?.checked;if(ui.settingsTab==='general'){s.businessName=val('set-business')||s.businessName;s.accent=val('set-accent')||s.accent;s.accent2=val('set-accent2')||s.accent2;s.background=val('set-background')||s.background;s.appFont=+val('set-appfont')||16;s.defaultLeadMinutes=+val('set-lead')||0;Object.keys(s.labels).forEach(k=>{const v=val(`label-${k}`);if(v)s.labels[k]=v});['showPhone','showAddress','showTable','showNotes','showPayment','deliveryEnabled'].forEach(k=>s[k]=has(k))}if(ui.settingsTab==='delivery'){s.capacity={enabled:has('capacity-enabled'),limit:Math.max(1,+val('capacity-limit')||15),minutes:Math.max(5,+val('capacity-minutes')||5)}}if(ui.settingsTab==='print'){p.profile=val('print-profile')||'thermal80';['businessName','font','header','footer'].forEach(k=>p[k]=val(`print-${k}`)??p[k]);['paperWidth','margin','lineHeight','bodySize','titleSize','headingSize','totalSize'].forEach(k=>p[k]=+val(`print-${k}`)||p[k]);['showCustomer','showPhone','showAddress','showPayment','showPrices','showFooter','autoPrintKitchen'].forEach(k=>p[k]=has(`print-${k}`));audit('Impostazioni stampa',`${p.profile} \u00b7 ${p.paperWidth} mm`)}save();applyTheme();renderAll();toast('Impostazioni salvate')}
   document.addEventListener('submit',e=>{if(e.target.id!=='orderForm'||!state.draft)return;e.preventDefault();e.stopImmediatePropagation();const d=state.draft,fd=new FormData(e.target),editingId=d.editingOrderId,old=editingId?state.orders.find(o=>o.id===editingId):null;['customer','phone','address','table','dateTime','payment','zoneId','driverId','notes'].forEach(k=>{if(fd.has(k))d[k]=fd.get(k).trim?.()??fd.get(k)});if(!d.lines?.length)return toast('Inserisci almeno un prodotto');if(!d.dateTime||isNaN(new Date(d.dateTime).getTime()))return toast('Seleziona data e ora valide');if(d.mode==='delivery'&&!d.customer)return $('[name="customer"]',e.target)?.focus(),toast('Inserisci il nome per la consegna');if(d.mode==='delivery'&&!d.phone)return $('[name="phone"]',e.target)?.focus(),toast('Inserisci il telefono per la consegna');if(d.mode==='delivery'&&!d.address)return $('[name="address"]',e.target)?.focus(),toast('Inserisci indirizzo e civico');const cap=capacityInfo(d.dateTime);if(state.settings.capacity?.enabled!==false&&cap.over&&!confirm(`ATTENZIONE: fascia piena. ${cap.total} pizze su ${cap.limit}. Salvare comunque?`))return;rememberQuick('names',d.customer);rememberQuick('phones',d.phone);rememberQuick('streets',d.address);const base=old||{},order={...base,...clone(d),id:old?.id||nextOrderId(),createdAt:old?.createdAt||new Date().toISOString(),status:old?.status||state.settings.statuses[0]?.id||'new',total:finalTotal(d),deliveryCost:d.mode==='delivery'?zonePrice(d.zoneId):0,updatedAt:old?new Date().toISOString():undefined,capacityOverride:cap.over};delete order.editingOrderId;if(old)state.orders[state.orders.findIndex(o=>o.id===old.id)]=order;else { if(typeof v294ConsumeTrackedStock==='function') v294ConsumeTrackedStock(order); state.orders.push(order); }state.customers=upsertCustomer(order,state.customers);audit(old?'Ordine modificato':'Ordine creato',`#${order.id} \u00b7 ${money(order.total)}`);autoSnapshot('salvataggio ordine');state.draft=null;ui.selectedLine=null;$('#orderDialog').close();save();renderAll();showView('orders');toast(old?`Ordine #${order.id} aggiornato`:`Ordine #${order.id} creato`);{const __plan=capturePrintPlanFromForm(e.target,order.mode),__action=e.submitter?.dataset.finalizeAction||e.target?.dataset?.finalizeAction||'',__want=__action==='print'||__action==='send'||(!__action&&state.settings.print.autoPrintKitchen);if(__want)dispatchConfiguredPrint(order,__plan,true)}},true);
@@ -5179,12 +5193,21 @@ window.PizzeriaSmartV32Layout={get:()=>({...cfg}),apply};
   const summaryHtml=(lines,cats,groups,compact=false)=>{
     const s=buildProductionSummary(lines,cats,groups);
     if(!s.totalItems)return '';
-    const catRows=s.categories.map(x=>`<div class="am-prod-row"><span>${esc(x.name)}</span><b>${x.qty}</b></div>`).join('');
-    const doughRows=s.doughs.map(x=>`<div class="am-prod-row am-prod-dough"><span>${esc(x.name)}</span><b>${x.qty}</b></div>`).join('');
-    return `<section class="am-prod-summary ${compact?'am-prod-print':''}">
+    const catRows=s.categories.map(x=>`<span class="am-prod-chip"><b>${esc(x.name)}</b> ${x.qty}</span>`).join('');
+    const doughRows=s.doughs.map(x=>`<span class="am-prod-chip am-prod-dough"><b>${esc(x.name)}</b> ${x.qty}</span>`).join('');
+    if(compact){
+      return `<section class="am-prod-summary am-prod-print" aria-label="Riepilogo produzione">
+        <div class="am-prod-print-head"><b>PRODUZIONE</b><b>${s.pizzaTotal} PIZZE</b></div>
+        <div class="am-prod-print-line"><b>CATEGORIE:</b> ${catRows}</div>
+        ${doughRows?`<div class="am-prod-print-line"><b>IMPASTI:</b> ${doughRows}</div>`:''}
+      </section>`;
+    }
+    const catRowsFull=s.categories.map(x=>`<div class="am-prod-row"><span>${esc(x.name)}</span><b>${x.qty}</b></div>`).join('');
+    const doughRowsFull=s.doughs.map(x=>`<div class="am-prod-row am-prod-dough"><span>${esc(x.name)}</span><b>${x.qty}</b></div>`).join('');
+    return `<section class="am-prod-summary">
       <div class="am-prod-head"><strong>RIEPILOGO PRODUZIONE</strong><span>${s.pizzaTotal} pizze</span></div>
-      <div class="am-prod-section"><b>QUANTITÀ PER CATEGORIA</b>${catRows}</div>
-      ${doughRows?`<div class="am-prod-section"><b>IMPASTI / LAVORAZIONI</b>${doughRows}</div>`:`<div class="am-prod-empty">Nessun impasto o formato speciale selezionato</div>`}
+      <div class="am-prod-section"><b>QUANTITÀ PER CATEGORIA</b>${catRowsFull}</div>
+      ${doughRowsFull?`<div class="am-prod-section"><b>IMPASTI / LAVORAZIONI</b>${doughRowsFull}</div>`:''}
     </section>`;
   };
   const style=document.createElement('style');
@@ -5196,11 +5219,23 @@ window.PizzeriaSmartV32Layout={get:()=>({...cfg}),apply};
     .am-prod-row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dotted #b9d7c3}
     .am-prod-row b{font-size:1rem;min-width:25px;text-align:right}
     .am-prod-dough{font-weight:750}.am-prod-empty{font-size:.78rem;color:#647184;margin-top:8px}
-    #print-area .am-prod-summary{font-family:Arial,sans-serif;color:#000;background:#fff;border:2px solid #000;border-radius:0;padding:5px;margin:7px 0;font-size:11px;break-inside:avoid;page-break-inside:avoid}
+    #print-area .am-prod-summary{font-family:Arial,sans-serif;color:#000;background:#fff;border:1px solid #000;border-radius:0;padding:3px 4px;margin:4px 0;font-size:9px;line-height:1.15;break-inside:avoid;page-break-inside:avoid}
+    #print-area .am-prod-print-head{display:flex;justify-content:space-between;gap:6px;border-bottom:1px solid #000;padding:0 0 2px;margin:0 0 2px;font-size:10px;line-height:1.1}
+    #print-area .am-prod-print-line{display:block;margin:1px 0;line-height:1.2;overflow-wrap:anywhere}
+    #print-area .am-prod-print-line>b{font-size:8px;letter-spacing:.02em}
+    #print-area .am-prod-chip{display:inline;margin:0 4px 0 0;white-space:normal}
+    #print-area .am-prod-chip b{font-weight:900}
+    #print-area .am-prod-dough{font-weight:700}
     #print-area .am-prod-head{border-bottom:1px solid #000;font-size:13px;padding-bottom:4px}
     #print-area .am-prod-head span{background:#fff;color:#000;border:1px solid #000;border-radius:0;padding:2px 5px}
     #print-area .am-prod-section{margin-top:5px}#print-area .am-prod-section>b{color:#000;font-size:9px}
     #print-area .am-prod-row{padding:2px 0;border-bottom:1px dotted #777;font-size:11px}
+    #print-area .print-mod{display:block;margin:1px 0 1px 7px;font-size:10px;line-height:1.15;overflow-wrap:anywhere}
+    #print-area .print-mod.mod-normal{font-weight:400}
+    #print-area .print-mod.mod-bold{font-weight:900;text-decoration:underline;text-decoration-thickness:1px}
+    #print-area .print-mod.mod-highlight{font-weight:900;border:1px solid #000;border-bottom:2px double #000;padding:0 2px;display:inline-block;margin-left:7px}
+    #print-area .print-taste{margin:2px 0 3px;padding:2px 0;border-bottom:1px dotted #777}
+    #print-area > div[style*="border-bottom"]{padding:3px 0!important}
   `;
   document.head.appendChild(style);
 
@@ -5261,12 +5296,16 @@ window.PizzeriaSmartV32Layout={get:()=>({...cfg}),apply};
       ['verace',got.doughs.find(x=>norm(x.name)==='verace')?.qty===1],
       ['kamut nei gusti multi',got.doughs.find(x=>norm(x.name)==='kamut')?.qty===1],
       ['doppia pasta',got.doughs.find(x=>norm(x.name)==='doppia pasta')?.qty===1],
-      ['quantità zero ignorata',buildProductionSummary([{categoryId:'pizze',qty:0}],cats,groups).totalItems===0]
+      ['quantità zero ignorata',buildProductionSummary([{categoryId:'pizze',qty:0}],cats,groups).totalItems===0],
+      ['stile grassetto mantenuto in stampa',printMod({name:'Impasti: Integrale',printStyle:'bold'}).includes('mod-bold')],
+      ['stile evidenziato mantenuto in stampa',printMod({name:'Impasti: Verace',printStyle:'highlight'}).includes('mod-highlight')],
+      ['stile normale non alterato',printMod({name:'Impasti: Classico',printStyle:'normal'}).includes('mod-normal')],
+      ['riepilogo stampa compatto',summaryHtml(sample,cats,groups,true).includes('am-prod-print-head')]
     ];
     const large=Array.from({length:10000},(_,i)=>({categoryId:cats[i%4].id,qty:(i%3)+1,modifiers:i%4===0?[{modifierId:'int',name:'Impasti: Integrale'}]:[]}));
     const t0=performance.now();const stress=buildProductionSummary(large,cats,groups);const elapsed=performance.now()-t0;
     checks.push(['stress test 10.000 righe',stress.totalItems===19999&&Number.isFinite(elapsed)]);
-    return {version:'V1',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]})),stressRows:large.length,stressMilliseconds:Math.round(elapsed*100)/100,example:got};
+    return {version:'V34',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]})),stressRows:large.length,stressMilliseconds:Math.round(elapsed*100)/100,example:got};
   }
   const result=selfTest();
   window.AmalfitanaProductionCounterDiagnostics={
@@ -5275,7 +5314,7 @@ window.PizzeriaSmartV32Layout={get:()=>({...cfg}),apply};
     selfTest:()=>selfTest(),
     result
   };
-  console.info('Collaudo riepilogo produzione',result);
+  console.info('Collaudo produzione e stampa V34',result);
 })();
 </script>
 
