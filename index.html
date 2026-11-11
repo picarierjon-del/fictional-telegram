@@ -1138,7 +1138,7 @@ if(id==='general')return `<div class="card stack"><h2>Aspetto e testi</h2>${fiel
   function v12PrintStressTest(count=5000,targetRevenue=10000){ensurePrintStationsV12();const n=Math.max(1,Math.min(10000,+count||5000)),each=targetRevenue/n,orders=[];for(let i=0;i<n;i++)orders.push({id:`T${i+1}`,dateTime:new Date(2026,8,12,17+(i%6),i%60).toISOString(),mode:i%3===0?'delivery':i%3===1?'pickup':'counter',customer:`Cliente ${i}`,phone:`3${String(i).padStart(9,'0')}`,address:`Via Test ${i}`,payment:i%2?'Contanti':'Carta',total:each,lines:[{productId:state.categories?.[0]?.items?.[0]?.id||'',name:'Pizza Test',qty:1,unitPrice:each,modifiers:i%5===0?[{name:'Aggiunta',price:.5}]:[]}]});const total=orders.reduce((a,o)=>a+o.total,0),jobs=orders.reduce((a,o)=>a+printPlanDefaults(o.mode).length,0),copies=orders.reduce((a,o)=>a+printPlanDefaults(o.mode).reduce((n,p)=>n+p.copies,0),0);return{ok:orders.length===n&&Math.abs(total-targetRevenue)<.01&&jobs>=0&&copies>=jobs,orders:n,revenue:+total.toFixed(2),jobs,copies,stations:ensurePrintStationsV12().length,at:new Date().toISOString()}}
   window.PizzeriaSmartV12Print={version:V12_PRINT_ROUTER_VERSION,stations:ensurePrintStationsV12,dispatch:dispatchConfiguredPrint,queue:()=>state.printQueue,stress:v12PrintStressTest};
 
-  load().then(()=>{if(typeof v1232AfterLoad==='function')v1232AfterLoad()}).catch(err=>{console.error(err);setSave('Errore protetto - dati conservati')});
+  load().then(()=>{if(typeof v1232AfterLoad==='function')v1232AfterLoad();if(typeof ensureAmalfitanaNoteCategory==='function'&&ensureAmalfitanaNoteCategory()){save();renderAll();}}).catch(err=>{console.error(err);setSave('Errore protetto - dati conservati')});
   
   /* V12.1 - FILTRI MODIFICATORI NELL'INSERIMENTO PRINCIPALE
      Mantiene separata la ricerca per ogni gruppo: Piu, Senza, Poco, Abbondante, ecc. */
@@ -5164,6 +5164,7 @@ window.PizzeriaSmartV32Layout={get:()=>({...cfg}),apply};
       const qty=Math.max(0,Math.floor(Number(line?.qty)||0));
       if(!qty)return;
       const cat=catById.get(String(line.categoryId))||catByProduct.get(String(line.productId));
+      if(cat && /^(note|note forno|note cucina|istruzioni)$/i.test(String(cat.name||'').trim())) return;
       if(cat){
         const key=String(cat.id);
         const old=categoryCounts.get(key)||{id:key,name:String(cat.name||'Categoria'),qty:0};
@@ -5318,5 +5319,157 @@ window.PizzeriaSmartV32Layout={get:()=>({...cfg}),apply};
 })();
 </script>
 
+<script>
+
+
+/* V35 - COMANDA ORGANIZZATA: ALIMENTI -> NOTE FORNO -> BIBITE */
+function amalNorm(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('it-IT').trim()}
+function amalCategoryForLine(line){
+  return (state.categories||[]).find(c=>String(c.id)===String(line?.categoryId)) ||
+    (state.categories||[]).find(c=>(c.items||[]).some(p=>String(p.id)===String(line?.productId))) || null;
+}
+function amalIsNoteLine(line){const c=amalCategoryForLine(line);return /^(note|note forno|note cucina|istruzioni)$/i.test(String(c?.name||'').trim()) || /^(note|note forno|note cucina|istruzioni)$/i.test(String(line?.categoryName||'').trim())}
+function amalIsDrinkLine(line){
+  if(typeof isDrinkLineV111==='function' && isDrinkLineV111(line)) return true;
+  const c=amalCategoryForLine(line), t=amalNorm(`${c?.name||''} ${line?.name||''}`);
+  return /bibit|bevand|drink|acqua|coca|pepsi|fanta|sprite|chinotto|aranciat|limonat|birr|vino|prosecco|energy|the freddo|te freddo/.test(t);
+}
+function amalGroupLines(lines){
+  const food=[],notes=[],drinks=[];
+  (lines||[]).forEach((line,index)=>{
+    const entry={line,index};
+    if(amalIsNoteLine(line)) notes.push(entry);
+    else if(amalIsDrinkLine(line)) drinks.push(entry);
+    else food.push(entry);
+  });
+  return {food,notes,drinks};
+}
+function amalPrintLine(line,type='kitchen',options={}){
+  const qty=Math.max(1,Number(line?.qty)||1), name=esc(line?.name||'Prodotto');
+  const price=options.showPrices && type!=='kitchen' ? `<b>${money(lineTotal(line))}</b>` : '';
+  const slots=(line?.slots||[]).map((slot,i)=>`<div class="print-taste"><b>GUSTO ${i+1}: ${esc(slot.taste||'')}</b>${(slot.modifiers||[]).map(printMod).join('')}</div>`).join('');
+  const mods=(line?.modifiers||[]).map(printMod).join('');
+  const noteClass=options.note?' amal-note-item':'';
+  return `<div class="print-line${noteClass}"><span><b>${qty}× ${name}</b>${slots}${mods}</span>${price}</div>`;
+}
+function amalPrintSections(lines,type='kitchen',options={}){
+  const grouped=amalGroupLines(lines),out=[];
+  if(grouped.food.length)out.push(grouped.food.map(x=>amalPrintLine(x.line,type,options)).join(''));
+  if(grouped.notes.length){
+    out.push(`<section class="amal-print-section amal-print-notes"><div class="amal-print-section-title">NOTE PER FORNO / PREPARAZIONE</div>${grouped.notes.map(x=>amalPrintLine(x.line,type,{...options,note:true})).join('')}</section>`);
+  }
+  if(grouped.drinks.length){
+    out.push(`<section class="amal-print-section amal-print-drinks"><div class="amal-print-section-title">BIBITE</div>${grouped.drinks.map(x=>amalPrintLine(x.line,type,options)).join('')}</section>`);
+  }
+  return out.join('');
+}
+function ensureAmalfitanaNoteCategory(){
+  if(!state?.categories||!state?.settings)return false;
+  if(state.settings.amalNoteCategorySeeded)return false;
+  let changed=false;
+  let cat=state.categories.find(c=>amalNorm(c.name)==='note');
+  if(!cat){
+    cat={id:'cat_note_operativi',name:'Note',type:'standard',enabled:true,useAsTaste:false,entryOrder:Math.max(0,...state.categories.map(c=>Number(c.entryOrder)||0))+1,items:[]};
+    state.categories.push(cat);changed=true;
+  }
+  cat.type='standard';cat.enabled=cat.enabled!==false;cat.useAsTaste=false;cat.items=Array.isArray(cat.items)?cat.items:[];
+  const defaults=['Tagliata','Ben cotta'];
+  defaults.forEach((name,i)=>{
+    if(!cat.items.some(x=>amalNorm(x.name)===amalNorm(name))){cat.items.push({id:`note_v35_${i+1}`,name,price:0,soldOut:false});changed=true;}
+  });
+  state.settings.amalNoteCategorySeeded=true;
+  return true||changed;
+}
+
+/* La stampa diretta usa lo stesso ordine logico della stampa per postazione. */
+const amalPrintOrderV34=printOrder;
+printOrder=function(order,type){
+  const p=state.settings.print,driver=state.drivers.find(d=>d.id===order.driverId);
+  document.documentElement.style.setProperty('--print-width',`${p.paperWidth}mm`);
+  document.documentElement.style.setProperty('--print-font',p.font);
+  document.documentElement.style.setProperty('--print-body-size',`${p.bodySize}px`);
+  document.documentElement.style.setProperty('--print-title-size',`${p.titleSize}px`);
+  document.documentElement.style.setProperty('--print-heading-size',`${p.headingSize}px`);
+  document.documentElement.style.setProperty('--print-total-size',`${p.totalSize}px`);
+  const rows=amalPrintSections(order.lines||[],type,{showPrices:p.showPrices});
+  $('#print-area').innerHTML=`<h1>${esc(p.businessName)}</h1>${p.header?`<div style="text-align:center">${esc(p.header)}</div>`:''}<h2>${type==='kitchen'?'COMANDA CUCINA':'RIEPILOGO ORDINE'} #${esc(order.id)}</h2><div><b>${new Date(order.dateTime).toLocaleString('it-IT')}</b> · ${esc(order.mode)}</div>${order.customer?`<div><b>Cliente:</b> ${esc(order.customer)}</div>`:''}${p.showPhone&&order.phone?`<div><b>Tel:</b> ${esc(order.phone)}</div>`:''}${p.showAddress&&order.address?`<div><b>Indirizzo:</b> ${esc(order.address)}</div>`:''}${driver?`<div><b>Fattorino:</b> ${esc(driver.name)}</div>`:''}<div class="cut"></div>${rows}${order.notes?`<div class="print-note"><b>NOTE ORDINE:</b> ${esc(order.notes)}</div>`:''}${type!=='kitchen'?`<div class="print-total print-line"><span>TOTALE</span><span>${money(order.total)}</span></div>${p.showPayment?`<div>Pagamento: ${esc(order.payment||'')}</div>`:''}`:''}${p.showFooter?`<div class="cut"></div><div style="text-align:center">${esc(p.footer)}</div>`:''}`;
+  setTimeout(()=>window.print(),80);
+};
+
+/* Stampa per postazione: le note vengono copiate sulle postazioni che ricevono cibo; le bibite restano in fondo. */
+const amalStationOrderHtmlV34=stationOrderHtml;
+stationOrderHtml=function(order,st,copies=1){
+  const p=ensureV112Print(),all=order.lines||[];
+  const base=all.filter(l=>stationLineAllowed(st,l));
+  const hasFood=base.some(l=>!amalIsNoteLine(l)&&!amalIsDrinkLine(l));
+  const noteLines=all.filter(amalIsNoteLine);
+  const lines=[...base];
+  if(hasFood){noteLines.forEach(l=>{if(!lines.includes(l))lines.push(l)});}
+  const driver=state.drivers.find(d=>d.id===order.driverId)?.name||'';
+  const title=st.showOrderNumber?`<h2>${esc(st.role||st.name)} · ORDINE #${esc(order.id)}</h2>`:`<h2>${esc(st.role||st.name)}</h2>`;
+  const header=[];
+  if(st.showBusiness)header.push(`<h1>${esc(p.businessName||state.settings.businessName)}</h1>`);
+  if(st.showHeader){const c=composedPrintTextV112();if(c.header)header.push(`<div style="text-align:center;white-space:pre-wrap">${esc(c.header)}</div>`)}
+  const meta=[];if(st.showDateTime)meta.push(`<b>${new Date(order.dateTime).toLocaleString('it-IT')}</b>`);if(st.showMode)meta.push(esc(order.mode));
+  const customer=[];if(st.showCustomer&&order.customer)customer.push(`<div><b>${esc(order.customer)}</b></div>`);if(st.showPhone&&order.phone)customer.push(`<div>Tel: ${esc(order.phone)}</div>`);if(st.showAddress&&order.address)customer.push(`<div>${esc(order.address)}</div>`);if(st.showDriver&&driver)customer.push(`<div>Fattorino: <b>${esc(driver)}</b></div>`);
+  const rows=amalPrintSections(lines,'kitchen',{showPrices:!!st.showPrices});
+  const notes=st.showNotes&&order.notes?`<div class="print-note"><b>NOTE ORDINE:</b> ${esc(order.notes)}</div>`:'';
+  const total=st.showTotal?`<div class="print-total print-line"><span>TOTALE</span><span>${money(order.total)}</span></div>`:'';
+  const payment=st.showPayment&&order.payment?`<div>Pagamento: <b>${esc(order.payment)}</b></div>`:'';
+  const footer=st.showFooter?(()=>{const c=composedPrintTextV112();return c.footer?`<div class="cut"></div><div style="text-align:center;white-space:pre-wrap">${esc(c.footer)}</div>`:''})():'';
+  const one=`<section class="v12-print-copy">${header.join('')}${title}${meta.length?`<div>${meta.join(' · ')}</div>`:''}${customer.join('')}<div class="cut"></div>${rows}${notes}${total}${payment}${footer}<div style="text-align:center;margin-top:5px;font-size:9px">${esc(st.name)} · copia automatica</div></section>`;
+  return Array.from({length:Math.max(1,copies)},()=>one).join('<div class="v12-copy-break"></div>');
+};
+
+const amalV35Style=document.createElement('style');
+amalV35Style.textContent=`
+  #print-area .amal-print-section{margin:4px 0 2px;padding:3px 0 1px;break-inside:avoid;page-break-inside:avoid}
+  #print-area .amal-print-section-title{font-size:10px;font-weight:900;letter-spacing:.04em;border-top:1.5px solid #000;border-bottom:1px solid #000;padding:2px 1px;margin:2px 0 3px}
+  #print-area .amal-print-notes{border:1.5px solid #000;padding:3px 4px;margin:5px 0}
+  #print-area .amal-print-notes .amal-print-section-title{border:0;border-bottom:1px solid #000;font-size:11px;margin:0 0 3px;padding:0 0 3px}
+  #print-area .amal-note-item{font-weight:900;font-size:1.05em;padding:2px 0}
+  #print-area .amal-print-drinks{margin-top:5px;border-top:1px dashed #000;padding-top:3px}
+  #print-area .amal-print-drinks .print-line{font-size:10px;padding:1px 0;margin:0}
+  #print-area .amal-print-drinks .amal-print-section-title{font-size:9px;border-top:0;margin-top:0}
+  #print-area .print-mod.mod-bold{font-weight:900;text-decoration:underline;text-decoration-thickness:1px}
+  #print-area .print-mod.mod-highlight{font-weight:900;border:1.5px solid #000;border-bottom:2px double #000;padding:0 3px;display:inline-block;margin-left:7px}
+  @media print{#print-area .amal-print-section{break-inside:avoid;page-break-inside:avoid}#print-area .amal-print-notes{break-inside:avoid;page-break-inside:avoid}}
+`;
+document.head.appendChild(amalV35Style);
+
+/* Test mirati per ordinamento, note, bibite e formattazione. */
+function amalV35SelfTest(){
+  const saved=state.categories;
+  const testCats=[
+    {id:'food',name:'Pizze',items:[{id:'p1',name:'Margherita'}]},
+    {id:'note-test',name:'Note',items:[{id:'n1',name:'Tagliata'},{id:'n2',name:'Ben cotta'}]},
+    {id:'drink',name:'Bevanda',items:[{id:'d1',name:'Bibita'}]}
+  ];
+  state.categories=testCats;
+  const testLines=[
+    {categoryId:'drink',productId:'d1',name:'Bibita',qty:1},
+    {categoryId:'note-test',productId:'n1',name:'Tagliata',qty:1},
+    {categoryId:'food',productId:'p1',name:'Margherita',qty:1,modifiers:[{name:'Impasti: Integrale',printStyle:'bold'}]}
+  ];
+  const groups=amalGroupLines(testLines),html=amalPrintSections(testLines,'kitchen');
+  const ok=[
+    ['cibo prima delle note',groups.food[0]?.line.name==='Margherita'],
+    ['note separate',groups.notes[0]?.line.name==='Tagliata'],
+    ['bibite in fondo',groups.drinks[0]?.line.name==='Bibita'],
+    ['stile impasto grassetto',html.includes('mod-bold')],
+    ['intestazione note forno',html.includes('NOTE PER FORNO / PREPARAZIONE')],
+    ['intestazione bibite',html.includes('BIBITE')],
+    ['righe note separate dal cibo',groups.notes.every(x=>amalIsNoteLine(x.line))]
+  ];
+  state.categories=saved;
+  const large=Array.from({length:10000},(_,i)=>({categoryId:i%3===0?'drink':i%3===1?'note-test':'food',productId:i%3===0?'d1':i%3===1?'n1':'p1',name:i%3===0?'Acqua':i%3===1?'Tagliata':'Margherita',qty:1}));
+  const t=performance.now();const grouped=amalGroupLines(large);const elapsed=performance.now()-t;
+  ok.push(['stress test ordinamento 10.000 righe',grouped.food.length+grouped.notes.length+grouped.drinks.length===10000&&Number.isFinite(elapsed)]);
+  return {version:'V35',passed:ok.filter(x=>x[1]).length,total:ok.length,checks:ok.map(x=>({test:x[0],ok:x[1]})),stressRows:large.length,stressMilliseconds:+elapsed.toFixed(2)};
+}
+window.AmalfitanaPrintV35={group:amalGroupLines,render:amalPrintSections,selfTest:amalV35SelfTest,result:amalV35SelfTest()};
+console.info('Collaudo stampa V35',window.AmalfitanaPrintV35.result);
+
+</script>
 </body>
 </html>
