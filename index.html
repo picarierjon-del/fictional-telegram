@@ -372,8 +372,15 @@
   function enhanceFinalize(){const box=$('#orderBody');if(!box)return;const names=[...new Set([...(state.quickData?.names||[]),...state.customers.map(c=>c.name).filter(Boolean)])],phones=[...new Set([...(state.quickData?.phones||[]),...state.customers.map(c=>c.phone).filter(Boolean)])],streets=[...new Set([...(state.quickData?.streets||[]),...state.customers.map(c=>streetBase(c.address)).filter(Boolean)])];const addList=(id,values)=>{let dl=$(`#${id}`,box);if(!dl){dl=document.createElement('datalist');dl.id=id;box.append(dl)}dl.innerHTML=values.map(v=>`<option value="${esc(v)}"></option>`).join('')};addList('customerSuggestions',names);addList('phoneSuggestions',phones);addList('streetSuggestions',streets);const customer=$('[name="customer"]',box),phone=$('[name="phone"]',box),address=$('[name="address"]',box),dt=$('[name="dateTime"]',box);if(customer){customer.setAttribute('list','customerSuggestions');customer.setAttribute('autocomplete','off');customer.insertAdjacentHTML('afterend','<div class="quick-hint">Salvato e filtrabile automaticamente</div>');customer.onchange=()=>{rememberQuick('names',customer.value);const c=state.customers.find(x=>(x.name||'').toLowerCase()===customer.value.trim().toLowerCase());if(c){if(phone&&!phone.value)phone.value=c.phone||'';if(address&&!address.value)address.value=c.address||''}};customer.onblur=customer.onchange}if(phone){phone.setAttribute('list','phoneSuggestions');phone.setAttribute('autocomplete','off');phone.onchange=()=>{rememberQuick('phones',phone.value);const c=state.customers.find(x=>x.phone&&x.phone===phone.value.trim());if(c){if(customer&&!customer.value)customer.value=c.name||'';if(address&&!address.value)address.value=c.address||''}};phone.onblur=phone.onchange}if(address){address.setAttribute('list','streetSuggestions');address.setAttribute('autocomplete','off');address.insertAdjacentHTML('afterend','<div class="quick-hint">La via viene ricordata senza numero civico</div>');address.onchange=()=>rememberQuick('streets',address.value);address.onblur=address.onchange}if(dt){dt.setAttribute('step','300');dt.setAttribute('inputmode','numeric');dt.insertAdjacentHTML('afterend','<div class="quick-hint">Orario selezionabile ogni 5 minuti</div>')}}
   function renderHistoryBase(){const list=state.archive.filter(o=>(o.closedAt||o.dateTime).slice(0,10)===ui.historyDate);const total=list.reduce((a,o)=>a+Number(o.total||0),0),deliveries=list.filter(o=>o.mode==='delivery').length;$('#view-history').innerHTML=`<div class="page-head"><h1>${esc(state.settings.labels.history)}</h1><input class="input" style="width:auto" type="date" id="historyDate" value="${ui.historyDate}"></div><div class="stats"><div class="stat"><div class="value">${money(total)}</div><div class="label">Incasso</div></div><div class="stat"><div class="value">${list.length}</div><div class="label">Ordini</div></div><div class="stat"><div class="value">${deliveries}</div><div class="label">Consegne</div></div><div class="stat"><div class="value">${list.length?money(total/list.length):money(0)}</div><div class="label">Scontrino medio</div></div></div><div class="grid" style="margin-top:12px">${list.map(o=>`<div class="order-card"><div class="order-top"><b>#${esc(o.id)} \u00b7 ${esc(o.customer||o.mode)}</b><b>${money(o.total)}</b></div><div class="order-meta">${new Date(o.dateTime).toLocaleString('it-IT')} \u00b7 ${esc(o.payment||'')} ${o.driverId?`\u00b7 ${esc(state.drivers.find(d=>d.id===o.driverId)?.name||'Fattorino eliminato')}`:''}</div><div class="order-actions"><button class="btn ghost small" data-action="print-receipt" data-id="${o.id}" data-archive="1">Stampa</button><button class="btn ghost small" data-action="duplicate-order" data-id="${o.id}" data-archive="1">${esc(state.settings.labels.duplicate)}</button><button class="btn danger small" data-action="delete-archive" data-id="${o.id}">Elimina</button></div></div>`).join('')||'<div class="card empty">Nessun ordine archiviato in questa data</div>'}</div>`}
   function renderHistory(){renderHistoryBase();const list=state.archive.filter(o=>(o.closedAt||o.dateTime).slice(0,10)===ui.historyDate);$$('#view-history .grid .order-card').forEach((el,i)=>{const o=list[i],actions=$('.order-actions',el),wrap=document.createElement('div');wrap.className='field';wrap.style.marginTop='9px';wrap.innerHTML=`<label>Fattorino ordine chiuso</label><select class="input" data-driver="${o.id}" data-archive="1">${driverOptions(o.driverId)}</select>`;actions?.before(wrap)});const rows=state.drivers.map(d=>{const orders=list.filter(o=>o.driverId===d.id),total=orders.reduce((n,o)=>n+(+o.total||0),0);return{d,orders,total}}),card=document.createElement('div');card.className='card';card.style.marginTop='12px';card.innerHTML=`<h2>Totale fattorini aggiornato</h2>${rows.map(x=>`<div class="setting-row"><div><b>${esc(x.d.name)}</b><div class="order-meta">${x.orders.length} consegne assegnate</div></div><b>${money(x.total)}</b></div>`).join('')||'<div class="empty">Nessun fattorino configurato</div>'}`;const stats=$('.stats',$('#view-history'));stats?.after(card)}
-  const settingTabs=[['general','Generale'],['menu','Menu'],['multi','Multigusto'],['mods','Modificatori'],['inventory','Disponibilità'],['delivery','Consegne'],['statuses','Stati'],['print','Stampa'],['layout','Schermata ordini'],['data','Dati']];
-  function renderSettingsBase(){const s=state.settings;$('#view-settings').innerHTML=`<div class="page-head"><h1>${esc(s.labels.settings)}</h1><div class="tools"><button class="btn primary small" data-action="save-settings">Salva tutto</button></div></div><div class="settings-nav">${settingTabs.map(([id,n])=>`<button class="chip ${ui.settingsTab===id?'active':''}" data-settingtab="${id}">${n}</button>`).join('')}</div>${settingTabs.map(([id])=>`<div class="settings-panel ${ui.settingsTab===id?'active':''}" data-panel="${id}">${settingsPanel(id)}</div>`).join('')}`}
+  const settingGroups=[
+    {title:'PERSONALIZZAZIONE',items:[['general','Aspetto e testi'],['layout','Schermata ordini']]},
+    {title:'MENU E PRODOTTI',items:[['menu','Categorie e prodotti'],['multi','Multigusto'],['mods','Modificatori']]},
+    {title:'GESTIONE ORDINI',items:[['statuses','Flusso ordini'],['inventory','Disponibilità'],['delivery','Consegne e fattorini']]},
+    {title:'STAMPA',items:[['print','Profilo stampante']]},
+    {title:'ARCHIVIO E SISTEMA',items:[['data','Backup e dati']]}
+  ];
+  const settingTabs=settingGroups.flatMap(group=>group.items);
+  function renderSettingsBase(){const s=state.settings;$('#view-settings').innerHTML=`<div class="page-head"><h1>${esc(s.labels.settings)}</h1><div class="tools"><button class="btn primary small" data-action="save-settings">Salva tutto</button></div></div><div class="settings-nav settings-nav-organized">${settingGroups.map(group=>`<section class="settings-nav-group"><div class="settings-nav-title">${group.title}</div><div class="settings-nav-items">${group.items.map(([id,n])=>`<button class="chip ${ui.settingsTab===id?'active':''}" data-settingtab="${id}">${n}</button>`).join('')}</div></section>`).join('')}</div>${settingTabs.map(([id])=>`<div class="settings-panel ${ui.settingsTab===id?'active':''}" data-panel="${id}">${settingsPanel(id)}</div>`).join('')}`}
   function renderSettings(){renderSettingsBase();if(ui.settingsTab==='data'){const row=$('#view-settings [data-action="repair-cache"]')?.closest('.row');if(row&&!row.querySelector('[data-action="restore-snapshot"]'))row.insertAdjacentHTML('beforeend','<button class="btn ghost" data-action="restore-snapshot">Ripristina ultimo backup automatico</button>');const panel=$('[data-panel="data"]',$('#view-settings'));if(panel)panel.insertAdjacentHTML('beforeend',`<div class="card"><div class="page-head"><h2>Cestino recuperabile</h2><span class="badge">${state.trash?.length||0}</span></div>${(state.trash||[]).slice(0,100).map(t=>`<div class="setting-row"><div><b>${esc(t.item.name||`Ordine #${t.item.id}`)}</b><div class="order-meta">${trashLabel(t)} \u00b7 ${new Date(t.deletedAt).toLocaleString('it-IT')}</div></div><div class="row"><button class="btn small success" data-action="restore-trash" data-id="${t.id}">Ripristina</button><button class="btn small danger" data-action="delete-trash" data-id="${t.id}">Elimina definitivamente</button></div></div>`).join('')||'<div class="empty">Il cestino \u00e8 vuoto</div>'}</div>`)}}
   function settingsPanel(id){const s=state.settings;
   if(id==='layout')return `<div class="card stack"><h2>Schermata ordini</h2><p class="order-meta">Personalizza la dimensione dei pulsanti prodotto e lo spazio del carrello. Le impostazioni vengono salvate su questo dispositivo.</p><div class="field"><label for="v32-width">Larghezza pulsanti pizze: <b id="v32-width-val">122 px</b></label><input class="input" id="v32-width" type="range" min="85" max="210" step="1"></div><div class="field"><label for="v32-height">Altezza pulsanti: <b id="v32-height-val">74 px</b></label><input class="input" id="v32-height" type="range" min="55" max="140" step="1"></div><div class="field"><label for="v32-font">Dimensione testo: <b id="v32-font-val">14 px</b></label><input class="input" id="v32-font" type="range" min="11" max="20" step="1"></div><div class="field"><label for="v32-cart">Larghezza carrello: <b id="v32-cart-val">34%</b></label><input class="input" id="v32-cart" type="range" min="27" max="48" step="1"></div><div class="row"><button class="btn ghost" type="button" data-action="v32-layout-reset">Ripristina dimensioni</button></div><div class="notice">Su iPhone in orizzontale il carrello resta ancorato sul lato destro dello schermo mentre scorri i prodotti. In verticale rimane sotto i prodotti, raggiungibile con il pulsante Vai all’ordine.</div></div>`;
@@ -6397,6 +6404,84 @@ console.info('Collaudo stampa V35',window.AmalfitanaPrintV35.result);
   }
   window.AmalfitanaV41PrintStyles={settings:()=>JSON.parse(JSON.stringify(ensure())),selectedRule,decorateMod,selfTest};
   console.info('Collaudo V41 stili stampa',selfTest());
+})();
+</script>
+
+
+<style id="amalfitana-v42-settings-organization-css">
+#view-settings .settings-nav-organized{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr));
+  gap:10px!important;
+  overflow:visible!important;
+  align-items:start;
+  margin:10px 0 16px!important;
+}
+#view-settings .settings-nav-group{
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--card);
+  padding:10px;
+}
+#view-settings .settings-nav-title{
+  font-size:11px;
+  line-height:1.2;
+  font-weight:900;
+  letter-spacing:.07em;
+  color:var(--muted);
+  margin:0 0 8px;
+}
+#view-settings .settings-nav-items{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+#view-settings .settings-nav-items .chip{
+  max-width:100%;
+  white-space:normal;
+  text-align:left;
+  line-height:1.2;
+}
+#view-settings .settings-nav-items .chip.active{
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}
+@media(max-width:560px){
+  #view-settings .settings-nav-organized{grid-template-columns:1fr}
+}
+</style>
+<script id="amalfitana-v42-settings-organization">
+(function(){
+  'use strict';
+  if(window.AmalfitanaV42Organization)return;
+  const expected={
+    general:'PERSONALIZZAZIONE',layout:'PERSONALIZZAZIONE',
+    menu:'MENU E PRODOTTI',multi:'MENU E PRODOTTI',mods:'MENU E PRODOTTI',
+    statuses:'GESTIONE ORDINI',inventory:'GESTIONE ORDINI',delivery:'GESTIONE ORDINI',
+    print:'STAMPA',data:'ARCHIVIO E SISTEMA'
+  };
+  function audit(){
+    const ids=Object.keys(expected),buttons=[...document.querySelectorAll('#view-settings [data-settingtab]')];
+    const panels=[...document.querySelectorAll('#view-settings [data-panel]')];
+    const buttonIds=buttons.map(x=>x.dataset.settingtab),panelIds=panels.map(x=>x.dataset.panel);
+    const dup=a=>a.filter((x,i)=>a.indexOf(x)!==i);
+    const checks=[
+      ['10 sezioni previste presenti',ids.length===10],
+      ['10 pulsanti di navigazione presenti',buttonIds.length===10],
+      ['10 pannelli originali presenti',panelIds.length===10],
+      ['nessun pulsante duplicato',dup(buttonIds).length===0],
+      ['nessun pannello duplicato',dup(panelIds).length===0],
+      ['ogni pulsante ha il proprio pannello',ids.every(id=>buttonIds.includes(id)&&panelIds.includes(id))],
+      ['5 gruppi di impostazioni presenti',document.querySelectorAll('#view-settings .settings-nav-group').length===5],
+      ['pannello profilo stampante mantenuto',!!document.querySelector('#view-settings [data-panel="print"] #v37PrintTextSettings')],
+      ['pannello modificatori mantenuto',!!document.querySelector('#view-settings [data-panel="mods"] #v1237ModifierAlphabetCard')],
+      ['pannello ordini mantenuto',!!document.querySelector('#view-settings [data-panel="layout"] #v32-width')]
+    ];
+    return {version:'V42',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]}))};
+  }
+  window.AmalfitanaV42Organization={audit,expected:{...expected}};
+  console.info('Organizzazione impostazioni V42 pronta');
 })();
 </script>
 
