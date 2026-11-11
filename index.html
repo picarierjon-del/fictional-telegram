@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pizzeria Smart">
-  <title>Amalfitana Control V36 - Pizzeria L’Amalfitana</title>
+  <title>Gestionale Pizzeria L’Amalfitana</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -4840,25 +4840,6 @@ window.PizzeriaSmartStockDiagnostics=()=>({version:'V29.8',finalCommitWrapped:tr
   window.PizzeriaSmartDiagnosticsV30Diagnostics=()=>({version:V30_VERSION,startupTimeoutProtection:true,categoryTabsWrap:true,immediateLocalStorageWrite:true,debouncedSerializedIndexedDBWrite:true,alphabetCheckboxNoRerender:true,purgeLimitedToOrders:true,menuPreservedByPurge:true,settingsPreservedByPurge:true,multigustoProductFieldsPersisted:true});
 })();
 
-  /* V33 - cassa, ingredienti/ricette, registro movimenti e controlli operativi */
-  (function(){
-    'use strict';
-    const v33Defaults=()=>({cash:{sessions:[],movements:[]},ingredients:[],recipes:{}});
-    function ensureV33(){const d=v33Defaults();state.v33={...d,...(state.v33||{})};state.v33.cash={...d.cash,...(state.v33.cash||{})};state.v33.cash.sessions=Array.isArray(state.v33.cash.sessions)?state.v33.cash.sessions:[];state.v33.cash.movements=Array.isArray(state.v33.cash.movements)?state.v33.cash.movements:[];state.v33.ingredients=Array.isArray(state.v33.ingredients)?state.v33.ingredients:[];state.v33.recipes=state.v33.recipes&&typeof state.v33.recipes==='object'?state.v33.recipes:{};return state.v33}
-    const euro=n=>money(Number(n)||0), activeSession=()=>ensureV33().cash.sessions.find(x=>!x.closedAt);
-    settingTabs.push(['v33','Cassa e magazzino']);
-    const oldPanel=settingsPanel;
-    settingsPanel=function(id){if(id!=='v33')return oldPanel(id);const v=ensureV33(),session=activeSession(),ings=v.ingredients,products=state.categories.flatMap(c=>(c.items||[]).map(p=>({...p,categoryName:c.name}))).filter(p=>!p.name.includes('divisa a metà'));const sales=(state.orders||[]).filter(o=>!o.cancelled);const payments={};sales.forEach(o=>{const k=o.payment||'Non specificato';payments[k]=(payments[k]||0)+(+o.total||0)});const recipes=Object.entries(v.recipes);return `<div class="card"><div class="page-head"><div><h2>Cassa giornaliera</h2><div class="order-meta">Apertura, movimenti e conteggio finale. Il totale teorico considera gli ordini attivi non annullati.</div></div><span class="badge">${session?'Cassa aperta':'Cassa chiusa'}</span></div>${session?`<div class="grid three"><div><small>Fondo iniziale</small><h2>${euro(session.openingFloat)}</h2></div><div><small>Ordini attivi</small><h2>${sales.length}</h2></div><div><small>Totale ordini attivi</small><h2>${euro(sales.reduce((n,o)=>n+(+o.total||0),0))}</h2></div></div><div class="grid two" style="margin-top:10px"><div class="field"><label>Entrata / uscita cassa (€)</label><input class="input" id="v33-move-amount" type="number" step="0.01" min="0" placeholder="Importo"></div><div class="field"><label>Descrizione</label><input class="input" id="v33-move-note" placeholder="Es. acquisto urgente"></div></div><div class="row"><button class="btn success" data-action="v33-cash-in">Registra entrata</button><button class="btn danger" data-action="v33-cash-out">Registra uscita</button><button class="btn primary" data-action="v33-close">Chiudi cassa</button></div>`:`<div class="grid two"><div class="field"><label>Fondo cassa iniziale (€)</label><input class="input" id="v33-opening" type="number" min="0" step="0.01" value="100"></div><div class="field" style="justify-content:end"><button class="btn primary" data-action="v33-open">Apri cassa</button></div></div>`}<div class="grid two" style="margin-top:12px">${Object.entries(payments).map(([k,n])=>`<div class="setting-row"><b>${esc(k)}</b><strong>${euro(n)}</strong></div>`).join('')||'<div class="empty">Nessun ordine attivo</div>'}</div><h3 style="margin-top:16px">Ultime chiusure</h3>${v.cash.sessions.filter(x=>x.closedAt).slice(-5).reverse().map(x=>`<div class="setting-row"><div><b>${new Date(x.openedAt).toLocaleString('it-IT')}</b><div class="order-meta">Chiusura ${new Date(x.closedAt).toLocaleString('it-IT')} · Scostamento ${euro(x.difference)}</div></div><strong>${euro(x.countedTotal)}</strong></div>`).join('')||'<div class="empty">Nessuna chiusura registrata</div>'}</div>
-    <div class="card"><div class="page-head"><div><h2>Magazzino ingredienti</h2><div class="order-meta">Quantità, costo unitario e scorta minima. Le ricette permettono di stimare il costo materia prima.</div></div><button class="btn primary" data-action="v33-add-ingredient">+ Ingrediente</button></div>${ings.map(i=>`<div class="setting-row"><div><b>${esc(i.name)}</b><div class="order-meta">${Number(i.stock).toFixed(2)} ${esc(i.unit)} · costo ${euro(i.cost)} / ${esc(i.unit)} · minimo ${Number(i.min||0)} ${esc(i.unit)}</div></div><div class="row"><button class="btn small ghost" data-action="v33-stock" data-id="${i.id}">Carico/scarico</button><button class="btn small ghost" data-action="v33-edit-ingredient" data-id="${i.id}">Modifica</button><button class="btn small danger" data-action="v33-delete-ingredient" data-id="${i.id}">×</button></div></div>`).join('')||'<div class="empty">Nessun ingrediente inserito</div>'}<h3 style="margin-top:16px">Ricette e costo pizza</h3><div class="grid two"><div class="field"><label>Prodotto</label><select class="input" id="v33-product">${products.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.categoryName)}</option>`).join('')}</select></div><div class="field"><label>Ingrediente</label><select class="input" id="v33-ingredient">${ings.map(i=>`<option value="${i.id}">${esc(i.name)} (${esc(i.unit)})</option>`).join('')}</select></div><div class="field"><label>Quantità per pizza</label><input class="input" id="v33-recipe-qty" type="number" min="0.001" step="0.001" value="0.1"></div><div class="field" style="justify-content:end"><button class="btn primary" data-action="v33-add-recipe">Aggiungi ingrediente alla ricetta</button></div></div>${recipes.map(([pid,rows])=>{const p=products.find(x=>x.id===pid);const cost=(rows||[]).reduce((n,r)=>n+(+r.qty||0)*(+ings.find(i=>i.id===r.ingredientId)?.cost||0),0);return `<div class="setting-row"><div><b>${esc(p?.name||'Prodotto non più presente')}</b><div class="order-meta">${(rows||[]).map(r=>{const i=ings.find(x=>x.id===r.ingredientId);return `${esc(i?.name||'Ingrediente rimosso')}: ${r.qty} ${esc(i?.unit||'')}`}).join(' · ')}</div></div><strong>Costo ${euro(cost)}</strong></div>`}).join('')||'<div class="empty">Nessuna ricetta configurata</div>'}</div>
-    <div class="card"><h2>Stampa e consegne</h2><p class="order-meta">La configurazione stampanti Epson e il modulo consegne già presenti in V32 restano disponibili nelle schede Stampa e Consegne. La stampa automatica fisica richiede che il Bridge Windows sia installato, avviato e collegato alla stampante; questa pagina non simula una stampa riuscita.</p><div class="row"><button class="btn ghost" data-action="v33-goto-print">Apri impostazioni stampa</button><button class="btn ghost" data-action="v33-goto-delivery">Apri gestione consegne</button><button class="btn ghost" data-action="v33-export">Esporta backup JSON</button></div></div>`};
-    function v33Movement(type){const v=ensureV33(),s=activeSession(),amount=Number($('#v33-move-amount')?.value),note=($('#v33-move-note')?.value||'').trim();if(!s)return toast('Apri prima la cassa');if(!Number.isFinite(amount)||amount<=0)return toast('Inserisci un importo valido');v.cash.movements.push({id:uid('cm'),sessionId:s.id,type,amount,note,at:new Date().toISOString()});save('movimento cassa');renderSettings();toast(type==='in'?'Entrata registrata':'Uscita registrata')}
-    function v33Consume(order){const v=ensureV33();if(order.stockConsumedAt)return;const requirements=[];(order.lines||[]).forEach(line=>{const rows=v.recipes[line.productId]||[];(rows||[]).forEach(r=>requirements.push({ingredientId:r.ingredientId,qty:(+r.qty||0)*(+line.qty||1)}));(line.slots||[]).forEach(slot=>(v.recipes[slot.productId]||[]).forEach(r=>requirements.push({ingredientId:r.ingredientId,qty:(+r.qty||0)*(+line.qty||1)})))});requirements.forEach(r=>{const i=v.ingredients.find(x=>x.id===r.ingredientId);if(i)i.stock=Math.max(0,(+i.stock||0)-r.qty)});order.stockConsumedAt=new Date().toISOString();order.stockConsumption=requirements;}
-    const commit0=commitFinalOrder;commitFinalOrder=async function(e){const d=state.draft,old=d?.editingOrderId;const result=await commit0.apply(this,arguments);if(d&&!old){const order=state.orders.find(o=>o.stockConsumedAt&&o.id===d.id)||state.orders[state.orders.length-1];if(order){v33Consume(order);save('consumo ricette V33')}}return result};
-    document.addEventListener('click',e=>{const b=e.target.closest('button[data-action^="v33-"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();const a=b.dataset.action,v=ensureV33();if(a==='v33-open'){if(activeSession())return toast('La cassa è già aperta');const amount=Number($('#v33-opening')?.value);if(!Number.isFinite(amount)||amount<0)return toast('Fondo iniziale non valido');v.cash.sessions.push({id:uid('cs'),openedAt:new Date().toISOString(),openingFloat:amount,closedAt:null});save('apertura cassa');renderSettings();toast('Cassa aperta');return}if(a==='v33-cash-in'||a==='v33-cash-out')return v33Movement(a==='v33-cash-in'?'in':'out');if(a==='v33-close'){const s=activeSession();if(!s)return toast('Nessuna cassa aperta');const orders=state.orders.filter(o=>!o.cancelled),payments={};orders.forEach(o=>{const k=o.payment||'Non specificato';payments[k]=(payments[k]||0)+(+o.total||0)});const cashSales=payments['Contanti']||payments['contanti']||0,moves=v.cash.movements.filter(x=>x.sessionId===s.id),expected=+s.openingFloat+cashSales+moves.filter(x=>x.type==='in').reduce((n,x)=>n+x.amount,0)-moves.filter(x=>x.type==='out').reduce((n,x)=>n+x.amount,0);const counted=Number(prompt(`Contanti attesi in cassa: ${euro(expected)}. Inserisci contanti contati:` ,expected.toFixed(2)));if(!Number.isFinite(counted)||counted<0)return toast('Conteggio non valido');s.closedAt=new Date().toISOString();s.expectedCash=expected;s.countedCash=counted;s.difference=counted-expected;s.countedTotal=counted;s.paymentTotals=payments;s.orders=orders.length;save('chiusura cassa');renderSettings();toast(`Cassa chiusa. Differenza: ${euro(s.difference)}`);return}if(a==='v33-add-ingredient'||a==='v33-edit-ingredient'){const old=v.ingredients.find(x=>x.id===b.dataset.id),name=prompt('Nome ingrediente',old?.name||'');if(name===null||!name.trim())return;const unit=prompt('Unità di misura (kg, g, L, ml, pz)',old?.unit||'kg');if(unit===null||!unit.trim())return;const stock=Number(prompt('Giacenza attuale',old?.stock??0)),cost=Number(prompt(`Costo per ${unit}`,old?.cost??0)),min=Number(prompt('Scorta minima',old?.min??0));if(![stock,cost,min].every(Number.isFinite)||stock<0||cost<0||min<0)return toast('Valori non validi');if(old)Object.assign(old,{name:name.trim(),unit:unit.trim(),stock,cost,min});else v.ingredients.push({id:uid('ing'),name:name.trim(),unit:unit.trim(),stock,cost,min});save('ingrediente salvato');renderSettings();return}if(a==='v33-delete-ingredient'){if(!confirm('Eliminare ingrediente? Le ricette che lo utilizzano non verranno cancellate.'))return;v.ingredients=v.ingredients.filter(x=>x.id!==b.dataset.id);save('ingrediente eliminato');renderSettings();return}if(a==='v33-stock'){const i=v.ingredients.find(x=>x.id===b.dataset.id);if(!i)return;const delta=Number(prompt(`Variazione giacenza per ${i.name} (positivo carico, negativo scarico)`, '1'));if(!Number.isFinite(delta)||!delta)return; i.stock=Math.max(0,(+i.stock||0)+delta);save('movimento magazzino');renderSettings();return}if(a==='v33-add-recipe'){const pid=$('#v33-product')?.value,ingredientId=$('#v33-ingredient')?.value,qty=Number($('#v33-recipe-qty')?.value);if(!pid||!ingredientId||!Number.isFinite(qty)||qty<=0)return toast('Seleziona prodotto, ingrediente e quantità');v.recipes[pid]=Array.isArray(v.recipes[pid])?v.recipes[pid]:[];v.recipes[pid].push({ingredientId,qty});save('ricetta aggiornata');renderSettings();return}if(a==='v33-goto-print'){ui.settingsTab='print';renderSettings();return}if(a==='v33-goto-delivery'){ui.settingsTab='delivery';renderSettings();return}if(a==='v33-export')return exportData();},true);
-    window.PizzeriaSmartV33Diagnostics=()=>{const v=ensureV33();return{version:'V33',cashRegister:true,ingredientInventory:true,recipeCosting:true,recipeConsumptionHook:true,backupExport:typeof exportData==='function',existingEpsonBridgeConfigured:!!state.settings.bridge?.enabled,existingDeliveryModule:true,ingredientCount:v.ingredients.length,recipeCount:Object.keys(v.recipes).length,openCashSessions:v.cash.sessions.filter(x=>!x.closedAt).length}};
-    ensureV33();
-  })();
-
 </script>
 
 <script>
@@ -5136,53 +5117,167 @@ window.PizzeriaSmartV32Layout={get:()=>({...cfg}),apply};
 })();
 </script>
 
-<script id="amalfitana-v36-addon">
-(function(){
-'use strict';
-const KEY='amalfitana_control_v36_local';
-const $=(s,r=document)=>r.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const eur=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Number(n)||0);
-const uid=p=>p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
-const fresh=()=>({schema:1,users:[{id:'owner',name:'Titolare',role:'Titolare',active:true}],cash:{session:null,sessions:[],movements:[],receipts:[]},stock:{items:[],movements:[],recipes:[]},suppliers:[],invoices:[],delivery:{assignments:[]},audit:[],settings:{}});
-let db;
-try{db=JSON.parse(localStorage.getItem(KEY)||'null')}catch{}
-if(!db||db.schema!==1)db=fresh();db.cash=db.cash||{session:null,sessions:[],movements:[],receipts:[]};db.cash.sessions=db.cash.sessions||[];db.cash.movements=db.cash.movements||[];db.cash.receipts=db.cash.receipts||[];db.stock=db.stock||{items:[],movements:[],recipes:[]};db.stock.items=db.stock.items||[];db.stock.movements=db.stock.movements||[];db.suppliers=db.suppliers||[];db.invoices=db.invoices||[];db.delivery=db.delivery||{assignments:[]};db.delivery.assignments=db.delivery.assignments||[];db.users=db.users||[];db.audit=db.audit||[];
-function persist(action,detail=''){db.audit.unshift({id:uid('a'),at:new Date().toISOString(),action,detail});db.audit=db.audit.slice(0,2000);try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){alert('Spazio locale insufficiente: esporta subito un backup V36.');return false}}
-function currentOrders(){try{return [...(state.orders||[]),...(state.archive||[])].filter(o=>o&&!o._v36Duplicate)}catch{return []}}
-function paidOrders(){return currentOrders().filter(o=>o.payment && !db.cash.receipts.some(r=>String(r.orderId)===String(o.id)))}
-function cashHtml(){let s=db.cash.session;return `<div class="card"><div class="page-head"><div><h2>Cassa e turni</h2><div class="order-meta">Registra gli incassi effettivamente ricevuti. Gli ordini non vengono marcati pagati automaticamente.</div></div><span class="badge">${s?'TURNO APERTO':'CHIUSA'}</span></div>${s?`<div class="grid three"><div><small>Fondo iniziale</small><h3>${eur(s.opening)}</h3></div><div><small>Movimenti</small><h3>${db.cash.movements.filter(x=>x.sessionId===s.id).length+db.cash.receipts.filter(x=>x.sessionId===s.id).length}</h3></div><div><small>Saldo teorico</small><h3>${eur(s.opening+db.cash.movements.filter(x=>x.sessionId===s.id).reduce((a,x)=>a+(x.direction==='in'?1:-1)*x.amount,0))}</h3></div></div><div class="row"><button class="btn primary" data-v36="movement">Registra entrata/uscita</button><button class="btn danger" data-v36="closecash">Chiudi turno</button></div>`:`<div class="field"><label>Fondo cassa iniziale (€)</label><input class="input" id="v36-opening" type="number" min="0" step="0.01" value="100"></div><button class="btn primary" data-v36="opencash">Apri turno</button>`}</div><div class="card"><h3>Ordini da registrare come incassati</h3>${paidOrders().slice(0,100).map(o=>`<div class="setting-row"><div><b>Ordine #${esc(o.id)}</b><div class="order-meta">${esc(o.customer||o.mode||'')} · ${eur(o.total)} · ${esc(o.payment)}</div></div><button class="btn small success" data-v36="register-order" data-id="${esc(o.id)}" ${!s?'disabled':''}>Registra incasso</button></div>`).join('')||'<div class="empty">Nessun ordine con metodo di pagamento da registrare</div>'}</div><div class="card"><h3>Ultime chiusure</h3>${db.cash.sessions.slice(0,15).map(x=>`<div class="setting-row"><div><b>${new Date(x.closedAt).toLocaleString('it-IT')}</b><div class="order-meta">Fondo ${eur(x.opening)} · teorico ${eur(x.expected)} · contato ${eur(x.counted)}</div></div><b>${eur(x.difference)}</b></div>`).join('')||'<div class="empty">Nessuna chiusura registrata</div>'}</div>`}
-function stockHtml(){return `<div class="card"><div class="page-head"><div><h2>Magazzino ingredienti</h2><div class="order-meta">Giacenze e movimenti separati dalle disponibilità prodotti già presenti in V33.</div></div><button class="btn primary" data-v36="addstock">Nuovo ingrediente</button></div>${db.stock.items.map(x=>`<div class="setting-row"><div><b>${esc(x.name)}</b><div class="order-meta">${Number(x.qty).toLocaleString('it-IT')} ${esc(x.unit)} · costo ${eur(x.cost)} / ${esc(x.unit)}</div></div><div class="row"><button class="btn small" data-v36="stockmove" data-id="${x.id}">Movimento</button><button class="btn small ghost" data-v36="editstock" data-id="${x.id}">Modifica</button></div></div>`).join('')||'<div class="empty">Nessun ingrediente inserito. Aggiungi gli ingredienti per iniziare a controllare le giacenze.</div>'}</div><div class="card"><h3>Ultimi movimenti</h3>${db.stock.movements.slice(0,30).map(m=>`<div class="setting-row"><div><b>${esc(m.name)}</b><div class="order-meta">${new Date(m.at).toLocaleString('it-IT')} · ${esc(m.reason||'')}</div></div><b>${m.delta>0?'+':''}${m.delta} ${esc(m.unit)}</b></div>`).join('')||'<div class="empty">Nessun movimento registrato</div>'}</div>`}
-function suppliersHtml(){return `<div class="card"><div class="page-head"><h2>Fornitori</h2><button class="btn primary" data-v36="addsupplier">Aggiungi fornitore</button></div>${db.suppliers.map(s=>`<div class="setting-row"><div><b>${esc(s.name)}</b><div class="order-meta">${esc(s.vat||'')} · ${esc(s.phone||'')} · ${esc(s.email||'')}</div></div><button class="btn small" data-v36="editsupplier" data-id="${s.id}">Modifica</button></div>`).join('')||'<div class="empty">Nessun fornitore registrato.</div>'}</div><div class="card"><div class="page-head"><h3>Fatture e acquisti</h3><button class="btn primary" data-v36="addinvoice">Registra fattura</button></div><div class="notice">Inserimento manuale assistito: allega il PDF o la foto e verifica le righe e le aliquote IVA. In questa build non è attivo un motore OCR automatico.</div>${db.invoices.map(i=>`<div class="setting-row"><div><b>${esc(i.number)} · ${esc(i.supplierName)}</b><div class="order-meta">${esc(i.date)} · imponibile ${eur(i.net)} · IVA ${eur(i.vat)} · totale ${eur(i.total)}</div></div><b>${eur(i.total)}</b></div>`).join('')||'<div class="empty">Nessuna fattura registrata.</div>'}</div>`}
-function deliveryHtml(){const orders=(state.orders||[]).filter(o=>o.mode==='delivery');return `<div class="card"><h2>Consegne e fattorini</h2><div class="notice">La gestione zone, tariffe e capacità resta quella già presente in V33. Qui puoi assegnare un fattorino e tracciare la consegna.</div>${orders.map(o=>{let a=db.delivery.assignments.find(x=>String(x.orderId)===String(o.id));return `<div class="setting-row"><div><b>Ordine #${esc(o.id)} · ${esc(o.customer||'Cliente')}</b><div class="order-meta">${esc(o.address||'')} · ${esc(o.dateTime||'')}</div><div class="order-meta">Stato consegna: ${esc(a?.status||'Da assegnare')} ${a?.rider?'· '+esc(a.rider):''}</div></div><button class="btn small" data-v36="assign" data-id="${esc(o.id)}">${a?'Aggiorna':'Assegna'}</button></div>`}).join('')||'<div class="empty">Nessun ordine di consegna attivo.</div>'}</div>`}
-function reportsHtml(){let os=currentOrders(),sum=os.reduce((a,o)=>a+(+o.total||0),0),byMode={};os.forEach(o=>byMode[o.mode||'altro']=(byMode[o.mode||'altro']||0)+(+o.total||0));return `<div class="card"><h2>Statistiche e controllo</h2><div class="grid three"><div><small>Ordini presenti</small><h2>${os.length}</h2></div><div><small>Valore complessivo ordini</small><h2>${eur(sum)}</h2></div><div><small>Ingredienti</small><h2>${db.stock.items.length}</h2></div></div><h3>Totali per modalità</h3>${Object.entries(byMode).map(([k,v])=>`<div class="setting-row"><b>${esc(k)}</b><b>${eur(v)}</b></div>`).join('')||'<div class="empty">Nessun dato</div>'}<p class="order-meta">Il totale ordini non equivale agli incassi: per la cassa usare le registrazioni del turno.</p><button class="btn primary" data-v36="export">Esporta dati V36</button></div><div class="card"><h3>Registro attività V36</h3>${db.audit.slice(0,50).map(a=>`<div class="audit-row"><b>${esc(a.action)}</b> · ${new Date(a.at).toLocaleString('it-IT')}<div class="order-meta">${esc(a.detail)}</div></div>`).join('')}</div>`}
-function usersHtml(){return `<div class="card"><h2>Operatori e ruoli</h2><div class="notice">Registro profili operativo. I ruoli qui descrivono gli incarichi ma non sostituiscono ancora i controlli di autorizzazione già presenti nel login V33.</div><button class="btn primary" data-v36="adduser">Aggiungi operatore</button>${db.users.map(u=>`<div class="setting-row"><div><b>${esc(u.name)}</b><div class="order-meta">${esc(u.role)} · ${u.active?'Attivo':'Disattivato'}</div></div><button class="btn small" data-v36="toggleuser" data-id="${u.id}">${u.active?'Disattiva':'Attiva'}</button></div>`).join('')}</div>`}
-function render(){let root=$('#view-v36');if(!root)return;let tab=root.dataset.tab||'cash';root.innerHTML=`<div class="settings-head"><h1>Amalfitana Control V36</h1><div class="order-meta">Moduli aggiuntivi locali · dati V33 conservati</div></div><div class="settings-tabs" style="display:flex;gap:6px;overflow:auto;margin:10px 0 14px">${[['cash','Cassa'],['stock','Magazzino'],['suppliers','Fornitori'],['delivery','Consegne'],['reports','Statistiche'],['users','Operatori']].map(([id,n])=>`<button class="btn ${tab===id?'primary':'ghost'} small" data-v36tab="${id}">${n}</button>`).join('')}</div><div class="stack">${({cash:cashHtml,stock:stockHtml,suppliers:suppliersHtml,delivery:deliveryHtml,reports:reportsHtml,users:usersHtml}[tab]||cashHtml)()}</div>`}
-function promptForm(title,fields,cb){let html=fields.map(f=>`<div class="field"><label>${esc(f.label)}</label>${f.type==='select'?`<select class="input" name="${f.name}">${f.options.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>`:`<input class="input" name="${f.name}" type="${f.type||'text'}" ${f.step?'step="'+f.step+'"':''} ${f.required?'required':''} value="${esc(f.value||'')}" ${f.accept?'accept="'+f.accept+'"':''}>`}</div>`).join('');let d=$('#v36Dialog');d.innerHTML=`<form method="dialog" class="card" style="width:min(94vw,560px);max-height:90vh;overflow:auto"><h2>${esc(title)}</h2>${html}<div class="row"><button class="btn ghost" value="cancel">Annulla</button><button class="btn primary" value="default">Salva</button></div></form>`;d.showModal();d.querySelector('form').addEventListener('submit',e=>{if(e.submitter?.value==='cancel')return;e.preventDefault();let fd=new FormData(e.target);cb(Object.fromEntries(fd));d.close();render()})}
-function csvOrJson(){let payload={app:'Amalfitana Control V36',createdAt:new Date().toISOString(),data:db};let blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='amalfitana-control-v36-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);persist('Esportazione backup V36')}
-function addMovement(title,fields,cb){promptForm(title,fields,cb)}
-function click(e){let t=e.target.closest('[data-v36],[data-v36tab]');if(!t)return;let a=t.dataset.v36,id=t.dataset.id;if(t.dataset.v36tab){$('#view-v36').dataset.tab=t.dataset.v36tab;render();return}
-if(a==='opencash'){if(db.cash.session)return;let opening=Math.max(0,+$('#v36-opening').value||0);db.cash.session={id:uid('cash'),openedAt:new Date().toISOString(),opening};persist('Apertura cassa',eur(opening));render()}
-if(a==='closecash'){let s=db.cash.session;if(!s)return;let movements=db.cash.movements.filter(x=>x.sessionId===s.id),receipts=db.cash.receipts.filter(x=>x.sessionId===s.id&&x.tender==='Contanti'),expected=s.opening+receipts.reduce((n,x)=>n+x.amount,0)+movements.reduce((n,x)=>n+(x.direction==='in'?1:-1)*x.amount,0);promptForm('Chiusura turno',[{name:'counted',label:'Contanti contati (€)',type:'number',step:'0.01',value:expected}],v=>{let counted=+v.counted||0;db.cash.sessions.unshift({...s,closedAt:new Date().toISOString(),expected,counted,difference:counted-expected});db.cash.session=null;persist('Chiusura cassa',`Teorico ${eur(expected)} · contato ${eur(counted)}`);render()})}
-if(a==='movement'){if(!db.cash.session)return alert('Apri prima un turno di cassa.');promptForm('Movimento cassa',[{name:'direction',label:'Tipo',type:'select',options:['in','out']},{name:'amount',label:'Importo (€)',type:'number',step:'0.01',required:true},{name:'reason',label:'Causale',required:true}],v=>{let amount=+v.amount;if(amount<=0)return alert('Importo non valido');db.cash.movements.unshift({id:uid('cm'),sessionId:db.cash.session.id,at:new Date().toISOString(),direction:v.direction,amount,reason:v.reason});persist('Movimento cassa',`${v.direction} ${eur(amount)} ${v.reason}`);render()})}
-if(a==='register-order'){if(!db.cash.session)return alert('Apri prima un turno.');let o=currentOrders().find(x=>String(x.id)===id);if(!o)return;let amount=+o.total||0;promptForm(`Registra incasso ordine #${o.id}`,[{name:'tender',label:'Metodo incasso',type:'select',options:['Contanti','Carta','Satispay','Piattaforma','Altro']}],v=>{db.cash.receipts.unshift({id:uid('rcpt'),sessionId:db.cash.session.id,orderId:String(o.id),at:new Date().toISOString(),amount,tender:v.tender,originalMethod:o.payment||''});persist('Incasso ordine',`#${o.id} ${eur(amount)} · ${v.tender}`);render()})}
-if(a==='addstock'){promptForm('Nuovo ingrediente',[{name:'name',label:'Nome',required:true},{name:'unit',label:'Unità base',type:'select',options:['kg','g','L','ml','pz']},{name:'qty',label:'Giacenza iniziale',type:'number',step:'0.001'},{name:'cost',label:'Costo per unità (€)',type:'number',step:'0.0001'}],v=>{let x={id:uid('ing'),name:v.name,unit:v.unit,qty:+v.qty||0,cost:+v.cost||0};db.stock.items.push(x);db.stock.movements.unshift({id:uid('sm'),itemId:x.id,name:x.name,unit:x.unit,delta:x.qty,at:new Date().toISOString(),reason:'Giacenza iniziale'});persist('Ingrediente creato',x.name);render()})}
-if(a==='editstock'){let x=db.stock.items.find(z=>z.id===id);if(x)promptForm('Modifica ingrediente',[{name:'name',label:'Nome',value:x.name,required:true},{name:'unit',label:'Unità',type:'select',options:['kg','g','L','ml','pz'],value:x.unit},{name:'cost',label:'Costo per unità (€)',type:'number',step:'0.0001',value:x.cost}],v=>{Object.assign(x,{name:v.name,unit:v.unit,cost:+v.cost||0});persist('Ingrediente modificato',x.name)})}
-if(a==='stockmove'){let x=db.stock.items.find(z=>z.id===id);if(x)promptForm('Movimento magazzino',[{name:'direction',label:'Tipo',type:'select',options:['carico','scarico','rettifica']},{name:'qty',label:`Quantità (${x.unit})`,type:'number',step:'0.001',required:true},{name:'reason',label:'Causale',required:true}],v=>{let q=+v.qty;if(q<=0)return alert('Quantità non valida');let delta=v.direction==='carico'?q:-q;if(v.direction==='rettifica')delta=q-x.qty;if(x.qty+delta<0)return alert('Giacenza insufficiente: movimento annullato.');x.qty+=delta;db.stock.movements.unshift({id:uid('sm'),itemId:x.id,name:x.name,unit:x.unit,delta,at:new Date().toISOString(),reason:v.reason});persist('Movimento magazzino',`${x.name}: ${delta} ${x.unit}`);render()})}
-if(a==='addsupplier'){promptForm('Nuovo fornitore',[{name:'name',label:'Ragione sociale',required:true},{name:'vat',label:'Partita IVA'},{name:'phone',label:'Telefono'},{name:'email',label:'Email'}],v=>{db.suppliers.push({id:uid('sup'),...v});persist('Fornitore creato',v.name);render()})}
-if(a==='editsupplier'){let x=db.suppliers.find(z=>z.id===id);if(x)promptForm('Modifica fornitore',[{name:'name',label:'Ragione sociale',value:x.name,required:true},{name:'vat',label:'Partita IVA',value:x.vat},{name:'phone',label:'Telefono',value:x.phone},{name:'email',label:'Email',value:x.email}],v=>{Object.assign(x,v);persist('Fornitore modificato',x.name)})}
-if(a==='addinvoice'){if(!db.suppliers.length)return alert('Inserisci prima un fornitore.');promptForm('Registra fattura',[{name:'supplierId',label:'Fornitore',type:'select',options:db.suppliers.map(x=>x.id+'|'+x.name)},{name:'number',label:'Numero fattura',required:true},{name:'date',label:'Data',type:'date',required:true},{name:'net0',label:'Imponibile IVA 0% (€)',type:'number',step:'0.01'},{name:'net4',label:'Imponibile IVA 4% (€)',type:'number',step:'0.01'},{name:'net5',label:'Imponibile IVA 5% (€)',type:'number',step:'0.01'},{name:'net10',label:'Imponibile IVA 10% (€)',type:'number',step:'0.01'},{name:'net22',label:'Imponibile IVA 22% (€)',type:'number',step:'0.01'}],v=>{let sup=db.suppliers.find(x=>x.id===v.supplierId.split('|')[0]),lines=[0,4,5,10,22].map(rate=>({rate,net:+v['net'+rate]||0,vat:(+v['net'+rate]||0)*rate/100})).filter(x=>x.net>0),net=lines.reduce((a,x)=>a+x.net,0),vat=lines.reduce((a,x)=>a+x.vat,0);db.invoices.unshift({id:uid('inv'),supplierId:sup.id,supplierName:sup.name,number:v.number,date:v.date,lines,net,vat,total:net+vat});persist('Fattura registrata',`${v.number} · ${sup.name}`);render()})}
-if(a==='assign'){let o=(state.orders||[]).find(x=>String(x.id)===id);if(!o)return;promptForm(`Assegna ordine #${id}`,[{name:'rider',label:'Fattorino',value:db.delivery.assignments.find(x=>String(x.orderId)===id)?.rider||''},{name:'status',label:'Stato',type:'select',options:['Da assegnare','Assegnato','Ritirato','In consegna','Consegnato','Problema']}],v=>{let x=db.delivery.assignments.find(x=>String(x.orderId)===id);if(!x)db.delivery.assignments.push(x={orderId:id});Object.assign(x,v,{updatedAt:new Date().toISOString()});persist('Consegna aggiornata',`Ordine #${id} · ${v.status}`);render()})}
-if(a==='adduser'){promptForm('Nuovo operatore',[{name:'name',label:'Nome',required:true},{name:'role',label:'Ruolo',type:'select',options:['Titolare','Responsabile','Cassiere','Pizzaiolo','Fattorino']}],v=>{db.users.push({id:uid('usr'),...v,active:true});persist('Operatore creato',v.name);render()})}
-if(a==='toggleuser'){let u=db.users.find(x=>x.id===id);if(u&&u.id!=='owner'){u.active=!u.active;persist('Operatore aggiornato',u.name);render()}}
-if(a==='export')csvOrJson();
-}
-document.addEventListener('click',click,true);
-function install(){let nav=$('.bottom-nav');if(nav&&!$('[data-go="v36"]',nav)){let b=document.createElement('button');b.className='nav-btn';b.dataset.go='v36';b.innerHTML='<span>📊</span><span>Gestione</span>';nav.insertBefore(b,nav.lastElementChild)}let main=$('main');if(main&&!$('#view-v36')){let s=document.createElement('section');s.className='view';s.id='view-v36';s.dataset.view='v36';s.dataset.tab='cash';main.append(s)}if(!$('#v36Dialog')){let d=document.createElement('dialog');d.id='v36Dialog';document.body.append(d)}document.addEventListener('click',e=>{let b=e.target.closest('[data-go="v36"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-v36'));document.querySelectorAll('.nav-btn').forEach(x=>x.classList.toggle('active',x===b));render()},true);}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
-window.AmalfitanaV36Diagnostics=()=>({module:'V36-local-addon',cashSession:!!db.cash.session,stockItems:db.stock.items.length,suppliers:db.suppliers.length,invoices:db.invoices.length,deliveryAssignments:db.delivery.assignments.length,operators:db.users.length,backupExport:true,baseOrders:currentOrders().length});
-})();
 
+<script id="amalfitana-production-counter-v1">
+(function(){
+  'use strict';
+  if(window.AmalfitanaProductionCounterV1)return;
+  window.AmalfitanaProductionCounterV1=true;
+
+  const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('it-IT').trim();
+  const isPizzaCategory=c=>{
+    if(!c)return false;
+    if(c.type==='multi')return true;
+    return /\b(pizza|pizze|baby|schiacciat|mezzo metro|calzone|focaccia)\b/i.test(norm(c.name));
+  };
+  const isDoughModifier=(m,groups)=>{
+    const raw=String(m?.name||'');
+    const id=String(m?.modifierId||m?.id||'');
+    const owner=(groups||[]).find(g=>(g.items||[]).some(x=>String(x.id)===id));
+    const prefix=raw.includes(':')?raw.split(':',1)[0]:'';
+    const groupName=owner?.name||prefix;
+    const itemName=raw.includes(':')?raw.slice(raw.indexOf(':')+1):raw;
+    return /impast|base/i.test(norm(groupName)) ||
+      /\b(integrale|kamut|verace|senza glutine|senza lievito|classico|doppia pasta|doppio impasto|alta idratazione|multicereali)\b/i.test(norm(itemName));
+  };
+  function buildProductionSummary(lines,categories,modifierGroups){
+    const categoryCounts=new Map(),doughCounts=new Map();
+    let totalItems=0,pizzaTotal=0;
+    const catById=new Map((categories||[]).map(c=>[String(c.id),c]));
+    const catByProduct=new Map();
+    (categories||[]).forEach(c=>(c.items||[]).forEach(p=>catByProduct.set(String(p.id),c)));
+    (lines||[]).forEach(line=>{
+      const qty=Math.max(0,Math.floor(Number(line?.qty)||0));
+      if(!qty)return;
+      const cat=catById.get(String(line.categoryId))||catByProduct.get(String(line.productId));
+      if(cat){
+        const key=String(cat.id);
+        const old=categoryCounts.get(key)||{id:key,name:String(cat.name||'Categoria'),qty:0};
+        old.qty+=qty;categoryCounts.set(key,old);
+        totalItems+=qty;
+        if(isPizzaCategory(cat))pizzaTotal+=qty;
+      } else {
+        const key='__senza_categoria__',old=categoryCounts.get(key)||{id:key,name:'Altri prodotti',qty:0};
+        old.qty+=qty;categoryCounts.set(key,old);totalItems+=qty;
+      }
+      const selected=[...(line.modifiers||[]),...(line.slots||[]).flatMap(slot=>slot.modifiers||[])];
+      selected.forEach(m=>{
+        if(!isDoughModifier(m,modifierGroups))return;
+        const raw=String(m.name||'').trim();
+        const label=(raw.includes(':')?raw.slice(raw.indexOf(':')+1):raw).trim()||'Impasto non specificato';
+        const k=norm(label);
+        const item=doughCounts.get(k)||{name:label,qty:0};
+        item.qty+=qty;doughCounts.set(k,item);
+      });
+    });
+    return {
+      totalItems,pizzaTotal,
+      categories:[...categoryCounts.values()].sort((a,b)=>a.name.localeCompare(b.name,'it')),
+      doughs:[...doughCounts.values()].sort((a,b)=>a.name.localeCompare(b.name,'it'))
+    };
+  }
+  const summaryHtml=(lines,cats,groups,compact=false)=>{
+    const s=buildProductionSummary(lines,cats,groups);
+    if(!s.totalItems)return '';
+    const catRows=s.categories.map(x=>`<div class="am-prod-row"><span>${esc(x.name)}</span><b>${x.qty}</b></div>`).join('');
+    const doughRows=s.doughs.map(x=>`<div class="am-prod-row am-prod-dough"><span>${esc(x.name)}</span><b>${x.qty}</b></div>`).join('');
+    return `<section class="am-prod-summary ${compact?'am-prod-print':''}">
+      <div class="am-prod-head"><strong>RIEPILOGO PRODUZIONE</strong><span>${s.pizzaTotal} pizze</span></div>
+      <div class="am-prod-section"><b>QUANTITÀ PER CATEGORIA</b>${catRows}</div>
+      ${doughRows?`<div class="am-prod-section"><b>IMPASTI / LAVORAZIONI</b>${doughRows}</div>`:`<div class="am-prod-empty">Nessun impasto o formato speciale selezionato</div>`}
+    </section>`;
+  };
+  const style=document.createElement('style');
+  style.textContent=`
+    .am-prod-summary{margin:12px 0;padding:11px;border:2px solid #168a52;border-radius:12px;background:#effaf3;color:#17202a;font-size:.9rem}
+    .am-prod-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid #9ac9aa;font-size:.95rem}
+    .am-prod-head span{background:#168a52;color:#fff;border-radius:8px;padding:5px 8px;font-weight:900;white-space:nowrap}
+    .am-prod-section{margin-top:8px}.am-prod-section> b{display:block;font-size:.7rem;letter-spacing:.05em;color:#37644a;margin-bottom:3px}
+    .am-prod-row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dotted #b9d7c3}
+    .am-prod-row b{font-size:1rem;min-width:25px;text-align:right}
+    .am-prod-dough{font-weight:750}.am-prod-empty{font-size:.78rem;color:#647184;margin-top:8px}
+    #print-area .am-prod-summary{font-family:Arial,sans-serif;color:#000;background:#fff;border:2px solid #000;border-radius:0;padding:5px;margin:7px 0;font-size:11px;break-inside:avoid;page-break-inside:avoid}
+    #print-area .am-prod-head{border-bottom:1px solid #000;font-size:13px;padding-bottom:4px}
+    #print-area .am-prod-head span{background:#fff;color:#000;border:1px solid #000;border-radius:0;padding:2px 5px}
+    #print-area .am-prod-section{margin-top:5px}#print-area .am-prod-section>b{color:#000;font-size:9px}
+    #print-area .am-prod-row{padding:2px 0;border-bottom:1px dotted #777;font-size:11px}
+  `;
+  document.head.appendChild(style);
+
+  const baseRenderEntry=renderEntry;
+  renderEntry=function(){
+    const result=baseRenderEntry.apply(this,arguments);
+    try{
+      const aside=document.querySelector('#view-entry .sticky-card');
+      if(aside){
+        aside.querySelector('.am-prod-summary')?.remove();
+        const total=aside.querySelector('.total-box');
+        const html=summaryHtml(state.draft?.lines||[],state.categories||[],state.modifierGroups||[]);
+        if(total&&html)total.insertAdjacentHTML('beforebegin',html);
+      }
+    }catch(e){console.warn('Riepilogo produzione carrello',e)}
+    return result;
+  };
+
+  const basePrintOrder=printOrder;
+  printOrder=function(order,type){
+    const result=basePrintOrder.apply(this,arguments);
+    try{
+      const area=document.querySelector('#print-area');
+      const html=summaryHtml(order?.lines||[],state.categories||[],state.modifierGroups||[],true);
+      if(area&&html){
+        const footer=area.querySelector('div[style*="text-align:center"]');
+        const anchor=area.querySelector('.print-note,.print-total')||footer?.previousElementSibling||null;
+        if(anchor)anchor.insertAdjacentHTML('beforebegin',html);
+        else area.insertAdjacentHTML('beforeend',html);
+      }
+    }catch(e){console.warn('Riepilogo produzione stampa',e)}
+    return result;
+  };
+
+  // Collaudo automatico puro: non modifica ordini, menu, giacenze o dati salvati.
+  function selfTest(){
+    const cats=[
+      {id:'pizze',name:'Pizze',type:'standard',items:[]},
+      {id:'baby',name:'Baby',type:'standard',items:[]},
+      {id:'metro',name:'Mezzo metro',type:'multi',items:[]},
+      {id:'panini',name:'Panini',type:'standard',items:[]}
+    ];
+    const groups=[{id:'impasti',name:'Impasti',items:[
+      {id:'int',name:'Integrale'},{id:'ver',name:'Verace'},{id:'kam',name:'Kamut'},{id:'dp',name:'Doppia pasta'}
+    ]}];
+    const sample=[
+      {categoryId:'pizze',qty:6,modifiers:[{modifierId:'int',name:'Impasti: Integrale'}]},
+      {categoryId:'baby',qty:1,modifiers:[{modifierId:'ver',name:'Impasti: Verace'}]},
+      {categoryId:'metro',qty:1,slots:[{modifiers:[{modifierId:'kam',name:'Impasti: Kamut'}]}]},
+      {categoryId:'panini',qty:1,modifiers:[{modifierId:'dp',name:'Impasti: Doppia pasta'}]}
+    ];
+    const got=buildProductionSummary(sample,cats,groups);
+    const checks=[
+      ['categorie conteggiate',got.categories.length===4],
+      ['quantità complessive',got.totalItems===9],
+      ['pizze e formati pizza',got.pizzaTotal===8],
+      ['integrale',got.doughs.find(x=>norm(x.name)==='integrale')?.qty===6],
+      ['verace',got.doughs.find(x=>norm(x.name)==='verace')?.qty===1],
+      ['kamut nei gusti multi',got.doughs.find(x=>norm(x.name)==='kamut')?.qty===1],
+      ['doppia pasta',got.doughs.find(x=>norm(x.name)==='doppia pasta')?.qty===1],
+      ['quantità zero ignorata',buildProductionSummary([{categoryId:'pizze',qty:0}],cats,groups).totalItems===0]
+    ];
+    const large=Array.from({length:10000},(_,i)=>({categoryId:cats[i%4].id,qty:(i%3)+1,modifiers:i%4===0?[{modifierId:'int',name:'Impasti: Integrale'}]:[]}));
+    const t0=performance.now();const stress=buildProductionSummary(large,cats,groups);const elapsed=performance.now()-t0;
+    checks.push(['stress test 10.000 righe',stress.totalItems===19999&&Number.isFinite(elapsed)]);
+    return {version:'V1',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]})),stressRows:large.length,stressMilliseconds:Math.round(elapsed*100)/100,example:got};
+  }
+  const result=selfTest();
+  window.AmalfitanaProductionCounterDiagnostics={
+    version:'V1',
+    build:(lines)=>buildProductionSummary(lines,state.categories||[],state.modifierGroups||[]),
+    selfTest:()=>selfTest(),
+    result
+  };
+  console.info('Collaudo riepilogo produzione',result);
+})();
 </script>
+
 </body>
 </html>
