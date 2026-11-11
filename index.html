@@ -6174,5 +6174,231 @@ console.info('Collaudo stampa V35',window.AmalfitanaPrintV35.result);
 })();
 </script>
 
+
+<script id="amalfitana-v41-print-style-controls">
+(function(){
+  'use strict';
+  if(window.AmalfitanaV41PrintStyles)return;
+
+  const DEFAULTS={
+    product:{size:14,style:'normal'},
+    modifierAll:{size:14,style:'normal'},
+    mode:'all',
+    groups:{}
+  };
+  const clamp=(v,min,max,def)=>Math.max(min,Math.min(max,Math.round(Number(v)||def)));
+  const validStyle=v=>['normal','bold','highlight'].includes(String(v))?String(v):'normal';
+  const escHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function ensure(){
+    if(typeof state==='undefined'||!state.settings)return JSON.parse(JSON.stringify(DEFAULTS));
+    const p=state.settings.print||(state.settings.print={});
+    let r=p.v41TextRules;
+    if(!r||typeof r!=='object')r=p.v41TextRules={};
+    if(!r.product||typeof r.product!=='object')r.product={...DEFAULTS.product};
+    if(!r.modifierAll||typeof r.modifierAll!=='object')r.modifierAll={...DEFAULTS.modifierAll};
+    if(!r.groups||typeof r.groups!=='object')r.groups={};
+    r.product.size=clamp(r.product.size,9,28,14);
+    r.product.style=validStyle(r.product.style);
+    r.modifierAll.size=clamp(r.modifierAll.size,9,28,14);
+    r.modifierAll.style=validStyle(r.modifierAll.style);
+    r.mode=r.mode==='individual'?'individual':'all';
+    return r;
+  }
+  function styleSelect(id,value){
+    return `<select class="input" id="${id}" data-v41-style-select="${id}"><option value="normal"${value==='normal'?' selected':''}>Normale</option><option value="bold"${value==='bold'?' selected':''}>Grassetto</option><option value="highlight"${value==='highlight'?' selected':''}>Evidenziato</option></select>`;
+  }
+  function slider(id,label,value){
+    return `<div class="field v41-print-control"><label for="${id}">${label}: <b data-v41-size-label="${id}">${value} px</b></label><input class="input" type="range" id="${id}" data-v41-size="${id}" min="9" max="28" step="1" value="${value}"></div>`;
+  }
+  function groupRows(r){
+    const groups=(typeof state!=='undefined'&&Array.isArray(state.modifierGroups))?state.modifierGroups:[];
+    if(!groups.length)return '<p class="order-meta">Non ci sono gruppi modificatori configurati.</p>';
+    return groups.map(g=>{
+      const id=String(g.id),safe=escHtml(id),current=r.groups[id]||{};
+      const enabled=current.enabled===true;
+      const size=clamp(current.size??r.modifierAll.size,9,28,r.modifierAll.size);
+      const style=validStyle(current.style??r.modifierAll.style);
+      return `<section class="v41-modifier-rule" data-v41-group-row="${safe}">
+        <label class="switch"><input type="checkbox" data-v41-group-enabled="${safe}"${enabled?' checked':''}><b>${escHtml(g.name||'Gruppo senza nome')}</b> <small>Usa impostazioni specifiche</small></label>
+        <div class="grid two v41-group-options"${enabled?'':' hidden'}>
+          ${slider('v41-group-size-'+safe,'Dimensione testo',size)}
+          <div class="field"><label for="v41-group-style-${safe}">Stile</label>${styleSelect('v41-group-style-'+safe,style)}</div>
+        </div>
+      </section>`;
+    }).join('');
+  }
+  function panelHtml(){
+    const r=ensure();
+    return `<div class="v41-print-style-panel" id="v41PrintStyleSettings">
+      <h3>Dimensione e stile di pizze e modificatori</h3>
+      <p class="order-meta">Puoi impostare dimensione e aspetto del testo stampato. Le modifiche sono indipendenti dalla dimensione dei pulsanti nella schermata Ordini.</p>
+      <section class="v41-print-rule">
+        <h4>Pizze e prodotti</h4>
+        ${slider('v41-product-size','Dimensione testo prodotti',r.product.size)}
+        <div class="field"><label for="v41-product-style">Stile prodotti</label>${styleSelect('v41-product-style',r.product.style)}</div>
+      </section>
+      <section class="v41-print-rule">
+        <h4>Aggiunte e modificatori</h4>
+        <div class="field"><label for="v41-mode">Applicazione delle impostazioni</label><select class="input" id="v41-mode"><option value="all"${r.mode==='all'?' selected':''}>Applica a tutti i modificatori</option><option value="individual"${r.mode==='individual'?' selected':''}>Personalizza singoli gruppi</option></select></div>
+        <div class="grid two">
+          ${slider('v41-modifier-size','Dimensione predefinita modificatori',r.modifierAll.size)}
+          <div class="field"><label for="v41-modifier-style">Stile predefinito modificatori</label>${styleSelect('v41-modifier-style',r.modifierAll.style)}</div>
+        </div>
+        <div class="v41-group-rules"${r.mode==='individual'?'':' hidden'}>
+          <h4>Personalizzazione per gruppo</h4>
+          ${groupRows(r)}
+        </div>
+      </section>
+      <div class="row"><button type="button" class="btn ghost" data-action="v41-print-style-reset">Ripristina dimensioni e stili</button></div>
+      <p class="order-meta">Normale = testo standard · Grassetto = testo marcato · Evidenziato = testo in grassetto con fondo giallo e bordo. La scelta singola prevale sullo stile generale solo per il gruppo selezionato.</p>
+    </div>`;
+  }
+  function appendPanel(){
+    const host=document.getElementById('v37PrintTextSettings');
+    if(!host)return;
+    const existing=document.getElementById('v41PrintStyleSettings');
+    const fresh=panelHtml();
+    if(existing)existing.outerHTML=fresh;
+    else host.insertAdjacentHTML('beforeend',fresh);
+  }
+  function sync(){
+    const r=ensure();
+    const panel=document.getElementById('v41PrintStyleSettings');
+    if(!panel)return;
+    const mode=panel.querySelector('#v41-mode');if(mode)mode.value=r.mode;
+    const ps=panel.querySelector('#v41-product-size');if(ps)ps.value=r.product.size;
+    const pst=panel.querySelector('#v41-product-style');if(pst)pst.value=r.product.style;
+    const ms=panel.querySelector('#v41-modifier-size');if(ms)ms.value=r.modifierAll.size;
+    const mst=panel.querySelector('#v41-modifier-style');if(mst)mst.value=r.modifierAll.style;
+    panel.querySelectorAll('[data-v41-size]').forEach(el=>{
+      const label=panel.querySelector(`[data-v41-size-label="${el.id}"]`);
+      if(label)label.textContent=el.value+' px';
+    });
+  }
+  function persist(reason){
+    if(typeof save==='function')save(reason||'stili stampa V41');
+  }
+  function selectedRule(groupName){
+    const r=ensure();
+    if(r.mode==='individual'&&groupName){
+      const group=(state.modifierGroups||[]).find(g=>String(g.name||'').toLocaleLowerCase('it-IT')===String(groupName).toLocaleLowerCase('it-IT'));
+      const own=group&&r.groups[String(group.id)];
+      if(own?.enabled)return {size:clamp(own.size,9,28,r.modifierAll.size),style:validStyle(own.style)};
+    }
+    return r.modifierAll;
+  }
+  function productRule(){return ensure().product}
+  function decorateMod(html,mod){
+    const raw=String(mod?.name||'').trim(),colon=raw.indexOf(':');
+    const groupName=colon>0?raw.slice(0,colon).trim():'';
+    const rule=selectedRule(groupName);
+    const style=validStyle(rule.style),size=clamp(rule.size,9,28,14);
+    const visual=style==='highlight'
+      ? `font-weight:900!important;background:#fff09a!important;border:1px solid #111!important;padding:1px 4px!important;`
+      : style==='bold' ? 'font-weight:900!important;' : 'font-weight:400!important;';
+    return String(html).replace(/class="print-mod([^"]*)"/,`class="print-mod$1 v41-print-mod" data-v41-style="${style}" data-v41-size="${size}" style="font-size:${size}px!important;line-height:1.25!important;${visual}"`);
+  }
+
+  if(typeof window.renderSettings==='function'){
+    const base=window.renderSettings;
+    window.renderSettings=function(){const out=base.apply(this,arguments);try{appendPanel();sync()}catch(e){console.error('V41 pannello stili stampa',e)}return out};
+  }
+  document.addEventListener('input',e=>{
+    const el=e.target.closest('[data-v41-size]');
+    if(!el)return;
+    const r=ensure(),id=el.id,value=clamp(el.value,9,28,14);
+    if(id==='v41-product-size')r.product.size=value;
+    else if(id==='v41-modifier-size')r.modifierAll.size=value;
+    else if(id.startsWith('v41-group-size-')){
+      const groupId=id.slice('v41-group-size-'.length);
+      r.groups[groupId]=r.groups[groupId]||{enabled:true};
+      r.groups[groupId].size=value;r.groups[groupId].enabled=true;
+    }
+    const label=document.querySelector(`[data-v41-size-label="${id}"]`);
+    if(label)label.textContent=value+' px';
+    persist('dimensione stampa V41');
+  });
+  document.addEventListener('change',e=>{
+    const el=e.target;
+    if(el.id==='v41-mode'){ensure().mode=el.value==='individual'?'individual':'all';appendPanel();sync();persist('modalità stili stampa V41');return}
+    if(el.dataset.v41StyleSelect){
+      const r=ensure(),id=el.id;
+      if(id==='v41-product-style')r.product.style=validStyle(el.value);
+      else if(id==='v41-modifier-style')r.modifierAll.style=validStyle(el.value);
+      else if(id.startsWith('v41-group-style-')){
+        const groupId=id.slice('v41-group-style-'.length);
+        r.groups[groupId]=r.groups[groupId]||{enabled:true};
+        r.groups[groupId].style=validStyle(el.value);r.groups[groupId].enabled=true;
+      }
+      persist('stile stampa V41');return;
+    }
+    if(el.matches('[data-v41-group-enabled]')){
+      const groupId=el.dataset.v41GroupEnabled,r=ensure();
+      r.groups[groupId]=r.groups[groupId]||{};
+      r.groups[groupId].enabled=el.checked;
+      const row=el.closest('[data-v41-group-row]'),opts=row?.querySelector('.v41-group-options');
+      if(opts)opts.hidden=!el.checked;
+      persist('attivazione stile gruppo V41');
+    }
+  });
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v41-print-style-reset"]');
+    if(!b)return;
+    e.preventDefault();
+    const p=state.settings.print||(state.settings.print={});
+    p.v41TextRules=JSON.parse(JSON.stringify(DEFAULTS));
+    appendPanel();sync();persist('ripristino stili stampa V41');
+    if(typeof toast==='function')toast('Dimensioni e stili di stampa ripristinati');
+  });
+
+  if(typeof window.printMod==='function'){
+    const basePrintMod=window.printMod;
+    window.printMod=function(mod){return decorateMod(basePrintMod.apply(this,arguments),mod)};
+  }
+  if(typeof window.amalPrintLine==='function'){
+    const baseLine=window.amalPrintLine;
+    window.amalPrintLine=function(line,type,options){
+      const out=baseLine.apply(this,arguments),r=productRule();
+      const style=validStyle(r.style),size=clamp(r.size,9,28,14);
+      const visual=style==='highlight'
+        ? 'font-weight:900!important;background:#fff09a!important;border:1px solid #111!important;padding:2px 3px!important;'
+        : style==='bold'?'font-weight:900!important;':'font-weight:400!important;';
+      return String(out).replace(/class="print-line([^"]*)"/,`class="print-line$1 v41-product-print" data-v41-style="${style}" data-v41-size="${size}" style="font-size:${size}px!important;line-height:1.25!important;${visual}"`);
+    };
+  }
+  const css=document.createElement('style');
+  css.id='amalfitana-v41-print-style-css';
+  css.textContent=`
+    .v41-print-style-panel{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+    .v41-print-style-panel h3{margin:0 0 8px}
+    .v41-print-rule{border:1px solid var(--line);border-radius:10px;padding:10px;margin:9px 0}
+    .v41-print-rule h4{margin:0 0 8px}
+    .v41-group-rules{margin-top:10px}
+    .v41-modifier-rule{border-top:1px dashed var(--line);padding:9px 0}
+    .v41-group-options[hidden],.v41-group-rules[hidden]{display:none!important}
+    .v41-print-control input[type=range]{width:100%}
+  `;
+  document.head.appendChild(css);
+
+  const previousV40=window.AmalfitanaV40ModifierSizing;
+  function selfTest(){
+    const r=ensure(),checks=[
+      ['impostazioni prodotti distinte dai modificatori',!!r.product&&!!r.modifierAll],
+      ['modalità applica a tutti o singoli gruppi',r.mode==='all'||r.mode==='individual'],
+      ['stili validi normale/grassetto/evidenziato',['normal','bold','highlight'].every(x=>validStyle(x)===x)],
+      ['dimensioni limitate 9–28 px',r.product.size>=9&&r.product.size<=28&&r.modifierAll.size>=9&&r.modifierAll.size<=28],
+      ['regole per gruppo isolate',!!r.groups&&typeof r.groups==='object'],
+      ['decorazione modificatori disponibile',typeof decorateMod==='function'],
+      ['pannello stampa senza duplicati',document.querySelectorAll('#v41PrintStyleSettings').length<=1],
+      ['diagnostica V40 mantenuta',!!previousV40?.selfTest],
+      ['stili evidenziazione e grassetto applicabili',decorateMod.toString().includes('background:#fff09a')&&decorateMod.toString().includes('font-weight:900')]
+    ];
+    return {version:'V41',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]}))};
+  }
+  window.AmalfitanaV41PrintStyles={settings:()=>JSON.parse(JSON.stringify(ensure())),selectedRule,decorateMod,selfTest};
+  console.info('Collaudo V41 stili stampa',selfTest());
+})();
+</script>
+
 </body>
 </html>
