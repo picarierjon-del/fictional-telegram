@@ -5574,5 +5574,267 @@ console.info('Collaudo stampa V35',window.AmalfitanaPrintV35.result);
 })();
 </script>
 
+
+<script id="amalfitana-v37-print-and-alpha-customization">
+(function(){
+  'use strict';
+  const V37_DEFAULTS = {
+    noteSectionTitle: 'NOTE PER FORNO / PREPARAZIONE',
+    orderNotesTitle: 'NOTE ORDINE',
+    orderSummaryTitle: 'RIEPILOGO ORDINE',
+    productionTitle: 'PRODUZIONE',
+    productionCategoryTitle: 'CATEGORIE',
+    productionDoughTitle: 'IMPASTI',
+    notesExtraText: '',
+    productionExtraText: '',
+    alphaBarHeight: 36,
+    alphaBarFontSize: 14,
+    modifierBarHeight: 32,
+    modifierBarFontSize: 13
+  };
+
+  function v37PrintSettings(){
+    if(typeof state==='undefined' || !state.settings) return {...V37_DEFAULTS};
+    const p = state.settings.print || (state.settings.print = {});
+    Object.keys(V37_DEFAULTS).forEach(k=>{
+      if(p[k]===undefined || p[k]===null) p[k]=V37_DEFAULTS[k];
+    });
+    p.alphaBarHeight = Math.max(22,Math.min(60,Number(p.alphaBarHeight)||V37_DEFAULTS.alphaBarHeight));
+    p.alphaBarFontSize = Math.max(10,Math.min(22,Number(p.alphaBarFontSize)||V37_DEFAULTS.alphaBarFontSize));
+    p.modifierBarHeight = Math.max(22,Math.min(60,Number(p.modifierBarHeight)||V37_DEFAULTS.modifierBarHeight));
+    p.modifierBarFontSize = Math.max(10,Math.min(22,Number(p.modifierBarFontSize)||V37_DEFAULTS.modifierBarFontSize));
+    return p;
+  }
+  const escV37 = v => String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  function v37SetBarVars(){
+    const p=v37PrintSettings(), root=document.documentElement;
+    root.style.setProperty('--v37-alpha-bar-height',`${p.alphaBarHeight}px`);
+    root.style.setProperty('--v37-alpha-bar-font',`${p.alphaBarFontSize}px`);
+    root.style.setProperty('--v37-mod-bar-height',`${p.modifierBarHeight}px`);
+    root.style.setProperty('--v37-mod-bar-font',`${p.modifierBarFontSize}px`);
+  }
+  function v37RangeRow(label,name,value,min,max,help){
+    return `<div class="field v37-range-row"><label for="${name}">${label}: <b data-v37-value="${name}">${value}px</b></label><input class="input" style="padding:4px 0;min-height:32px" type="range" id="${name}" name="${name}" data-v37-range="${name}" min="${min}" max="${max}" step="1" value="${value}"><small class="order-meta">${help||''}</small></div>`;
+  }
+  function v37PrintSettingsHtml(p){
+    return `<div class="card stack" id="v37PrintTextSettings">
+      <div><h2>Testi personalizzabili della comanda</h2><div class="order-meta">Modifica le intestazioni e i testi aggiuntivi. Lascia vuoto un campo aggiuntivo se non vuoi stamparlo. Le modifiche vengono salvate insieme al profilo stampante.</div></div>
+      <div class="grid two">
+        <div class="field"><label for="v37-noteSectionTitle">Titolo note per forno / preparazione</label><input class="input" id="v37-noteSectionTitle" name="v37-noteSectionTitle" value="${escV37(p.noteSectionTitle)}"></div>
+        <div class="field"><label for="v37-orderNotesTitle">Titolo note ordine</label><input class="input" id="v37-orderNotesTitle" name="v37-orderNotesTitle" value="${escV37(p.orderNotesTitle)}"></div>
+        <div class="field"><label for="v37-orderSummaryTitle">Titolo riepilogo ordine</label><input class="input" id="v37-orderSummaryTitle" name="v37-orderSummaryTitle" value="${escV37(p.orderSummaryTitle)}"></div>
+        <div class="field"><label for="v37-productionTitle">Titolo riepilogo produzione</label><input class="input" id="v37-productionTitle" name="v37-productionTitle" value="${escV37(p.productionTitle)}"></div>
+        <div class="field"><label for="v37-productionCategoryTitle">Etichetta categorie</label><input class="input" id="v37-productionCategoryTitle" name="v37-productionCategoryTitle" value="${escV37(p.productionCategoryTitle)}"></div>
+        <div class="field"><label for="v37-productionDoughTitle">Etichetta impasti / lavorazioni</label><input class="input" id="v37-productionDoughTitle" name="v37-productionDoughTitle" value="${escV37(p.productionDoughTitle)}"></div>
+      </div>
+      <div class="field"><label for="v37-notesExtraText">Testo aggiuntivo fisso sotto le note</label><textarea class="input" id="v37-notesExtraText" name="v37-notesExtraText" rows="2" placeholder="Facoltativo: istruzioni generali per forno e preparazione">${escV37(p.notesExtraText)}</textarea></div>
+      <div class="field"><label for="v37-productionExtraText">Testo aggiuntivo sotto il riepilogo produzione</label><textarea class="input" id="v37-productionExtraText" name="v37-productionExtraText" rows="2" placeholder="Facoltativo: promemoria per il personale">${escV37(p.productionExtraText)}</textarea></div>
+      <div class="notice">Questi campi personalizzano i titoli e aggiungono eventuali promemoria: non sostituiscono le note specifiche inserite nel singolo ordine.</div>
+      <div class="row"><button type="button" class="btn primary" data-action="v37-save-print-text">Salva testi stampa</button><button type="button" class="btn ghost" data-action="v37-reset-print-text">Ripristina testi predefiniti</button></div>
+    </div>`;
+  }
+  function v37AlphaControlsHtml(kind,p){
+    const isMod=kind==='modifier';
+    const h=isMod?p.modifierBarHeight:p.alphaBarHeight;
+    const f=isMod?p.modifierBarFontSize:p.alphaBarFontSize;
+    const prefix=isMod?'v37-mod':'v37-alpha';
+    return `<div class="v37-alpha-controls" data-v37-alpha-controls="${kind}">
+      <h3>Dimensione striscia della lettera</h3>
+      <div class="grid two">
+        ${v37RangeRow('Spessore / altezza',`${prefix}-height`,h,22,60,'Regola l’altezza della fascia colorata.')}
+        ${v37RangeRow('Dimensione carattere',`${prefix}-font`,f,10,22,'Regola la grandezza della lettera e del conteggio.')}
+      </div>
+      <small class="order-meta">La modifica si vede subito nelle schermate prodotti e modificatori.</small>
+    </div>`;
+  }
+  function v37AppendSettings(){
+    if(typeof ui==='undefined' || typeof state==='undefined') return;
+    const p=v37PrintSettings();
+    const printPanel=document.querySelector('#view-settings [data-panel="print"]');
+    if(ui.settingsTab==='print' && printPanel && !document.getElementById('v37PrintTextSettings')){
+      printPanel.insertAdjacentHTML('beforeend',v37PrintSettingsHtml(p));
+    }
+    const menuCard=document.getElementById('v1234AlphabetCard');
+    if(menuCard && !menuCard.querySelector('[data-v37-alpha-controls="product"]')){
+      menuCard.insertAdjacentHTML('beforeend',v37AlphaControlsHtml('product',p));
+    }
+    const modCard=document.getElementById('v1237ModifierAlphabetCard');
+    if(modCard && !modCard.querySelector('[data-v37-alpha-controls="modifier"]')){
+      modCard.insertAdjacentHTML('beforeend',v37AlphaControlsHtml('modifier',p));
+    }
+    v37SetBarVars();
+  }
+  if(typeof window.renderSettings==='function'){
+    const v37BaseRenderSettings=window.renderSettings;
+    window.renderSettings=function(){
+      const r=v37BaseRenderSettings.apply(this,arguments);
+      try{v37AppendSettings()}catch(e){console.error('V37 impostazioni UI',e)}
+      return r;
+    };
+  }
+
+  function v37ReadPrintFields(){
+    const p=v37PrintSettings();
+    const keys=['noteSectionTitle','orderNotesTitle','orderSummaryTitle','productionTitle','productionCategoryTitle','productionDoughTitle','notesExtraText','productionExtraText'];
+    keys.forEach(k=>{
+      const el=document.querySelector(`[name="v37-${k}"]`);
+      if(el)p[k]=String(el.value??'').trim();
+    });
+    return p;
+  }
+  async function v37SavePrintFields(reset=false){
+    const p=v37PrintSettings();
+    if(reset)Object.assign(p,V37_DEFAULTS);
+    else v37ReadPrintFields();
+    const keysForUi=['noteSectionTitle','orderNotesTitle','orderSummaryTitle','productionTitle','productionCategoryTitle','productionDoughTitle','notesExtraText','productionExtraText'];
+    if(typeof persistStateNow==='function')await persistStateNow('personalizzazione testi stampa V37');
+    else if(typeof save==='function')save('personalizzazione testi stampa V37');
+    keysForUi.forEach(k=>{const el=document.querySelector(`[name="v37-${k}"]`);if(el)el.value=p[k]??'';});
+    v37AppendSettings();
+    if(typeof toast==='function')toast(reset?'Testi stampa ripristinati':'Testi stampa salvati');
+  }
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v37-save-print-text"],[data-action="v37-reset-print-text"]');
+    if(!b)return;
+    e.preventDefault();
+    const reset=b.dataset.action==='v37-reset-print-text';
+    const run=()=>v37SavePrintFields(reset);
+    if(typeof v1232PromptAdmin==='function')v1232PromptAdmin(run);else run();
+  },true);
+
+  document.addEventListener('input',e=>{
+    const t=e.target;
+    if(t.matches('[data-v37-range]')){
+      const p=v37PrintSettings(),name=t.dataset.v37Range;
+      const val=Math.max(Number(t.min)||0,Math.min(Number(t.max)||100,Number(t.value)||0));
+      if(name==='v37-alpha-height')p.alphaBarHeight=val;
+      if(name==='v37-alpha-font')p.alphaBarFontSize=val;
+      if(name==='v37-mod-height')p.modifierBarHeight=val;
+      if(name==='v37-mod-font')p.modifierBarFontSize=val;
+      const label=document.querySelector(`[data-v37-value="${name}"]`);
+      if(label)label.textContent=`${val}px`;
+      v37SetBarVars();
+      if(typeof save==='function')save('dimensione striscia lettera V37');
+    }
+  });
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v1234-save-alpha"],[data-action="v1234-reset-alpha"],[data-action="v1237-save"],[data-action="v1237-reset"]');
+    if(!b)return;
+    // Gli slider aggiornano direttamente state.settings.print: la persistenza avviene con il salvataggio alfabetico già esistente.
+    setTimeout(v37SetBarVars,0);
+  },true);
+
+  const v37Style=document.createElement('style');
+  v37Style.textContent=`
+    .v37-alpha-controls{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+    .v37-alpha-controls h3{margin:0 0 8px}
+    .v37-range-row{min-width:0}
+    .v37-range-row input[type=range]{accent-color:var(--accent);width:100%}
+    .alpha-letter-bar{height:var(--v37-alpha-bar-height,36px)!important;min-height:var(--v37-alpha-bar-height,36px)!important;padding:0 12px!important;font-size:var(--v37-alpha-bar-font,14px)!important;line-height:1.05!important;box-sizing:border-box!important}
+    .alpha-letter-bar small{font-size:calc(var(--v37-alpha-bar-font,14px) * .72)!important}
+    .mod-alpha-letter-bar{height:var(--v37-mod-bar-height,32px)!important;min-height:var(--v37-mod-bar-height,32px)!important;padding:0 10px!important;font-size:var(--v37-mod-bar-font,13px)!important;line-height:1.05!important;box-sizing:border-box!important}
+    .mod-alpha-letter-bar small{font-size:calc(var(--v37-mod-bar-font,13px) * .72)!important}
+    #print-area .v37-print-extra{font-size:9px;line-height:1.15;margin:2px 0;white-space:pre-wrap;font-weight:700}
+  `;
+  document.head.appendChild(v37Style);
+
+  function v37ReplaceLiteral(html,from,to){
+    if(!from || from===to)return html;
+    return String(html).split(from).join(escV37(to));
+  }
+  function v37DecoratePrintArea(){
+    const area=document.getElementById('print-area');
+    if(!area)return;
+    const p=v37PrintSettings();
+    // Personalizza titoli della stampa diretta senza toccare i dati dell'ordine.
+    const replacements=[
+      ['RIEPILOGO ORDINE',p.orderSummaryTitle],
+      ['NOTE ORDINE:',`${p.orderNotesTitle}:`],
+      ['NOTE PER FORNO / PREPARAZIONE',p.noteSectionTitle]
+    ];
+    let html=area.innerHTML;
+    replacements.forEach(([a,b])=>{html=v37ReplaceLiteral(html,a,b)});
+    area.innerHTML=html;
+    const noteBox=[...area.querySelectorAll('.print-note')].find(x=>x.textContent.includes(p.orderNotesTitle));
+    if(noteBox && p.notesExtraText && !noteBox.querySelector('.v37-print-extra')){
+      noteBox.insertAdjacentHTML('beforeend',`<div class="v37-print-extra">${escV37(p.notesExtraText)}</div>`);
+    }
+  }
+  // Il renderer del riepilogo viene usato da carrello, stampa diretta e postazioni.
+  const diag=window.AmalfitanaProductionCounterDiagnostics;
+  if(diag && typeof diag.render==='function'){
+    const old=diag.render;
+    diag.render=function(lines,compact=true){
+      const p=v37PrintSettings();
+      let html=old.apply(this,arguments);
+      html=v37ReplaceLiteral(html,'RIEPILOGO PRODUZIONE',p.productionTitle);
+      html=v37ReplaceLiteral(html,'PRODUZIONE',p.productionTitle);
+      html=v37ReplaceLiteral(html,'CATEGORIE:',`${p.productionCategoryTitle}:`);
+      html=v37ReplaceLiteral(html,'IMPASTI:',`${p.productionDoughTitle}:`);
+      if(p.productionExtraText && compact){
+        html=html.replace('</section>',`<div class="v37-print-extra">${escV37(p.productionExtraText)}</div></section>`);
+      }
+      return html;
+    };
+  }
+  if(typeof window.printOrder==='function'){
+    const oldPrint=window.printOrder;
+    window.printOrder=function(){
+      const r=oldPrint.apply(this,arguments);
+      try{v37DecoratePrintArea()}catch(e){console.error('V37 personalizzazione stampa diretta',e)}
+      return r;
+    };
+  }
+  if(typeof window.stationOrderHtml==='function'){
+    const oldStation=window.stationOrderHtml;
+    window.stationOrderHtml=function(){
+      let html=oldStation.apply(this,arguments);
+      const p=v37PrintSettings();
+      html=v37ReplaceLiteral(html,'NOTE PER FORNO / PREPARAZIONE',p.noteSectionTitle);
+      html=v37ReplaceLiteral(html,'NOTE ORDINE:',`${p.orderNotesTitle}:`);
+      html=v37ReplaceLiteral(html,'PRODUZIONE',p.productionTitle);
+      html=v37ReplaceLiteral(html,'CATEGORIE:',`${p.productionCategoryTitle}:`);
+      html=v37ReplaceLiteral(html,'IMPASTI:',`${p.productionDoughTitle}:`);
+      if(p.notesExtraText)html=html.replace(/(<section class="amal-print-section amal-print-notes">[\s\S]*?<\/section>)/g,block=>block.replace('</section>',`<div class="v37-print-extra">${escV37(p.notesExtraText)}</div></section>`));
+      return html;
+    };
+  }
+  // Salva i testi aggiuntivi anche quando si usa il pulsante generale "Salva tutto".
+  if(typeof window.saveSettingsForm==='function'){
+    const oldSave=window.saveSettingsForm;
+    window.saveSettingsForm=function(){
+      if(ui?.settingsTab==='print' && document.getElementById('v37PrintTextSettings'))v37ReadPrintFields();
+      const r=oldSave.apply(this,arguments);
+      if(ui?.settingsTab==='print'){
+        if(typeof persistStateNow==='function')persistStateNow('salva tutto testi stampa V37');
+        else if(typeof save==='function')save('salva tutto testi stampa V37');
+      }
+      return r;
+    };
+  }
+  function v37SelfTest(){
+    const p=v37PrintSettings();
+    const checks=[
+      ['campi testo stampa inizializzati',!!p.noteSectionTitle&&!!p.productionTitle],
+      ['altezza striscia prodotto nel range',p.alphaBarHeight>=22&&p.alphaBarHeight<=60],
+      ['altezza striscia modificatori nel range',p.modifierBarHeight>=22&&p.modifierBarHeight<=60],
+      ['etichette note configurabili',typeof p.orderNotesTitle==='string'&&typeof p.noteSectionTitle==='string'],
+      ['etichette produzione configurabili',typeof p.productionCategoryTitle==='string'&&typeof p.productionDoughTitle==='string'],
+      ['testi aggiuntivi gestiti come stringhe',typeof p.notesExtraText==='string'&&typeof p.productionExtraText==='string'],
+      ['renderer riepilogo produzione disponibile',!!window.AmalfitanaProductionCounterDiagnostics?.render],
+      ['stampa diretta disponibile',typeof window.printOrder==='function'],
+      ['stampa postazioni disponibile',typeof window.stationOrderHtml==='function']
+    ];
+    const large=Array.from({length:10000},(_,i)=>({name:`Test ${i}`,categoryId:`c${i%5}`,qty:1}));
+    const t=performance.now();const grouped=typeof amalGroupLines==='function'?amalGroupLines(large):null;const ms=performance.now()-t;
+    checks.push(['stress test 10.000 righe',!!grouped&&grouped.food.length+grouped.notes.length+grouped.drinks.length===10000&&Number.isFinite(ms)]);
+    return {version:'V37',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]})),stressRows:large.length,stressMilliseconds:+ms.toFixed(2)};
+  }
+  window.AmalfitanaV37Diagnostics={selfTest:v37SelfTest};
+  v37SetBarVars();
+  console.info('Collaudo V37',v37SelfTest());
+})();
+</script>
+
 </body>
 </html>
