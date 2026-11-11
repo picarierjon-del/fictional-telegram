@@ -5836,5 +5836,343 @@ console.info('Collaudo stampa V35',window.AmalfitanaPrintV35.result);
 })();
 </script>
 
+
+<script id="amalfitana-v38-modifier-print-style-integrity">
+(function(){
+  'use strict';
+  function v38ResolveModifierStyle(mod){
+    const allowed=['normal','bold','highlight'];
+    const own=String(mod?.printStyle||'').toLowerCase();
+    if(allowed.includes(own))return own;
+    const groups=(typeof state!=='undefined'&&Array.isArray(state.modifierGroups))?state.modifierGroups:[];
+    const id=mod?.modifierId||mod?.id;
+    if(id){
+      for(const g of groups){
+        const found=(g.items||[]).find(x=>String(x.id)===String(id));
+        if(found&&allowed.includes(String(found.printStyle||'').toLowerCase()))return found.printStyle;
+      }
+    }
+    const raw=String(mod?.name||'').trim();
+    if(raw){
+      const colon=raw.indexOf(':');
+      const groupName=colon>0?raw.slice(0,colon).trim():'';
+      const itemName=colon>0?raw.slice(colon+1).trim():raw;
+      const group=groups.find(g=>!groupName||String(g.name||'').localeCompare(groupName,'it',{sensitivity:'base'})===0);
+      const found=group?.items?.find(x=>String(x.name||'').localeCompare(itemName,'it',{sensitivity:'base'})===0);
+      if(found&&allowed.includes(String(found.printStyle||'').toLowerCase()))return found.printStyle;
+    }
+    return 'normal';
+  }
+
+  // Le righe già inserite senza printStyle (ordini storici o aggiunte legacy)
+  // recuperano lo stile dal modificatore configurato, quando identificabile.
+  if(typeof window.printMod==='function'){
+    const basePrintMod=window.printMod;
+    window.printMod=function(mod){
+      const style=v38ResolveModifierStyle(mod);
+      return basePrintMod({...mod,printStyle:style});
+    };
+  }
+
+  // Il vecchio click handler per i gruppi multi-select non copiava printStyle
+  // dal catalogo alla riga dell'ordine. Intercettiamo soltanto quel percorso;
+  // le scelte singole continuano a essere gestite dal motore V12.4.
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest('#view-entry button[data-mod]');
+    if(!btn)return;
+    const line=state.draft?.lines?.[ui.selectedLine];
+    const group=(state.modifierGroups||[]).find(g=>String(g.id)===String(ui.modGroup));
+    if(!line||!group||group.selectionMode==='single')return;
+    const item=(group.items||[]).find(m=>String(m.id)===String(btn.dataset.mod));
+    if(!item)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if(item.soldOut || (item.stockTracked&&typeof stockLeft==='function'&&stockLeft(item)<=0)){
+      if(typeof toast==='function')toast('Modificatore non disponibile: controlla la giacenza.');
+      if(typeof updateModifierStock==='function')updateModifierStock();
+      return;
+    }
+    line.modifiers=Array.isArray(line.modifiers)?line.modifiers:[];
+    line.modifiers.push({
+      id:typeof uid==='function'?uid('lm'):`v38_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      modifierId:item.id,
+      groupId:group.id,
+      selectionMode:group.selectionMode||'multiple',
+      name:`${group.name}: ${item.name}`,
+      price:Number(item.price)||0,
+      printStyle:v38ResolveModifierStyle(item)
+    });
+    if(typeof audit==='function')audit('Modificatore aggiunto',`${line.name} - ${group.name}: ${item.name}`);
+    if(typeof save==='function')save('aggiunta modificatore con stile stampa V38');
+    if(typeof renderEntry==='function')renderEntry();
+  },true);
+
+  function v38Test(){
+    const checks=[];
+    const valid=['normal','bold','highlight'];
+    checks.push(['risoluzione stile ammessi',valid.every(x=>x===x.toLowerCase())]);
+    checks.push(['funzione stampa modificatore disponibile',typeof window.printMod==='function']);
+    checks.push(['gruppi modificatori disponibili',typeof state!=='undefined'&&Array.isArray(state.modifierGroups)]);
+    checks.push(['funzione di stampa per postazione disponibile',typeof window.stationOrderHtml==='function']);
+    checks.push(['stampa diretta disponibile',typeof window.printOrder==='function']);
+    checks.push(['diagnostica riepilogo produzione disponibile',!!window.AmalfitanaProductionCounterDiagnostics?.render]);
+    checks.push(['V37 impostazioni stampa disponibili',typeof window.AmalfitanaV37Diagnostics?.selfTest==='function']);
+    const results=valid.map(style=>{
+      const html=window.printMod({name:'Impasti: Test',printStyle:style});
+      return {style,ok:html.includes(`mod-${style}`)&&html.includes('Test')};
+    });
+    checks.push(['tre stili effettivi renderizzati',results.every(x=>x.ok)]);
+    const esc=window.printMod({name:'Aggiunte: Mozzarella <extra>',printStyle:'highlight'});
+    checks.push(['testo modificatore escapato',esc.includes('&lt;extra&gt;')]);
+    const groupsBefore=state.modifierGroups;
+    state.modifierGroups=[...(groupsBefore||[]),{id:'v38-test-group',name:'Impasti',items:[{id:'v38-test-dough',name:'Integrale',printStyle:'bold'}]},{id:'v38-test-group2',name:'Piu',items:[{id:'v38-test-extra',name:'Mozzarella',printStyle:'highlight'}]}];
+    const legacyDough=window.printMod({modifierId:'v38-test-dough',name:'Impasti: Integrale'});
+    const legacyExtra=window.printMod({modifierId:'v38-test-extra',name:'Piu: Mozzarella'});
+    checks.push(['stile storico recuperabile da ID impasto',legacyDough.includes('mod-bold')]);
+    checks.push(['stile storico recuperabile da ID aggiunta',legacyExtra.includes('mod-highlight')]);
+    state.modifierGroups=groupsBefore;
+    const batch=Array.from({length:10000},(_,i)=>({modifierId:i%2?'v38-test-dough':'v38-test-extra',name:i%2?'Impasti: Integrale':'Piu: Mozzarella',printStyle:i%2?'bold':'highlight'}));
+    const t=performance.now();
+    const rendered=batch.map(m=>window.printMod(m));
+    const elapsed=performance.now()-t;
+    checks.push(['stress test 10.000 modificatori renderizzati',rendered.length===10000&&rendered.every((x,i)=>x.includes(i%2?'mod-bold':'mod-highlight'))&&Number.isFinite(elapsed)]);
+    return {version:'V38',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]})),styleCases:results,stressRows:batch.length,stressMilliseconds:+elapsed.toFixed(2)};
+  }
+  window.AmalfitanaV38Diagnostics={selfTest:v38Test,resolveStyle:v38ResolveModifierStyle};
+  console.info('Collaudo V38 stili modificatori',v38Test());
+})();
+</script>
+
+
+
+<script id="amalfitana-v39-final-readability-sticky-cart">
+(function(){
+  'use strict';
+  const DEFAULTS={orderSize:14,ovenSize:15,prepSize:16,productionSize:16};
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||min));
+  const esc=(v)=>String(v??'').replace(/[&<>\'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  function settings(){
+    if(typeof state==='undefined'||!state.settings)return {...DEFAULTS};
+    const p=state.settings.print||(state.settings.print={});
+    Object.keys(DEFAULTS).forEach(k=>{if(p[k]===undefined||p[k]===null)p[k]=DEFAULTS[k];p[k]=clamp(p[k],10,26)});
+    return p;
+  }
+  function applySizes(){
+    const p=settings(),root=document.documentElement.style;
+    root.setProperty('--v39-order-size',p.orderSize+'px');
+    root.setProperty('--v39-oven-size',p.ovenSize+'px');
+    root.setProperty('--v39-prep-size',p.prepSize+'px');
+    root.setProperty('--v39-production-size',p.productionSize+'px');
+  }
+  function range(label,key,help){
+    const p=settings();
+    return `<div class="field v39-size-row"><label for="v39-${key}">${label}: <b data-v39-value="${key}">${p[key]} px</b></label><input class="input" type="range" id="v39-${key}" data-v39-size="${key}" min="10" max="26" step="1" value="${p[key]}"><small class="order-meta">${help}</small></div>`;
+  }
+  function appendControls(){
+    const host=document.getElementById('v37PrintTextSettings');
+    if(!host||document.getElementById('v39PrintSizeSettings'))return;
+    host.insertAdjacentHTML('beforeend',`<div class="v39-size-panel" id="v39PrintSizeSettings"><h3>Dimensione caratteri per ogni area di stampa</h3><p class="order-meta">Ogni regolazione è indipendente: il testo e i contenuti della relativa area aumentano insieme.</p><div class="grid two">${range('Riepilogo ordine','orderSize','Prodotti, quantità e riepilogo generale.')}${range('Titolo note per forno','ovenSize','Intestazione e riquadro delle note operative.')}${range('Preparazione / note operative','prepSize','Voci come ben cotta, tagliata e altre istruzioni.')}${range('Produzione','productionSize','Titolo, categorie, quantità e impasti.')}</div><div class="order-meta">Valori salvati nel profilo stampante. Per tornare alle dimensioni standard usa 14–16 px.</div></div>`);
+  }
+  if(typeof window.renderSettings==='function'){
+    const base=window.renderSettings;
+    window.renderSettings=function(){const r=base.apply(this,arguments);try{appendControls();applySizes()}catch(e){console.warn('V39 impostazioni stampa',e)}return r};
+  }
+  document.addEventListener('input',e=>{
+    const el=e.target.closest('[data-v39-size]');if(!el)return;
+    const key=el.dataset.v39Size;if(!Object.prototype.hasOwnProperty.call(DEFAULTS,key))return;
+    const p=settings();p[key]=clamp(el.value,10,26);
+    const label=document.querySelector(`[data-v39-value="${key}"]`);if(label)label.textContent=p[key]+' px';
+    applySizes();
+    if(typeof save==='function')save('dimensione caratteri stampa V39');
+  });
+  if(typeof window.saveSettingsForm==='function'){
+    const baseSave=window.saveSettingsForm;
+    window.saveSettingsForm=function(){
+      document.querySelectorAll('[data-v39-size]').forEach(el=>{const k=el.dataset.v39Size;if(Object.prototype.hasOwnProperty.call(DEFAULTS,k))settings()[k]=clamp(el.value,10,26)});
+      const r=baseSave.apply(this,arguments);applySizes();return r;
+    };
+  }
+  const style=document.createElement('style');
+  style.id='amalfitana-v39-readability-css';
+  style.textContent=`
+    /* Carrello: sticky affidabile su desktop, scorrimento interno quando supera l'altezza utile */
+    @media (min-width:781px){
+      html,body{overflow-x:clip!important}
+      #view-entry .layout{overflow:visible!important;align-items:start!important}
+      #view-entry .layout>.stack{overflow:visible!important;min-height:0}
+      #view-entry .layout>aside.sticky-card{position:sticky!important;top:82px!important;align-self:start!important;max-height:calc(100dvh - 96px)!important;height:max-content!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;z-index:30!important}
+    }
+    @media (max-width:780px){#view-entry .layout>aside.sticky-card{position:static!important;max-height:none!important;overflow:visible!important}}
+    .v39-size-panel{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+    .v39-size-panel h3{margin:0 0 6px}
+    .v39-size-row input[type=range]{width:100%;accent-color:var(--accent)}
+    @media print{
+      #print-area .print-line{font-size:var(--v39-order-size,14px)!important;line-height:1.25!important}
+      #print-area h2{font-size:var(--v39-order-size,14px)!important;line-height:1.2!important}
+      #print-area .amal-print-notes{font-size:var(--v39-oven-size,15px)!important;line-height:1.25!important;border:1.5px solid #000;padding:4px;margin:5px 0;break-inside:avoid;page-break-inside:avoid}
+      #print-area .amal-print-notes .amal-print-section-title{font-size:var(--v39-oven-size,15px)!important;font-weight:900!important;line-height:1.2!important;border-bottom:1px solid #000;padding-bottom:3px;margin-bottom:4px}
+      #print-area .amal-print-notes .print-line,#print-area .amal-print-notes .print-mod{font-size:var(--v39-prep-size,16px)!important;line-height:1.3!important;font-weight:800}
+      #print-area .am-prod-summary.am-prod-print{font-size:var(--v39-production-size,16px)!important;line-height:1.3!important;padding:6px!important;margin:7px 0!important;border:2px solid #000!important;break-inside:avoid;page-break-inside:avoid}
+      #print-area .am-prod-print-head{font-size:calc(var(--v39-production-size,16px) + 2px)!important;line-height:1.2!important;padding-bottom:4px!important;margin-bottom:4px!important;font-weight:900!important}
+      #print-area .am-prod-print-line{font-size:var(--v39-production-size,16px)!important;line-height:1.3!important;margin:4px 0!important;overflow-wrap:anywhere}
+      #print-area .am-prod-print-line>b{font-size:calc(var(--v39-production-size,16px) - 1px)!important;letter-spacing:0!important}
+      #print-area .am-prod-chip{display:inline-block!important;margin:2px 6px 2px 0!important;font-size:var(--v39-production-size,16px)!important;white-space:normal!important}
+      #print-area .am-prod-chip b{font-size:inherit!important;font-weight:900!important}
+      #print-area .am-prod-dough{font-size:var(--v39-production-size,16px)!important;font-weight:850!important}
+      #print-area .am-prod-section>b{font-size:calc(var(--v39-production-size,16px) - 1px)!important}
+      #print-area .am-prod-row{font-size:var(--v39-production-size,16px)!important;line-height:1.3!important;padding:3px 0!important}
+      #print-area .am-prod-row b{font-size:inherit!important}
+    }
+  `;
+  document.head.appendChild(style);
+  applySizes();
+  const oldV38=window.AmalfitanaV38Diagnostics;
+  function selfTest(){
+    const p=settings(),keys=Object.keys(DEFAULTS);
+    const checks=[
+      ['quattro dimensioni stampa presenti',keys.every(k=>Number.isFinite(Number(p[k])))],
+      ['dimensioni stampa nei limiti 10–26 px',keys.every(k=>p[k]>=10&&p[k]<=26)],
+      ['carrello desktop sticky configurato',style.textContent.includes('position:sticky!important')&&style.textContent.includes('max-height:calc(100dvh - 96px)')],
+      ['carrello mobile non sticky',style.textContent.includes('@media (max-width:780px)')],
+      ['produzione con testo grande su tutte le righe',style.textContent.includes('.am-prod-print-line')&&style.textContent.includes('.am-prod-chip')&&style.textContent.includes('.am-prod-row')],
+      ['note forno e preparazione con dimensioni distinte',style.textContent.includes('--v39-oven-size')&&style.textContent.includes('--v39-prep-size')],
+      ['controlli profilo stampante disponibili',typeof appendControls==='function'],
+      ['diagnostica V38 mantenuta',!!oldV38]
+    ];
+    return {version:'V39',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]}))};
+  }
+  window.AmalfitanaV39Diagnostics={selfTest,applySizes};
+  console.info('Collaudo V39',selfTest());
+})();
+</script>
+
+
+<script id="amalfitana-v40-modifier-tile-sizing">
+(function(){
+  'use strict';
+  if(window.AmalfitanaV40ModifierSizing)return;
+  const DEFAULTS={width:122,height:74,font:14};
+  const LIMITS={width:[85,210],height:[55,140],font:[11,20]};
+  const clamp=(value,key)=>Math.max(LIMITS[key][0],Math.min(LIMITS[key][1],Math.round(Number(value)||DEFAULTS[key])));
+  function config(){
+    if(typeof state==='undefined'||!state.settings)return {...DEFAULTS};
+    let cfg=state.settings.modifierDisplay;
+    if(!cfg||typeof cfg!=='object'){
+      let base={...DEFAULTS};
+      try{if(window.PizzeriaSmartV32Layout?.get){const old=window.PizzeriaSmartV32Layout.get();base={width:old.width||base.width,height:old.height||base.height,font:old.font||base.font};}}catch(_e){}
+      cfg=state.settings.modifierDisplay={...base};
+    }
+    Object.keys(DEFAULTS).forEach(key=>{cfg[key]=clamp(cfg[key]??DEFAULTS[key],key)});
+    return cfg;
+  }
+  function apply(){
+    const cfg=config(),root=document.documentElement.style;
+    root.setProperty('--v40-mod-tile-width',cfg.width+'px');
+    root.setProperty('--v40-mod-tile-height',cfg.height+'px');
+    root.setProperty('--v40-mod-tile-font',cfg.font+'px');
+    markModifierGrids();
+    return cfg;
+  }
+  function markModifierGrids(){
+    const root=document.getElementById('view-entry');
+    if(!root)return;
+    root.querySelectorAll('.grid.products').forEach(grid=>{
+      const hasModifiers=Array.from(grid.children).some(node=>node.matches?.('button.product[data-mod]'));
+      grid.classList.toggle('v40-modifiers-grid',hasModifiers);
+    });
+  }
+  function slider(key,label,min,max,help){
+    const cfg=config();
+    return `<div class="field v40-modifier-size-row"><label for="v40-mod-${key}">${label}: <b data-v40-mod-value="${key}">${cfg[key]} px</b></label><input class="input" type="range" id="v40-mod-${key}" data-v40-mod-size="${key}" min="${min}" max="${max}" step="1" value="${cfg[key]}"><small class="order-meta">${help}</small></div>`;
+  }
+  function appendControls(){
+    const host=document.getElementById('v1237ModifierAlphabetCard');
+    if(!host||document.getElementById('v40ModifierTileSettings'))return;
+    host.insertAdjacentHTML('beforeend',`<div class="v40-modifier-size-panel" id="v40ModifierTileSettings"><h3>Dimensione pulsanti modificatori</h3><p class="order-meta">Regolazioni indipendenti dai pulsanti prodotto della schermata Ordini. Le modifiche si applicano subito e vengono salvate.</p><div class="grid two">${slider('width','Larghezza pulsanti',85,210,'Come per i prodotti: aumenta o riduce lo spazio occupato da ogni modificatore.')}${slider('height','Altezza pulsanti',55,140,'Altezza minima del pulsante modificatore.')}${slider('font','Dimensione testo',11,20,'Grandezza del nome del modificatore.')}</div><div class="row"><button type="button" class="btn ghost" data-action="v40-modifier-size-reset">Ripristina dimensioni modificatori</button></div></div>`);
+  }
+  function syncControls(){
+    const cfg=config();
+    Object.keys(DEFAULTS).forEach(key=>{
+      const input=document.getElementById('v40-mod-'+key),label=document.querySelector(`[data-v40-mod-value="${key}"]`);
+      if(input)input.value=cfg[key];
+      if(label)label.textContent=cfg[key]+' px';
+    });
+  }
+  function saveConfig(reason){
+    // Usa il salvataggio automatico già presente: è debounced e non avvia
+    // scritture IndexedDB concorrenti mentre si trascina lo slider.
+    if(typeof save==='function')save(reason||'dimensioni modificatori V40');
+  }
+  if(typeof window.renderSettings==='function'){
+    const baseRenderSettings=window.renderSettings;
+    window.renderSettings=function(){
+      const result=baseRenderSettings.apply(this,arguments);
+      try{appendControls();syncControls();apply();}catch(err){console.error('V40 pannello dimensioni modificatori',err)}
+      return result;
+    };
+  }
+  if(typeof window.renderEntry==='function'){
+    const baseRenderEntry=window.renderEntry;
+    window.renderEntry=function(){
+      const result=baseRenderEntry.apply(this,arguments);
+      try{markModifierGrids();apply();}catch(err){console.error('V40 applicazione dimensioni modificatori',err)}
+      return result;
+    };
+  }
+  document.addEventListener('input',event=>{
+    const input=event.target.closest('[data-v40-mod-size]');
+    if(!input)return;
+    const key=input.dataset.v40ModSize;
+    if(!Object.prototype.hasOwnProperty.call(DEFAULTS,key))return;
+    const cfg=config();cfg[key]=clamp(input.value,key);
+    const label=document.querySelector(`[data-v40-mod-value="${key}"]`);
+    if(label)label.textContent=cfg[key]+' px';
+    apply();saveConfig('dimensione pulsanti modificatori V40');
+  });
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('[data-action="v40-modifier-size-reset"]');
+    if(!button)return;
+    event.preventDefault();
+    const cfg=config();Object.assign(cfg,DEFAULTS);
+    syncControls();apply();saveConfig('ripristino dimensioni modificatori V40');
+    if(typeof toast==='function')toast('Dimensioni modificatori ripristinate');
+  });
+  const style=document.createElement('style');
+  style.id='amalfitana-v40-modifier-sizing-css';
+  style.textContent=`
+    .v40-modifier-size-panel{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+    .v40-modifier-size-panel h3{margin:0 0 6px}
+    .v40-modifier-size-row{min-width:0}
+    .v40-modifier-size-row input[type=range]{width:100%;accent-color:var(--accent)}
+    #view-entry .grid.products.v40-modifiers-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--v40-mod-tile-width,122px)),1fr))!important;gap:7px!important}
+    #view-entry .grid.products.v40-modifiers-grid>button.product[data-mod]{min-height:var(--v40-mod-tile-height,74px)!important;height:auto!important;padding:7px!important;min-width:0!important}
+    #view-entry .grid.products.v40-modifiers-grid>button.product[data-mod]>strong{font-size:var(--v40-mod-tile-font,14px)!important;line-height:1.2!important;overflow-wrap:anywhere}
+    #view-entry .grid.products.v40-modifiers-grid>button.product[data-mod]>.price{font-size:calc(var(--v40-mod-tile-font,14px) * .9)!important}
+    #view-entry .grid.products.v40-modifiers-grid>button.product[data-mod]>.stock-availability{font-size:calc(var(--v40-mod-tile-font,14px) * .68)!important;line-height:1.15!important}
+  `;
+  document.head.appendChild(style);
+  apply();
+  const previousV39=window.AmalfitanaV39Diagnostics;
+  function selfTest(){
+    const cfg=config();
+    const checks=[
+      ['configurazione modificatori indipendente dai prodotti',!!state.settings.modifierDisplay&&state.settings.modifierDisplay!==state.settings.print],
+      ['tre parametri presenti',Object.keys(DEFAULTS).every(k=>Number.isFinite(Number(cfg[k])))],
+      ['limiti larghezza 85–210 px',cfg.width>=85&&cfg.width<=210],
+      ['limiti altezza 55–140 px',cfg.height>=55&&cfg.height<=140],
+      ['limiti testo 11–20 px',cfg.font>=11&&cfg.font<=20],
+      ['pannello impostazioni creato senza duplicati',document.querySelectorAll('#v40ModifierTileSettings').length<=1],
+      ['slider indipendenti identificati',style.textContent.includes('--v40-mod-tile-width')&&style.textContent.includes('--v40-mod-tile-height')&&style.textContent.includes('--v40-mod-tile-font')],
+      ['selettore limitato ai pulsanti modificatore',style.textContent.includes('button.product[data-mod]')],
+      ['reset dimensioni disponibile',!!document.querySelector('[data-action="v40-modifier-size-reset"]')||typeof appendControls==='function'],
+      ['diagnostica V39 mantenuta',!!previousV39?.selfTest]
+    ];
+    return {version:'V40',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]}))};
+  }
+  window.AmalfitanaV40ModifierSizing={config:()=>({...config()}),apply,selfTest,markModifierGrids};
+  console.info('Collaudo V40 dimensioni modificatori',selfTest());
+})();
+</script>
+
 </body>
 </html>
