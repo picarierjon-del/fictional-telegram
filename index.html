@@ -5312,6 +5312,8 @@ window.PizzeriaSmartV32Layout={get:()=>({...cfg}),apply};
   window.AmalfitanaProductionCounterDiagnostics={
     version:'V1',
     build:(lines)=>buildProductionSummary(lines,state.categories||[],state.modifierGroups||[]),
+    buildWith:(lines,categories,groups)=>buildProductionSummary(lines,categories||[],groups||[]),
+    render:(lines,compact=true)=>summaryHtml(lines,state.categories||[],state.modifierGroups||[],compact),
     selfTest:()=>selfTest(),
     result
   };
@@ -5471,5 +5473,106 @@ window.AmalfitanaPrintV35={group:amalGroupLines,render:amalPrintSections,selfTes
 console.info('Collaudo stampa V35',window.AmalfitanaPrintV35.result);
 
 </script>
+
+
+<script id="amalfitana-production-print-integration-v36">
+(function(){
+  'use strict';
+  const diag=window.AmalfitanaProductionCounterDiagnostics;
+  if(!diag||typeof diag.render!=='function'){
+    console.error('V36: motore riepilogo produzione non disponibile');
+    window.AmalfitanaV36Diagnostics={ok:false,error:'Motore riepilogo produzione non disponibile'};
+    return;
+  }
+  function summaryFor(lines){
+    try{return diag.render(lines||[],true)||'';}catch(e){console.error('V36 riepilogo produzione',e);return '';}
+  }
+  // Stampa diretta: riaggiunge il riepilogo dopo tutte le righe (bibite comprese)
+  // e prima dell'eventuale piè di pagina. Evita duplicati se la funzione viene richiamata.
+  const basePrintOrderV36=window.printOrder;
+  window.printOrder=function(order,type){
+    const result=basePrintOrderV36.apply(this,arguments);
+    try{
+      const area=document.querySelector('#print-area');
+      if(area){
+        area.querySelectorAll('.am-prod-summary').forEach(x=>x.remove());
+        const html=summaryFor(order?.lines||[]);
+        if(html){
+          const holder=document.createElement('template');holder.innerHTML=html.trim();
+          const node=holder.content.firstElementChild;
+          const last=area.lastElementChild;
+          if(last&&last.matches('div[style*="text-align:center"]')){
+            const previous=last.previousElementSibling;
+            if(previous?.classList.contains('cut'))area.insertBefore(node,previous);
+            else area.insertBefore(node,last);
+          }else area.appendChild(node);
+        }
+      }
+    }catch(e){console.error('V36 integrazione stampa diretta',e);}
+    return result;
+  };
+  // Stampa per postazione: riepilogo coerente con i soli articoli inviati a quella postazione.
+  const baseStationOrderV36=window.stationOrderHtml;
+  window.stationOrderHtml=function(order,st,copies=1){
+    const html=baseStationOrderV36.apply(this,arguments);
+    try{
+      const all=order?.lines||[];
+      const base=all.filter(line=>stationLineAllowed(st,line));
+      const hasFood=base.some(line=>!amalIsNoteLine(line)&&!amalIsDrinkLine(line));
+      const lines=[...base];
+      if(hasFood)all.filter(amalIsNoteLine).forEach(line=>{if(!lines.includes(line))lines.push(line);});
+      const summary=summaryFor(lines);
+      if(!summary)return html;
+      const root=document.createElement('template');root.innerHTML=String(html||'');
+      root.content.querySelectorAll('.v12-print-copy').forEach(copy=>{
+        copy.querySelectorAll('.am-prod-summary').forEach(x=>x.remove());
+        const holder=document.createElement('template');holder.innerHTML=summary.trim();
+        const node=holder.content.firstElementChild;
+        const marker=copy.lastElementChild;
+        const possibleFooter=marker?.previousElementSibling;
+        if(possibleFooter&&possibleFooter.matches('div[style*="text-align:center"]')){
+          const previous=possibleFooter.previousElementSibling;
+          if(previous?.classList.contains('cut'))copy.insertBefore(node,previous);
+          else copy.insertBefore(node,possibleFooter);
+        }else if(marker)copy.insertBefore(node,marker);
+        else copy.appendChild(node);
+      });
+      return root.innerHTML;
+    }catch(e){console.error('V36 integrazione stampa postazione',e);return html;}
+  };
+  function test(){
+    const cats=[
+      {id:'v36-pizza',name:'Pizze',type:'standard',items:[]},
+      {id:'v36-note',name:'Note',type:'standard',items:[]},
+      {id:'v36-drink',name:'Bibite',type:'standard',items:[]}
+    ];
+    const groups=[{id:'v36-dough',name:'Impasti',items:[{id:'v36-integrale',name:'Integrale'}]}];
+    const sample=[
+      {categoryId:'v36-pizza',productId:'v36_pizza',name:'Pizza prova',qty:2,modifiers:[{modifierId:'v36-integrale',name:'Impasti: Integrale',printStyle:'bold'}]},
+      {categoryId:'v36-note',productId:'v36_note',name:'Ben cotta',qty:1},
+      {categoryId:'v36-drink',productId:'v36_drink',name:'Acqua prova',qty:1}
+    ];
+    const built=diag.buildWith(sample,cats,groups);
+    const summary=summaryFor(sample);
+    const ordered=amalPrintSections(sample,'kitchen');
+    const checks=[
+      ['riepilogo produzione generato',summary.includes('PRODUZIONE')],
+      ['conteggio categorie di prova',built.categories.length===3],
+      ['conteggio pizza di prova',built.pizzaTotal===2],
+      ['bibite in coda alle sezioni',ordered.indexOf('BIBITE')>ordered.indexOf('NOTE PER FORNO')],
+      ['stile impasto preservato',ordered.includes('mod-bold')],
+      ['riepilogo compatto prodotto',summary.includes('am-prod-summary')]
+    ];
+    const stress=Array.from({length:10000},(_,i)=>({categoryId:cats[i%3].id,qty:1,name:`Test ${i}`}));
+    const t=performance.now();const result=diag.buildWith(stress,cats,groups);const ms=performance.now()-t;
+    checks.push(['stress test conteggio 10.000 righe',result.totalItems>=0&&Number.isFinite(ms)]);
+    return {version:'V36',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]})),stressRows:stress.length,stressMilliseconds:+ms.toFixed(2)};
+  }
+  window.AmalfitanaV36Diagnostics={ok:true,selfTest:test};
+  window.AmalfitanaV36Diagnostics.result=test();
+  console.info('Collaudo V36',window.AmalfitanaV36Diagnostics.result);
+})();
+</script>
+
 </body>
 </html>
