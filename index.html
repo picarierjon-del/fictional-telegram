@@ -5873,6 +5873,10 @@ console.info('Collaudo stampa V35',window.AmalfitanaPrintV35.result);
 
   // Le righe già inserite senza printStyle (ordini storici o aggiunte legacy)
   // recuperano lo stile dal modificatore configurato, quando identificabile.
+  if(typeof window.saveSettingsForm==='function'){
+    const baseSave=window.saveSettingsForm;
+    window.saveSettingsForm=function(){const result=baseSave.apply(this,arguments);try{apply();syncLegacyInputs()}catch(e){console.error('V43 sincronizzazione profilo stampante',e)}return result};
+  }
   if(typeof window.printMod==='function'){
     const basePrintMod=window.printMod;
     window.printMod=function(mod){
@@ -6482,6 +6486,402 @@ console.info('Collaudo stampa V35',window.AmalfitanaPrintV35.result);
   }
   window.AmalfitanaV42Organization={audit,expected:{...expected}};
   console.info('Organizzazione impostazioni V42 pronta');
+})();
+</script>
+
+
+<style id="amalfitana-v43-print-system-css">
+.v43-legacy-size-hidden{display:none!important}
+.v43-print-panel{border-top:2px solid var(--line);margin-top:16px;padding-top:14px}
+.v43-print-panel h3{margin:0 0 6px}
+.v43-print-panel h4{margin:0 0 8px}
+.v43-print-section{border:1px solid var(--line);border-radius:11px;padding:11px;margin:10px 0;background:var(--card)}
+.v43-print-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:8px}
+.v43-print-control{min-width:0}
+.v43-print-control input[type=range]{width:100%;accent-color:var(--accent)}
+.v43-print-group{border-top:1px dashed var(--line);padding:9px 0}
+.v43-print-group:first-child{border-top:0}
+.v43-print-group-options[hidden]{display:none!important}
+.v43-print-preview{border:1px dashed var(--line);border-radius:9px;padding:10px;background:var(--bg)}
+.v43-preview-bold{font-weight:900}
+.v43-preview-highlight{font-weight:900;border:1px solid currentColor;padding:1px 5px;display:inline-block}
+@media print{
+  #print-area{font-size:var(--v43-body-size,12px)!important;line-height:var(--v43-line-height,1.25)!important;padding:var(--v43-margin,2mm)!important}
+  #print-area h1{font-size:var(--v43-business-title-size,19px)!important;line-height:1.15!important}
+  #print-area h2{font-size:var(--v43-order-title-size,15px)!important;line-height:1.2!important}
+  #print-area .v43-meta{font-size:var(--v43-meta-size,11px)!important;line-height:1.25!important}
+  #print-area .print-line{font-size:var(--v43-product-size,14px)!important;line-height:var(--v43-line-height,1.25)!important}
+  #print-area .v43-product-print{font-size:var(--v43-line-size,var(--v43-product-size,14px))!important}
+  #print-area .amal-print-notes .v43-product-print{font-size:var(--v43-prep-size,16px)!important}
+  #print-area .amal-print-drinks .v43-product-print{font-size:var(--v43-drinks-size,12px)!important}
+  #print-area .v43-print-mod{font-size:var(--v43-mod-size,var(--v43-modifier-size,14px))!important;line-height:1.25!important;vertical-align:baseline}
+  #print-area .v43-print-mod[data-v43-style="normal"]{font-weight:400!important;text-decoration:none!important;background:transparent!important;border:0!important;padding:0!important}
+  #print-area .v43-print-mod[data-v43-style="bold"]{font-weight:900!important;text-decoration:underline!important;text-decoration-thickness:1px!important;background:transparent!important;border:0!important;padding:0!important}
+  #print-area .v43-print-mod[data-v43-style="highlight"]{font-weight:900!important;text-decoration:none!important;border:1.5px solid #000!important;border-bottom:2px double #000!important;padding:0 3px!important;display:inline-block!important;background:transparent!important}
+  #print-area .v43-product-print[data-v43-style="normal"]{font-weight:400!important;background:transparent!important;border:0!important}
+  #print-area .v43-product-print[data-v43-style="bold"]{font-weight:900!important}
+  #print-area .v43-product-print[data-v43-style="highlight"]{font-weight:900!important;border:1.5px solid #000!important;padding:2px 4px!important}
+  #print-area .v43-station-product[data-v43-style="normal"]{font-weight:400!important}
+  #print-area .v43-station-product[data-v43-style="bold"]{font-weight:900!important;text-decoration:underline!important}
+  #print-area .v43-station-product[data-v43-style="highlight"]{font-weight:900!important;border:1.5px solid #000!important;padding:2px 4px!important}
+  #print-area .amal-print-notes{font-size:var(--v43-prep-size,16px)!important;line-height:1.25!important}
+  #print-area .amal-print-notes .amal-print-section-title{font-size:var(--v43-oven-title-size,15px)!important;line-height:1.2!important;font-weight:900!important}
+  #print-area .amal-print-notes .print-line{font-size:var(--v43-prep-size,16px)!important;line-height:1.25!important}
+  #print-area .amal-print-notes .print-mod{font-size:var(--v43-mod-size,var(--v43-modifier-size,14px))!important}
+  #print-area .print-note{font-size:var(--v43-order-notes-size,12px)!important;line-height:1.25!important}
+  #print-area .amal-print-drinks{font-size:var(--v43-drinks-size,12px)!important;line-height:1.2!important}
+  #print-area .amal-print-drinks .amal-print-section-title{font-size:var(--v43-drinks-title-size,10px)!important;font-weight:900!important}
+  #print-area .amal-print-drinks .print-line{font-size:var(--v43-drinks-size,12px)!important;line-height:1.2!important}
+  #print-area .print-total{font-size:var(--v43-total-size,18px)!important;line-height:1.2!important;font-weight:900!important}
+  #print-area .am-prod-summary.am-prod-print{font-size:var(--v43-production-size,16px)!important;line-height:1.25!important}
+  #print-area .am-prod-print-head{font-size:calc(var(--v43-production-size,16px) + 2px)!important;line-height:1.2!important}
+  #print-area .am-prod-print-line,#print-area .am-prod-chip,#print-area .am-prod-row{font-size:var(--v43-production-size,16px)!important;line-height:1.25!important}
+  #print-area .am-prod-print-line>b,#print-area .am-prod-section>b{font-size:inherit!important}
+  #print-area .am-prod-chip b,#print-area .am-prod-row b{font-size:inherit!important}
+  #print-area .v43-footer{font-size:var(--v43-footer-size,11px)!important;line-height:1.25!important}
+}
+</style>
+<script id="amalfitana-v43-print-system">
+(function(){
+  'use strict';
+  if(window.AmalfitanaV43PrintSystem)return;
+
+  const AREA_DEFAULTS={
+    body:12,businessTitle:19,orderTitle:15,meta:11,product:14,modifier:14,
+    ovenTitle:15,prep:16,orderNotes:12,drinksTitle:10,drinks:12,total:18,
+    production:16,footer:11
+  };
+  const LIMITS={
+    body:[8,28],businessTitle:[10,36],orderTitle:[9,30],meta:[8,24],
+    product:[10,28],modifier:[10,28],ovenTitle:[10,28],prep:[10,28],
+    orderNotes:[9,28],drinksTitle:[8,24],drinks:[8,24],total:[10,36],
+    production:[10,30],footer:[8,24]
+  };
+  const allowedStyles=['normal','bold','highlight'];
+  const clamp=(v,key)=>Math.max(LIMITS[key][0],Math.min(LIMITS[key][1],Math.round(Number(v)||AREA_DEFAULTS[key])));
+  const validStyle=v=>allowedStyles.includes(String(v))?String(v):'normal';
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function ensure(){
+    if(typeof state==='undefined'||!state.settings)return {areas:{...AREA_DEFAULTS},productStyle:'normal',modifierMode:'all',modifierStyle:'normal',modifierGroups:{}};
+    const p=state.settings.print||(state.settings.print={});
+    let c=p.v43Layout;
+    if(!c||typeof c!=='object')c=p.v43Layout={};
+    if(!c.areas||typeof c.areas!=='object')c.areas={};
+    const legacy={
+      body:p.bodySize,businessTitle:p.titleSize,orderTitle:p.headingSize,
+      product:p.orderSize,ovenTitle:p.ovenSize,prep:p.prepSize,
+      production:p.productionSize,total:p.totalSize
+    };
+    Object.keys(AREA_DEFAULTS).forEach(k=>{
+      const existing=c.areas[k]??legacy[k]??AREA_DEFAULTS[k];
+      c.areas[k]=clamp(existing,k);
+    });
+    const old=p.v41TextRules||{};
+    c.productStyle=validStyle(c.productStyle??old.product?.style??'normal');
+    c.modifierStyle=validStyle(c.modifierStyle??old.modifierAll?.style??'normal');
+    c.modifierMode=['all','individual','catalog'].includes(c.modifierMode)?c.modifierMode:(old.mode==='individual'?'individual':old.mode==='all'?'all':'catalog');
+    if(!c.modifierGroups||typeof c.modifierGroups!=='object')c.modifierGroups=old.groups&&typeof old.groups==='object'?old.groups:{};
+    return c;
+  }
+  function setVar(name,value){document.documentElement.style.setProperty(name,String(value))}
+  function apply(){
+    const c=ensure(),a=c.areas,p=state.settings.print;
+    Object.keys(AREA_DEFAULTS).forEach(k=>setVar(`--v43-${k.replace(/[A-Z]/g,m=>'-'+m.toLowerCase())}-size`,a[k]+'px'));
+    const lineHeight=Math.max(1,Math.min(2,Number(p.lineHeight)||1.25));
+    const margin=Math.max(0,Math.min(15,Number(p.margin??2)))+'mm';
+    setVar('--v43-line-height',lineHeight);setVar('--print-line-height',lineHeight);
+    setVar('--v43-margin',margin);setVar('--print-margin',margin);
+    setVar('--print-width',(Number(p.paperWidth)||80)+'mm');
+    setVar('--print-font',p.font||'Arial');
+    setVar('--print-body-size',a.body+'px');setVar('--print-title-size',a.businessTitle+'px');
+    setVar('--print-heading-size',a.orderTitle+'px');setVar('--print-total-size',a.total+'px');
+    // Mantiene sincronizzate le chiavi storiche usate dal profilo stampante.
+    p.bodySize=a.body;p.titleSize=a.businessTitle;p.headingSize=a.orderTitle;p.totalSize=a.total;
+    p.orderSize=a.product;p.ovenSize=a.ovenTitle;p.prepSize=a.prep;p.productionSize=a.production;
+    const old=p.v41TextRules||(p.v41TextRules={});
+    old.product=old.product||{};old.product.size=a.product;old.product.style=c.productStyle;
+    old.modifierAll=old.modifierAll||{};old.modifierAll.size=a.modifier;old.modifierAll.style=c.modifierStyle;
+    old.mode=c.modifierMode==='individual'?'individual':'all';old.groups=c.modifierGroups;
+    return c;
+  }
+  function range(key,label,help){
+    const c=ensure(),value=c.areas[key],lim=LIMITS[key];
+    return `<div class="field v43-print-control"><label for="v43-area-${key}">${label}: <b data-v43-value="${key}">${value} px</b></label><input class="input" type="range" id="v43-area-${key}" data-v43-area="${key}" min="${lim[0]}" max="${lim[1]}" step="1" value="${value}"><small class="order-meta">${help||''}</small></div>`;
+  }
+  function styleSelect(id,value){
+    return `<select class="input" id="${id}" data-v43-style="${id}"><option value="normal"${value==='normal'?' selected':''}>Normale</option><option value="bold"${value==='bold'?' selected':''}>Grassetto</option><option value="highlight"${value==='highlight'?' selected':''}>Evidenziato</option></select>`;
+  }
+  function groupControls(){
+    const c=ensure(),groups=Array.isArray(state.modifierGroups)?state.modifierGroups:[];
+    if(!groups.length)return '<p class="order-meta">Nessun gruppo modificatore configurato.</p>';
+    return groups.map(g=>{
+      const id=String(g.id),r=c.modifierGroups[id]||{},enabled=r.enabled===true;
+      const size=clamp(r.size??c.areas.modifier,'modifier');
+      const style=validStyle(r.style??c.modifierStyle);
+      return `<div class="v43-print-group" data-v43-group="${esc(id)}"><label class="switch"><input type="checkbox" data-v43-group-enabled="${esc(id)}"${enabled?' checked':''}> <b>${esc(g.name||'Gruppo senza nome')}</b> <small>Personalizzazione specifica</small></label><div class="v43-print-group-options"${enabled?'':' hidden'}><div class="v43-print-grid"><div class="field"><label for="v43-group-size-${esc(id)}">Dimensione: <b data-v43-group-value="${esc(id)}">${size} px</b></label><input class="input" type="range" min="10" max="28" step="1" id="v43-group-size-${esc(id)}" data-v43-group-size="${esc(id)}" value="${size}"></div><div class="field"><label for="v43-group-style-${esc(id)}">Stile</label>${styleSelect('v43-group-style-'+id,style)}</div></div></div></div>`;
+    }).join('');
+  }
+  function panelHtml(){
+    const c=ensure();
+    return `<div class="v43-print-panel" id="v43PrintCompleteSettings">
+      <h3>Configurazione completa della stampa</h3>
+      <p class="order-meta">Ogni dimensione controlla direttamente l'area corrispondente sia nella stampa dell'ordine sia nella stampa per postazione. Le impostazioni sono salvate nel profilo stampante.</p>
+      <section class="v43-print-section"><h4>Testata e riepilogo ordine</h4><div class="v43-print-grid">
+        ${range('body','Testo generale','Dimensione di base della stampa.')}
+        ${range('businessTitle','Nome pizzeria','Titolo principale in alto.')}
+        ${range('orderTitle','Titolo ordine','Riepilogo ordine o intestazione della postazione.')}
+        ${range('meta','Data, ora e dati cliente','Informazioni secondarie dell’ordine.')}
+        ${range('product','Pizze e prodotti','Nome dei prodotti, quantità e relative righe.')}
+        ${range('total','Totale','Importo totale dell’ordine.')}
+        ${range('orderNotes','Note ordine','Note generali lasciate dal cliente.')}
+        ${range('footer','Piè di pagina','Testo finale e ringraziamento.')}
+      </div><div class="v43-print-grid"><div class="field"><label for="v43-product-style">Stile pizze e prodotti</label>${styleSelect('v43-product-style',c.productStyle)}</div></div></section>
+      <section class="v43-print-section"><h4>Forno, preparazione e bibite</h4><div class="v43-print-grid">
+        ${range('ovenTitle','Titolo note per forno','Intestazione del riquadro operativo.')}
+        ${range('prep','Voci di preparazione','Ben cotta, tagliata e altre istruzioni.')}
+        ${range('drinksTitle','Titolo bibite','Intestazione della sezione bibite.')}
+        ${range('drinks','Bibite','Nomi, quantità e prezzi delle bevande.')}
+      </div></section>
+      <section class="v43-print-section"><h4>Produzione</h4><div class="v43-print-grid">
+        ${range('production','Riepilogo produzione','Titolo, categorie, quantità e impasti.')}
+      </div></section>
+      <section class="v43-print-section"><h4>Aggiunte e modificatori</h4>
+        <div class="v43-print-grid"><div class="field"><label for="v43-modifier-mode">Come applicare lo stile</label><select class="input" id="v43-modifier-mode"><option value="all"${c.modifierMode==='all'?' selected':''}>Applica a tutti i modificatori</option><option value="individual"${c.modifierMode==='individual'?' selected':''}>Personalizza per gruppo</option><option value="catalog"${c.modifierMode==='catalog'?' selected':''}>Rispetta lo stile impostato su ogni modificatore</option></select></div>
+        ${range('modifier','Dimensione predefinita modificatori','Dimensione delle aggiunte, impasti e lavorazioni.')}
+        <div class="field"><label for="v43-modifier-style">Stile predefinito modificatori</label>${styleSelect('v43-modifier-style',c.modifierStyle)}</div></div>
+        <div id="v43-group-controls"${c.modifierMode==='individual'?'':' hidden'}><h4>Personalizzazione per singolo gruppo</h4>${groupControls()}</div>
+      </section>
+      <div class="v43-print-preview"><b>Anteprima degli stili</b><div style="margin-top:7px">Margherita · 1× <span class="v43-preview-bold">Grassetto</span> · <span class="v43-preview-highlight">Evidenziato</span></div><small class="order-meta">L'anteprima illustra gli stili; la stampa reale usa le dimensioni selezionate.</small></div>
+      <div class="row"><button type="button" class="btn ghost" data-action="v43-print-reset">Ripristina solo le dimensioni e gli stili di stampa</button></div>
+    </div>`;
+  }
+  function hideLegacyDuplicateControls(){
+    ['bodySize','titleSize','headingSize','totalSize'].forEach(name=>{
+      const input=document.querySelector(`#view-settings [name="print-${name}"]`);
+      input?.closest('.field')?.classList.add('v43-legacy-size-hidden');
+    });
+  }
+  function appendPanel(){
+    const host=document.getElementById('v37PrintTextSettings');
+    if(!host)return;
+    hideLegacyDuplicateControls();
+    host.querySelector('#v39PrintSizeSettings')?.remove();
+    host.querySelector('#v41PrintStyleSettings')?.remove();
+    const old=host.querySelector('#v43PrintCompleteSettings');
+    if(old){old.outerHTML=panelHtml();return}
+    host.insertAdjacentHTML('beforeend',panelHtml());
+  }
+  function syncPanel(){
+    const c=ensure(),panel=document.getElementById('v43PrintCompleteSettings');
+    if(!panel)return;
+    Object.keys(AREA_DEFAULTS).forEach(k=>{
+      const input=panel.querySelector(`[data-v43-area="${k}"]`),label=panel.querySelector(`[data-v43-value="${k}"]`);
+      if(input)input.value=c.areas[k];if(label)label.textContent=c.areas[k]+' px';
+    });
+    const mode=panel.querySelector('#v43-modifier-mode');if(mode)mode.value=c.modifierMode;
+    const ps=panel.querySelector('#v43-product-style');if(ps)ps.value=c.productStyle;
+    const ms=panel.querySelector('#v43-modifier-style');if(ms)ms.value=c.modifierStyle;
+  }
+  function saveNow(reason){
+    if(typeof save==='function')save(reason||'profilo stampa completo V43');
+    else if(typeof persistStateNow==='function')persistStateNow(reason||'profilo stampa completo V43');
+  }
+  function groupRule(name,mod){
+    const c=ensure(),gname=String(name||'').trim();
+    const group=(state.modifierGroups||[]).find(g=>String(g.name||'').toLocaleLowerCase('it-IT')===gname.toLocaleLowerCase('it-IT'));
+    const record=group&&c.modifierGroups[String(group.id)];
+    let style=c.modifierStyle,size=c.areas.modifier;
+    if(c.modifierMode==='catalog'){
+      style=validStyle(mod?.printStyle);
+      if(style==='normal'&&!mod?.printStyle){
+        const id=mod?.modifierId||mod?.id;
+        let item=null;
+        if(id)for(const g of (state.modifierGroups||[])){item=(g.items||[]).find(x=>String(x.id)===String(id));if(item)break}
+        if(!item&&group){
+          const raw=String(mod?.name||''),colon=raw.indexOf(':'),itemName=colon>0?raw.slice(colon+1).trim():raw;
+          item=(group.items||[]).find(x=>String(x.name||'').toLocaleLowerCase('it-IT')===itemName.toLocaleLowerCase('it-IT'));
+        }
+        if(item)style=validStyle(item.printStyle);
+      }
+    }else if(c.modifierMode==='individual'&&record?.enabled){
+      style=validStyle(record.style);size=clamp(record.size,'modifier');
+    }
+    return {style,size};
+  }
+  function sanitizeSpan(out,mod){
+    const raw=String(mod?.name||''),colon=raw.indexOf(':'),group=colon>0?raw.slice(0,colon).trim():'';
+    const rule=groupRule(group,mod);
+    return String(out).replace(/<span\b([^>]*)>/i,(whole,attrs)=>{
+      let cls=(attrs.match(/\bclass=["']([^"']*)["']/i)||[])[1]||'print-mod';
+      cls=cls.replace(/\bmod-(normal|bold|highlight)\b/g,'').replace(/\bv43-print-mod\b/g,'').trim()+` mod-${rule.style} v43-print-mod`;
+      attrs=attrs.replace(/\sclass=["'][^"']*["']/i,'').replace(/\sstyle=["'][^"']*["']/gi,'').replace(/\sdata-v41-[\w-]+=["'][^"']*["']/gi,'').replace(/\sdata-v43-[\w-]+=["'][^"']*["']/gi,'');
+      return `<span class="${esc(cls)}" data-v43-style="${rule.style}" data-v43-mod-size="${rule.size}" style="--v43-mod-size:${rule.size}px"${attrs}>`;
+    });
+  }
+  function markPrintArea(){
+    const area=document.getElementById('print-area');if(!area)return;
+    area.querySelectorAll('h1').forEach(x=>x.classList.add('v43-business-title'));
+    area.querySelectorAll('h2').forEach(x=>x.classList.add('v43-order-title'));
+    area.querySelectorAll('.print-total').forEach(x=>x.classList.add('v43-total'));
+    area.querySelectorAll('.print-note').forEach(x=>x.classList.add('v43-order-notes'));
+    area.querySelectorAll('.amal-print-section-title').forEach(x=>{
+      const parent=x.closest('.amal-print-drinks');
+      x.classList.add(parent?'v43-drinks-title':'v43-oven-title');
+    });
+    area.querySelectorAll('.am-prod-summary').forEach(x=>x.classList.add('v43-production'));
+    const h2=area.querySelector('h2');
+    if(h2?.nextElementSibling)h2.nextElementSibling.classList.add('v43-meta');
+    const footers=area.querySelectorAll('div[style*="text-align:center"]');
+    if(footers.length)footers[footers.length-1].classList.add('v43-footer');
+  }
+  function syncLegacyInputs(){
+    const p=state.settings.print,c=ensure(),map={body:'bodySize',businessTitle:'titleSize',orderTitle:'headingSize',total:'totalSize'};
+    Object.entries(map).forEach(([k,name])=>{
+      const el=document.querySelector(`#view-settings [name="print-${name}"]`);
+      if(el)el.value=c.areas[k];
+    });
+  }
+  if(typeof window.renderSettings==='function'){
+    const base=window.renderSettings;
+    window.renderSettings=function(){const result=base.apply(this,arguments);try{appendPanel();syncPanel();apply()}catch(e){console.error('V43 pannello stampa',e)}return result};
+  }
+  document.addEventListener('input',e=>{
+    const el=e.target.closest('[data-v43-area]');
+    if(!el)return;
+    const key=el.dataset.v43Area;if(!Object.prototype.hasOwnProperty.call(AREA_DEFAULTS,key))return;
+    const c=ensure();c.areas[key]=clamp(el.value,key);
+    const label=document.querySelector(`[data-v43-value="${key}"]`);if(label)label.textContent=c.areas[key]+' px';
+    apply();syncLegacyInputs();saveNow('dimensione area stampa V43');
+  });
+  document.addEventListener('input',e=>{
+    const el=e.target.closest('[data-v43-group-size]');
+    if(!el)return;
+    const id=el.dataset.v43GroupSize,c=ensure();
+    c.modifierGroups[id]=c.modifierGroups[id]||{enabled:true};
+    c.modifierGroups[id].enabled=true;c.modifierGroups[id].size=clamp(el.value,'modifier');
+    const label=document.querySelector(`[data-v43-group-value="${id}"]`);if(label)label.textContent=c.modifierGroups[id].size+' px';
+    apply();saveNow('dimensione gruppo modificatori V43');
+  });
+  document.addEventListener('change',e=>{
+    const el=e.target;
+    if(el.id==='v43-modifier-mode'){
+      const c=ensure();c.modifierMode=el.value;
+      const box=document.getElementById('v43-group-controls');if(box)box.hidden=c.modifierMode!=='individual';
+      saveNow('modalità stili modificatori V43');return;
+    }
+    if(el.dataset.v43Style){
+      const c=ensure(),id=el.id;
+      if(id==='v43-product-style')c.productStyle=validStyle(el.value);
+      if(id==='v43-modifier-style')c.modifierStyle=validStyle(el.value);
+      if(id.startsWith('v43-group-style-')){
+        const gid=id.slice('v43-group-style-'.length);
+        c.modifierGroups[gid]=c.modifierGroups[gid]||{enabled:true};
+        c.modifierGroups[gid].enabled=true;c.modifierGroups[gid].style=validStyle(el.value);
+      }
+      apply();saveNow('stile stampa V43');return;
+    }
+    if(el.matches('[data-v43-group-enabled]')){
+      const id=el.dataset.v43GroupEnabled,c=ensure();
+      c.modifierGroups[id]=c.modifierGroups[id]||{};
+      c.modifierGroups[id].enabled=el.checked;
+      const box=el.closest('[data-v43-group]')?.querySelector('.v43-print-group-options');
+      if(box)box.hidden=!el.checked;
+      saveNow('attivazione personalizzazione gruppo V43');
+    }
+  });
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-action="v43-print-reset"]');if(!b)return;
+    e.preventDefault();
+    const p=state.settings.print||(state.settings.print={});
+    p.bodySize=AREA_DEFAULTS.body;p.titleSize=AREA_DEFAULTS.businessTitle;
+    p.headingSize=AREA_DEFAULTS.orderTitle;p.totalSize=AREA_DEFAULTS.total;
+    p.orderSize=AREA_DEFAULTS.product;p.ovenSize=AREA_DEFAULTS.ovenTitle;
+    p.prepSize=AREA_DEFAULTS.prep;p.productionSize=AREA_DEFAULTS.production;
+    p.v43Layout={areas:{...AREA_DEFAULTS},productStyle:'normal',modifierMode:'catalog',modifierStyle:'normal',modifierGroups:{}};
+    p.v41TextRules={product:{size:AREA_DEFAULTS.product,style:'normal'},modifierAll:{size:AREA_DEFAULTS.modifier,style:'normal'},mode:'all',groups:{}};
+    ensure();apply();appendPanel();syncPanel();syncLegacyInputs();saveNow('ripristino profilo stampa V43');
+    if(typeof toast==='function')toast('Dimensioni e stili stampa ripristinati');
+  });
+  // Rimuove le dimensioni inline introdotte dalla V41: erano la causa del conflitto con V39.
+  if(typeof window.printMod==='function'){
+    const base=window.printMod;
+    window.printMod=function(mod){return sanitizeSpan(base.apply(this,arguments),mod)};
+  }
+  if(typeof window.amalPrintLine==='function'){
+    const base=window.amalPrintLine;
+    window.amalPrintLine=function(line,type,options){
+      const html=String(base.apply(this,arguments));
+      const c=ensure(),style=validStyle(c.productStyle),size=c.areas.product;
+      return html.replace(/<div\b([^>]*class=["'][^"']*print-line[^"']*["'][^>]*)>/i,(whole,attrs)=>{
+        attrs=attrs.replace(/\sstyle=["'][^"']*["']/gi,'').replace(/\sdata-v41-[\w-]+=["'][^"']*["']/gi,'');
+        attrs=attrs.replace(/\bclass=["']([^"']*)["']/i,(m,cls)=>`class="${cls} v43-product-print"`);
+        return `<div${attrs} data-v43-style="${style}" style="--v43-line-size:${size}px;line-height:var(--v43-line-height,1.25)!important">`;
+      });
+    };
+  }
+  if(typeof window.stationModifierHtml==='function'){
+    const base=window.stationModifierHtml;
+    window.stationModifierHtml=function(mod,station){
+      const html=String(base.apply(this,arguments)),raw=String(mod?.name||''),colon=raw.indexOf(':'),group=colon>0?raw.slice(0,colon).trim():'',rule=groupRule(group,mod);
+      return `<span class="v43-print-mod" data-v43-style="${rule.style}" data-v43-mod-size="${rule.size}" style="--v43-mod-size:${rule.size}px">${html}</span>`;
+    };
+  }
+  if(typeof window.printOrder==='function'){
+    const base=window.printOrder;
+    window.printOrder=function(order,type){
+      apply();
+      const result=base.apply(this,arguments);
+      markPrintArea();apply();
+      return result;
+    };
+  }
+  if(typeof window.stationOrderHtml==='function'){
+    const base=window.stationOrderHtml;
+    window.stationOrderHtml=function(order,station,copies){
+      apply();
+      let html=String(base.apply(this,arguments));
+      html=html.replace(/<h1\b/g,'<h1 class="v43-business-title"').replace(/<h2\b/g,'<h2 class="v43-order-title"');
+      html=html.replace(/<div\b([^>]*class=["'][^"']*\bprint-line\b[^"']*["'][^>]*)>/gi,(tag,attrs)=>{
+        if(/\bprint-total\b/.test(attrs))return tag;
+        if(!/\bv43-station-product\b/.test(attrs)){
+          attrs=attrs.replace(/\bclass=["']([^"']*)["']/i,(m,cls)=>`class="${cls} v43-station-product"`);
+        }
+        if(!/\bdata-v43-style=/.test(attrs))attrs+=' data-v43-style="'+validStyle(ensure().productStyle)+'"';
+        return `<div${attrs}>`;
+      });
+      html=html.replace(/class="print-total print-line"/g,'class="print-total print-line v43-total"');
+      html=html.replace(/class="print-note"/g,'class="print-note v43-order-notes"');
+      html=html.replace(/<div>(<b>[^<]*(?:Cliente|Tel:|Fattorino)[^<]*|[^<]*<b>)/g,'<div class="v43-meta">$1');
+      html=html.replace(/<div style="text-align:center;margin-top:8px;font-size:10px"/g,'<div class="v43-footer" style="text-align:center;margin-top:8px"');
+      return html;
+    };
+  }
+  const css=document.createElement('style');css.id='amalfitana-v43-print-runtime-css';
+  css.textContent='@media print{#print-area .v43-station-product{font-size:var(--v43-product-size,14px)!important}#print-area .v43-footer{font-size:var(--v43-footer-size,11px)!important}#print-area .v43-meta{font-size:var(--v43-meta-size,11px)!important}}';
+  document.head.appendChild(css);
+  const previousV42=window.AmalfitanaV42Organization,previousV41=window.AmalfitanaV41PrintStyles;
+  function selfTest(){
+    const c=ensure(),checks=[
+      ['14 aree di stampa configurate',Object.keys(AREA_DEFAULTS).length===14],
+      ['dimensioni nei limiti previsti',Object.keys(AREA_DEFAULTS).every(k=>c.areas[k]>=LIMITS[k][0]&&c.areas[k]<=LIMITS[k][1])],
+      ['quattro aree legacy sincronizzate',state.settings.print.bodySize===c.areas.body&&state.settings.print.totalSize===c.areas.total&&state.settings.print.orderSize===c.areas.product],
+      ['modalità modificatori valida', ['all','individual','catalog'].includes(c.modifierMode)],
+      ['stili validi',allowedStyles.every(x=>validStyle(x)===x)],
+      ['personalizzazione per gruppi disponibile',!!c.modifierGroups&&typeof c.modifierGroups==='object'],
+      ['rimozione pannelli sovrapposti',!document.querySelector('#v37PrintTextSettings #v39PrintSizeSettings')&&!document.querySelector('#v37PrintTextSettings #v41PrintStyleSettings')],
+      ['pannello completo unico',document.querySelectorAll('#v43PrintCompleteSettings').length<=1],
+      ['14 aree collegate alle regole CSS di stampa',(()=>{const css=document.getElementById('amalfitana-v43-print-system-css')?.textContent||'';return ['body','business-title','order-title','meta','product','modifier','oven-title','prep','order-notes','drinks-title','drinks','total','production','footer'].every(k=>css.includes('--v43-'+k+'-size'))})()],
+      ['dimensione totale indipendente',((document.getElementById('amalfitana-v43-print-system-css')?.textContent||'').includes('var(--v43-total-size'))],
+      ['renderer stampa diretta disponibile',typeof window.printOrder==='function'],
+      ['renderer stampa postazioni disponibile',typeof window.stationOrderHtml==='function'],
+      ['stili modificatori applicati senza inline font-size',typeof window.printMod==='function'&&typeof sanitizeSpan==='function'],
+      ['diagnostica V42 conservata',!!previousV42?.audit],
+      ['diagnostica V41 conservata',!!previousV41?.selfTest]
+    ];
+    return {version:'V43',passed:checks.filter(x=>x[1]).length,total:checks.length,checks:checks.map(x=>({test:x[0],ok:x[1]}))};
+  }
+  window.AmalfitanaV43PrintSystem={settings:()=>JSON.parse(JSON.stringify(ensure())),apply,selfTest,groupRule,markPrintArea};
+  console.info('Collaudo stampa V43',selfTest());
 })();
 </script>
 
