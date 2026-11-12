@@ -6963,81 +6963,180 @@ console.info('Collaudo V44',selfTest());
 })();
 </script>
 
-<script id="amalfitana-v45-split-account">
+
+<style id="v45-split-payment-style">
+.v45-payment-panel{margin:10px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--text)}
+.v45-payment-panel h3{margin:0 0 7px;font-size:1rem}
+.v45-help{font-size:.82rem;color:var(--muted);margin:0 0 10px}
+.v45-pay-row{display:grid;grid-template-columns:minmax(140px,1.1fr) minmax(110px,1fr) minmax(105px,.8fr) auto;gap:8px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.v45-pay-row:first-of-type{border-top:0}
+.v45-pay-row input,.v45-pay-row select{min-width:0;width:100%}
+.v45-pay-row small{display:block;color:var(--muted);font-size:.78rem}
+.v45-pay-summary{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:9px;border-top:1px solid var(--line);font-weight:700}
+.v45-paid{color:#16804a;font-weight:800}.v45-due{color:#b45309;font-weight:800}
+.v45-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.v45-modal-backdrop{position:fixed;inset:0;background:#0009;z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px}
+.v45-modal{width:min(520px,100%);max-height:90vh;overflow:auto;background:var(--card,var(--bg));color:var(--text);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 18px 55px #0005}
+.v45-modal h3{margin:0 0 12px}.v45-modal .field{margin:9px 0}.v45-modal label{display:block;margin-bottom:4px}
+.v45-modal input,.v45-modal select{width:100%;min-height:40px}
+.v45-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.v45-ledger{font-size:.8rem;color:var(--muted);margin-top:6px}
+@media(max-width:700px){.v45-pay-row{grid-template-columns:1fr 1fr}.v45-pay-row .v45-product{grid-column:1/-1}.v45-pay-row .v45-actions{grid-column:1/-1;justify-content:flex-start}}
+@media print{.v45-payment-panel,.v45-modal-backdrop{display:none!important}}
+</style>
+
+<script id="amalfitana-v45-payment-module">
 (function(){
 'use strict';
-if(window.AmalfitanaV45Split)return;
-const $v=(s,r=document)=>r.querySelector(s),$$v=(s,r=document)=>[...r.querySelectorAll(s)];
-const moneyV=n=>typeof money==='function'?money(n):'€ '+(Number(n)||0).toFixed(2);
-const escV=s=>typeof esc==='function'?esc(s):String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const uidV=()=>typeof uid==='function'?uid('split'):('sp_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
-const V={version:'45.0',tests:[],lastEditor:null};
-function activeLines(){return state.draft?.lines||[]}
-function getLineKey(l){if(!l._splitLineId)l._splitLineId=uidV();return l._splitLineId}
-function billTotal(line){const q=Number(line.qty)||1;return typeof lineTotal==='function'?lineTotal(line):((Number(line.unitPrice)||0)*q)}
-function ensureBill(target){
- if(!target.splitBill||typeof target.splitBill!=='object')target.splitBill={people:[{id:uidV(),name:'Persona 1'}],allocations:{},payments:[]};
- const b=target.splitBill;if(!Array.isArray(b.people)||!b.people.length)b.people=[{id:uidV(),name:'Persona 1'}];
- b.people=b.people.map((p,i)=>({id:String(p.id||uidV()),name:String(p.name||`Persona ${i+1}`)}));
- if(!b.allocations||typeof b.allocations!=='object')b.allocations={};if(!Array.isArray(b.payments))b.payments=[];
- const people=b.people;
- (target.lines||[]).forEach(line=>{const key=getLineKey(line),qty=Math.max(0,Number(line.qty)||0);let a=b.allocations[key];if(!a||typeof a!=='object'){a={};a[people[0].id]=qty;b.allocations[key]=a;}
-  people.forEach(p=>{a[p.id]=Math.max(0,Number(a[p.id])||0)});
-  Object.keys(a).forEach(id=>{if(!people.some(p=>p.id===id))delete a[id]});
-  // Le quantità parziali vengono lasciate modificabili mentre si compila la ripartizione.
- });
- b.payments=b.payments.filter(p=>people.some(x=>x.id===p.personId)&&Number(p.amount)>0);
- return b;
+if(window.AmalfitanaV45Payments)return;
+const V={version:'45.1'};
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc45=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cash=n=>Math.round((Number(n)||0)*100)/100;
+const fmt=n=>typeof money==='function'?money(cash(n)):'€ '+cash(n).toFixed(2);
+const cents=n=>Math.round((Number(n)||0)*100);
+function lineValue(l){if(typeof lineTotal==='function')return cash(lineTotal(l));const q=Number(l?.qty)||1;return cash(((Number(l?.unitPrice)||Number(l?.price)||0)+(l?.modifiers||[]).reduce((a,m)=>a+(Number(m.price)||0),0))*q)}
+function txList(o,i){const p=o?.linePayments?.[String(i)]||o?.linePayments?.[i]||{};return Array.isArray(p.transactions)?p.transactions:[]}
+function lineReceived(o,i){const p=o?.linePayments?.[String(i)]||o?.linePayments?.[i]||{};const tx=txList(o,i);let sum=tx.reduce((a,t)=>a+(t.status==='reversed'?0:cash(t.amount)),0);if(p.paid===true||p.received===true)sum+=Math.max(0,cash(lineValue(o.lines[i])-sum));return cash(sum)}
+function summary(o){const lines=Array.isArray(o?.lines)?o.lines:[],total=cash(lines.reduce((a,l)=>a+lineValue(l),0));const received=cash(lines.reduce((a,l,i)=>a+lineReceived(o,i),0));return{total,received:Math.min(total,received),due:Math.max(0,cash(total-received)),paid:total>0&&received>=total-.009,partial:received>.001&&received<total-.009}}
+function ensure(o){if(!o)return;o.linePayments=o.linePayments&&typeof o.linePayments==='object'?o.linePayments:{};o.lines=Array.isArray(o.lines)?o.lines:[];return o}
+function addAudit(action,detail){try{if(typeof audit==='function')audit(action,detail)}catch(e){console.warn('V45 audit',e)}}
+function persist(reason){try{if(typeof save==='function')save(reason||'V45 pagamenti separati');else console.warn('V45: funzione save non disponibile')}catch(e){console.error('V45 salvataggio',e);notify('Errore durante il salvataggio: verifica il backup.');return false}return true}
+function notify(msg){try{if(typeof toast==='function')toast(msg);else alert(msg)}catch{alert(msg)}}
+function validAmount(value,due){return Number.isFinite(Number(value))&&Number(value)>0&&Number(value)<=Number(due)+.001}
+function payerMethod(p){return `<small>${esc45(p?.payer||'Pagatore da indicare')} · ${esc45(p?.method||'Metodo da definire')}</small>`}
+function payPanel(o,archived=false){
+ ensure(o);if(!o.lines.length)return '';
+ const s=summary(o),id=esc45(o.id);
+ if(!o.splitPaymentEnabled)return `<section class="v45-payment-panel" data-v45-panel="${id}"><h3>Conto separato · saletta</h3><p class="v45-help">Puoi attivare la divisione anche dopo aver concluso l’ordine, quando il tavolo chiede conti separati.</p><div class="v45-actions"><button class="btn primary small" data-v45-action="enable" data-id="${id}">Attiva pagamenti separati</button></div></section>`;
+ const rows=o.lines.map((l,i)=>{const p=o.linePayments[String(i)]||o.linePayments[i]||{},amount=lineValue(l),received=lineReceived(o,i),due=Math.max(0,cash(amount-received)),tx=txList(o,i);return `<div class="v45-pay-row" data-v45-line="${i}"><div class="v45-product"><b>${esc45(l.qty)}× ${esc45(l.name)}</b><small>Valore ${fmt(amount)}</small>${payerMethod(p)}<div class="v45-ledger">${tx.length?tx.map(t=>`${fmt(t.amount)} · ${esc45(t.method||'')} · ${esc45(t.payer||'')} ${t.status==='reversed'?'· stornato':''}`).join('<br>'):'Nessun incasso registrato'}</div></div><div><small class="${due<.01?'v45-paid':'v45-due'}">Incassato ${fmt(received)}<br>Residuo ${fmt(due)}</small></div><div class="v45-actions"><button class="btn success small" data-v45-action="collect" data-id="${id}" data-line="${i}" ${due<.01?'disabled':''}>Incassa quota</button><button class="btn warn small" data-v45-action="reverse" data-id="${id}" data-line="${i}" ${received<.01?'disabled':''}>Storna</button></div></div>`}).join('');
+ return `<section class="v45-payment-panel" data-v45-panel="${id}"><h3>Conto separato · pagamenti per prodotto</h3>${rows}<div class="v45-pay-summary"><span>Totale prodotti ${fmt(s.total)}</span><span>Incassato ${fmt(s.received)}</span><span class="${s.due<.01?'v45-paid':'v45-due'}">Residuo ${fmt(s.due)}</span></div></section>`;
 }
-function personShare(target,personId){const b=ensureBill(target);let sum=0;(target.lines||[]).forEach(l=>{const a=b.allocations[getLineKey(l)]||{};const q=Number(l.qty)||1;sum+=(billTotal(l)/q)*(Number(a[personId])||0)});return Math.round((sum+Number.EPSILON)*100)/100}
-function personPaid(target,id){return Math.round((ensureBill(target).payments.filter(p=>p.personId===id).reduce((n,p)=>n+Number(p.amount||0),0)+Number.EPSILON)*100)/100}
-function allPaid(target){return ensureBill(target).payments.reduce((n,p)=>n+Number(p.amount||0),0)}
-function addCss(){if($v('#v45-split-css'))return;const st=document.createElement('style');st.id='v45-split-css';st.textContent=`
-#v45-split-dialog{width:min(980px,96vw);max-height:92vh;border:0;border-radius:18px;padding:0;box-shadow:0 20px 70px #0005;color:var(--text,#17202a)}#v45-split-dialog::backdrop{background:#1119}.v45-wrap{padding:18px;max-height:92vh;overflow:auto;background:var(--surface,#fff)}.v45-head{display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;top:-18px;background:var(--surface,#fff);padding:4px 0 12px;z-index:2}.v45-head h2{margin:0;font-size:1.2rem}.v45-muted{color:var(--muted,#647184);font-size:.86rem}.v45-people{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.v45-person{display:flex;align-items:center;gap:6px;background:var(--surface2,#f8f9fb);border:1px solid var(--line,#dce1e8);padding:7px;border-radius:12px}.v45-person input{width:145px;max-width:34vw}.v45-table{width:100%;border-collapse:collapse;margin:10px 0}.v45-table th,.v45-table td{padding:8px;border-bottom:1px solid var(--line,#dce1e8);text-align:center}.v45-table th:first-child,.v45-table td:first-child{text-align:left;min-width:150px}.v45-table input{width:76px;max-width:100%;text-align:center;padding:8px}.v45-person-pay{display:grid;grid-template-columns:1.1fr .8fr .8fr .9fr auto;gap:8px;align-items:end;padding:10px 0;border-top:1px solid var(--line,#dce1e8)}.v45-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}.v45-summary>div{padding:10px;border-radius:10px;background:var(--surface2,#f8f9fb)}.v45-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:16px}.v45-payments{font-size:.8rem;color:var(--muted,#647184)}.v45-warn{color:#b45309;font-size:.85rem;margin-top:8px}@media(max-width:650px){.v45-person-pay{grid-template-columns:1fr 1fr}.v45-person-pay .v45-pay-name{grid-column:1/-1}.v45-table{font-size:.82rem}.v45-table input{width:56px}.v45-summary{grid-template-columns:1fr 1fr}}
-`;document.head.appendChild(st)}
-function getTarget(){return V.lastEditor?.kind==='order'?state.orders.find(o=>String(o.id)===String(V.lastEditor.id)):state.draft}
-function editorHtml(target,kind){const b=ensureBill(target),people=b.people;const total=(target.lines||[]).reduce((n,l)=>n+billTotal(l),0);const allocated=b.payments.reduce((n,p)=>n+Number(p.amount||0),0);return `<div class="v45-wrap"><div class="v45-head"><div><h2>Conto saletta e pagamenti</h2><div class="v45-muted">${kind==='draft'?'Divisione impostata durante l’ordine. Potrai registrare i pagamenti anche dopo.':`Ordine #${escV(target.id)} · divisione e incassi separati`}</div></div><button type="button" class="btn ghost" data-v45-close>Chiudi</button></div>
-<div class="v45-summary"><div><small class="v45-muted">Totale ordine</small><div><b>${moneyV(total)}</b></div></div><div><small class="v45-muted">Pagato con conti separati</small><div><b>${moneyV(allocated)}</b></div></div><div><small class="v45-muted">Residuo</small><div><b>${moneyV(Math.max(0,total-allocated))}</b></div></div></div>
-<div class="row" style="justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Persone al tavolo</b><button type="button" class="btn ghost small" data-v45-add-person>＋ Aggiungi persona</button></div><div class="v45-people">${people.map((p,i)=>`<div class="v45-person"><span>${i+1}.</span><input class="input" data-v45-person-name="${escV(p.id)}" value="${escV(p.name)}" aria-label="Nome persona ${i+1}"><button type="button" class="btn ghost small" data-v45-remove-person="${escV(p.id)}" title="Rimuovi persona" ${people.length<=1||b.payments.some(x=>x.personId===p.id)?'disabled':''}>×</button></div>`).join('')}</div>
-<div class="v45-muted">Assegna a ogni persona la quantità che consuma. Puoi dividere anche una singola pizza (ad esempio 0,5 + 0,5). La somma assegnata deve coincidere con la quantità ordinata.</div>
-<div style="overflow:auto"><table class="v45-table"><thead><tr><th>Prodotto</th>${people.map(p=>`<th>${escV(p.name)}</th>`).join('')}<th>Totale</th></tr></thead><tbody>${(target.lines||[]).map(l=>{const key=getLineKey(l),a=b.allocations[key]||{};return `<tr><td><b>${escV(l.name)}</b><div class="v45-muted">Qtà ${Number(l.qty)||1} · ${moneyV(billTotal(l))}</div></td>${people.map(p=>`<td><input class="input" type="number" min="0" max="${Number(l.qty)||1}" step="0.01" data-v45-alloc="${escV(key)}" data-v45-person="${escV(p.id)}" value="${Number(a[p.id]||0)}"></td>`).join('')}<td><span data-v45-row-total="${escV(key)}">${people.reduce((n,p)=>n+Number(a[p.id]||0),0).toFixed(2)} / ${(Number(l.qty)||1).toFixed(2)}</span></td></tr>`}).join('')}</tbody></table></div>
-${kind==='order'?`<h3 style="margin:18px 0 6px">Incassi per persona</h3>${people.map(p=>{const share=personShare(target,p.id),paid=personPaid(target,p.id),due=Math.max(0,share-paid);return `<div class="v45-person-pay"><div class="v45-pay-name"><b>${escV(p.name)}</b><div class="v45-muted">Quota ${moneyV(share)} · pagato ${moneyV(paid)} · residuo ${moneyV(due)}</div></div><div class="field"><label>Importo €</label><input class="input" type="number" min="0.01" max="${due.toFixed(2)}" step="0.01" value="${due.toFixed(2)}" data-v45-pay-amount="${escV(p.id)}" ${due<=0?'disabled':''}></div><div class="field"><label>Metodo</label><select class="input" data-v45-pay-method="${escV(p.id)}"><option>Contanti</option><option>POS</option><option>Satispay</option><option>Bonifico</option><option>Altro</option></select></div><div class="v45-payments">${b.payments.filter(x=>x.personId===p.id).map(x=>`${moneyV(x.amount)} · ${escV(x.method)}`).join('<br>')||'Nessun incasso'}</div><button type="button" class="btn success small" data-v45-pay="${escV(p.id)}" ${due<=0?'disabled':''}>Registra</button></div>`}).join('')}`:''}
-<div class="v45-warn" data-v45-error></div><div class="v45-actions"><button type="button" class="btn ghost" data-v45-close>Annulla</button><button type="button" class="btn primary" data-v45-save>Salva divisione</button></div></div>`}
-function showEditor(kind,id){addCss();V.lastEditor={kind,id:id||null};const target=kind==='draft'?state.draft:state.orders.find(o=>String(o.id)===String(id));if(!target||!Array.isArray(target.lines)||!target.lines.length){if(typeof toast==='function')toast('Aggiungi prima almeno un prodotto');return}ensureBill(target);let dlg=$v('#v45-split-dialog');if(!dlg){dlg=document.createElement('dialog');dlg.id='v45-split-dialog';document.body.appendChild(dlg)}dlg.innerHTML=editorHtml(target,kind);dlg.showModal();}
-function renderAgain(){const t=getTarget();const dlg=$v('#v45-split-dialog');if(t&&dlg?.open)dlg.innerHTML=editorHtml(t,V.lastEditor.kind)}
-function validate(target){const b=ensureBill(target),errors=[];if(!b.people.length)errors.push('Inserisci almeno una persona.');(target.lines||[]).forEach(l=>{const a=b.allocations[getLineKey(l)]||{},sum=b.people.reduce((n,p)=>n+(Number(a[p.id])||0),0),qty=Number(l.qty)||1;if(Math.abs(sum-qty)>.0001)errors.push(`${l.name}: assegnate ${sum.toFixed(2)} su ${qty}.`)});b.people.forEach(p=>{const share=personShare(target,p.id),paid=personPaid(target,p.id);if(paid-share>.009)errors.push(`I pagamenti di ${p.name} superano la sua quota.`)});return errors}
-function saveEditor(){const kind=V.lastEditor.kind,target=getTarget();if(!target)return;const errors=validate(target);const err=$v('[data-v45-error]');if(errors.length){if(err)err.textContent=errors.join(' ');return}if(kind==='draft')target.splitBill=ensureBill(target);if(typeof save==='function')save(kind==='draft'?'divisione conto impostata in ordine':'divisione conto aggiornata');$v('#v45-split-dialog')?.close();if(typeof renderEntry==='function'&&kind==='draft')renderEntry();if(typeof renderOrders==='function'&&kind==='order')renderOrders();if(typeof toast==='function')toast('Divisione conto salvata')}
-function addPerson(){const t=getTarget();if(!t)return;const b=ensureBill(t),id=uidV();b.people.push({id,name:`Persona ${b.people.length+1}`});(t.lines||[]).forEach(l=>{const a=b.allocations[getLineKey(l)]||{};a[id]=0;b.allocations[getLineKey(l)]=a});renderAgain()}
-function removePerson(id){const t=getTarget();if(!t)return;const b=ensureBill(t);if(b.people.length<=1||b.payments.some(p=>p.personId===id))return;if(!confirm('Rimuovere questa persona dalla divisione? Le quantità assegnate saranno riassegnate alla prima persona.'))return;const first=b.people.find(p=>p.id!==id);(t.lines||[]).forEach(l=>{const a=b.allocations[getLineKey(l)]||{};a[first.id]=(Number(a[first.id])||0)+(Number(a[id])||0);delete a[id]});b.people=b.people.filter(p=>p.id!==id);renderAgain()}
-function payPerson(id){const t=getTarget();if(!t)return;const allocationErrors=validate(t);if(allocationErrors.length){const e=$v('[data-v45-error]');if(e)e.textContent='Prima completa la ripartizione delle quantità: '+allocationErrors.join(' ');return}const b=ensureBill(t),share=personShare(t,id),paid=personPaid(t,id),due=Math.max(0,share-paid),amount=Number($v(`[data-v45-pay-amount="${CSS.escape(id)}"]`)?.value),method=$v(`[data-v45-pay-method="${CSS.escape(id)}"]`)?.value||'Contanti';if(!Number.isFinite(amount)||amount<=0||amount>due+.001){const e=$v('[data-v45-error]');if(e)e.textContent=`Importo non valido: il residuo è ${moneyV(due)}.`;return}b.payments.push({id:uidV(),personId:id,amount:Math.round(amount*100)/100,method,at:new Date().toISOString()});if(typeof save==='function')save('pagamento separato registrato');renderAgain();if(typeof toast==='function')toast('Pagamento registrato')}
-function handleDialog(e){const b=e.target.closest('[data-v45-close],[data-v45-save],[data-v45-add-person],[data-v45-remove-person],[data-v45-pay]');if(!b)return;if(b.hasAttribute('data-v45-close')){$v('#v45-split-dialog')?.close();return}if(b.hasAttribute('data-v45-save')){saveEditor();return}if(b.hasAttribute('data-v45-add-person')){addPerson();return}if(b.hasAttribute('data-v45-remove-person')){removePerson(b.dataset.v45RemovePerson);return}if(b.hasAttribute('data-v45-pay'))payPerson(b.dataset.v45Pay)}
-function handleInput(e){const t=e.target;if(t.matches('[data-v45-person-name]')){const target=getTarget(),p=ensureBill(target).people.find(x=>x.id===t.dataset.v45PersonName);if(p)p.name=t.value.trim()||'Persona';return}if(t.matches('[data-v45-alloc]')){const target=getTarget(),b=ensureBill(target),a=b.allocations[t.dataset.v45Alloc]||(b.allocations[t.dataset.v45Alloc]={});a[t.dataset.v45Person]=Math.max(0,Number(t.value)||0);const row=$v(`[data-v45-row-total="${CSS.escape(t.dataset.v45Alloc)}"]`);if(row){const l=target.lines.find(x=>getLineKey(x)===t.dataset.v45Alloc),sum=ensureBill(target).people.reduce((n,p)=>n+(Number(a[p.id])||0),0);row.textContent=`${sum.toFixed(2)} / ${(Number(l?.qty)||1).toFixed(2)}`}const err=$v('[data-v45-error]');if(err)err.textContent='';return}}
-function addPreOrderButton(){const host=$v('#view-entry .sticky-card .total-box');if(!host||!state.draft?.lines?.length||$v('#view-entry [data-v45-open-draft]'))return;const b=document.createElement('button');b.type='button';b.className='btn ghost full';b.style.marginTop='8px';b.dataset.v45OpenDraft='1';b.textContent='👥 Dividi conto / saletta';host.insertAdjacentElement('afterend',b)}
-function decorateOrders(){const root=$v('#view-orders');if(!root)return;$$v('.order-card[data-order]',root).forEach(card=>{if(card.querySelector('[data-v45-open-order]'))return;const id=card.dataset.order,btn=document.createElement('button');btn.type='button';btn.className='btn ghost small';btn.dataset.v45OpenOrder=id;btn.textContent='👥 Conto e pagamenti';const actions=$v('.order-actions',card);if(actions)actions.insertBefore(btn,actions.firstChild)})}
-const baseEntry=renderEntry;renderEntry=function(){const r=baseEntry.apply(this,arguments);try{addPreOrderButton()}catch(e){console.error('V45 pulsante divisione in ordine',e)}return r};
-const baseOrders=renderOrders;renderOrders=function(){const r=baseOrders.apply(this,arguments);try{decorateOrders()}catch(e){console.error('V45 pulsanti conto ordini',e)}return r};
-const baseSettings=renderSettings;
-renderSettings=function(){
- const result=baseSettings.apply(this,arguments);
- if(ui.settingsTab==='data'){
-  const panel=$v('#view-settings [data-panel="data"]');
-  if(panel&&!$v('#v45-account-analysis',panel)){
-   const orders=[...(state.orders||[]),...(state.archive||[])];
-   const split=orders.filter(o=>o.splitBill);
-   const sum=split.reduce((n,o)=>n+Number(o.total||0),0);
-   const paid=split.reduce((n,o)=>n+allPaid(o),0);
-   const card=`<div class="card" id="v45-account-analysis"><div class="page-head"><div><h2>Conti separati · analisi e controllo</h2><div class="order-meta">Riepilogo dei conti divisi, incassi e residui. Integrato nelle impostazioni dati, senza nuove voci di navigazione.</div></div><span class="badge">V45</span></div><div class="grid three"><div><small>Ordini con conto diviso</small><h3>${split.length}</h3></div><div><small>Valore conti divisi</small><h3>${moneyV(sum)}</h3></div><div><small>Incassato / residuo</small><h3>${moneyV(paid)} / ${moneyV(Math.max(0,sum-paid))}</h3></div></div><div class="row"><button type="button" class="btn ghost" data-v45-export>Esporta analisi CSV</button><button type="button" class="btn ghost" data-v45-check>Controlla coerenza conti</button><span class="v45-muted" id="v45-check-result"></span></div></div>`;
-   panel.insertAdjacentHTML('beforeend',card);
-  }
+function isLegacyPaid(o){return o.paymentStatus==='paid'||o.paid===true||o.paymentReceived===true||o.payment==='App delivery'}
+function migratePaidLines(o){ensure(o);o.lines.forEach((l,i)=>{const key=String(i),p=o.linePayments[key]||{},amount=lineValue(l),tx=Array.isArray(p.transactions)?p.transactions:[];const explicitPaid=p.paid===true||p.received===true;if(amount>0&&(explicitPaid||(!lineReceived(o,i)&&isLegacyPaid(o)))){const already=tx.reduce((a,t)=>a+(t.status==='reversed'?0:cash(t.amount)),0),missing=Math.max(0,cash(amount-already));if(missing>.009){p.payer=p.payer||'Pagamento ordine precedente';p.method=p.method||o.paymentLabel||o.payment||'Metodo precedente non specificato';p.transactions=tx;p.transactions.push({id:'legacy_'+o.id+'_'+i,amount:missing,method:p.method,payer:p.payer,status:'captured',at:o.paidAt||o.createdAt||o.dateTime||new Date().toISOString(),legacyMigration:true});delete p.paid;delete p.received;o.linePayments[key]=p}}});return o}
+function enable(o){
+ ensure(o);if(o.splitPaymentEnabled)return true;if(!o.lines.length){notify('Ordine senza prodotti: impossibile dividere il conto');return false}
+ const wasPaid=isLegacyPaid(o);
+ if(wasPaid||o.lines.some((l,i)=>{const p=o.linePayments[String(i)]||{};return p.paid===true||p.received===true}))migratePaidLines(o);
+ o.splitPaymentEnabled=true;const s=summary(o);o.paid=s.paid;o.paymentStatus=s.paid?'paid':s.received>0?'partially_paid':'unpaid';addAudit('Pagamenti separati attivati',`Ordine #${o.id} · già saldato: ${wasPaid?'sì':'no'}`);persist('attivazione pagamenti separati V45');refresh();notify(wasPaid?'Ordine già saldato: incasso storico ripartito sulle righe.':'Pagamenti separati attivati. Puoi registrare gli incassi per prodotto.');return true;
+}
+function refresh(){try{if(typeof renderAll==='function')renderAll();else{if(typeof renderOrders==='function')renderOrders();if(typeof renderHistory==='function')renderHistory()}}catch(e){console.error('V45 refresh',e)}}
+function modal(html){$('#v45-modal-root')?.remove();const root=document.createElement('div');root.id='v45-modal-root';root.className='v45-modal-backdrop';root.innerHTML=`<div class="v45-modal" role="dialog" aria-modal="true">${html}</div>`;document.body.appendChild(root);root.addEventListener('click',e=>{if(e.target===root)root.remove()});return root}
+function collect(o,i){
+ ensure(o);const l=o.lines[i];if(!l)return;const p=o.linePayments[String(i)]||{},due=Math.max(0,cash(lineValue(l)-lineReceived(o,i)));if(due<.01){notify('Riga già saldata');return}
+ const root=modal(`<h3>Incassa quota · ${esc45(l.name)}</h3><p class="v45-help">Valore riga ${fmt(lineValue(l))} · già incassato ${fmt(lineReceived(o,i))} · residuo ${fmt(due)}</p><form id="v45-collect-form"><div class="field"><label>Importo da incassare (€)</label><input name="amount" type="number" min="0.01" max="${due.toFixed(2)}" step="0.01" value="${due.toFixed(2)}" required></div><div class="field"><label>Chi paga?</label><input name="payer" maxlength="80" value="${esc45(p.payer||'')}" placeholder="Nome del cliente" required></div><div class="field"><label>Metodo di pagamento</label><select name="method"><option>Contanti</option><option>Carta</option><option>Satispay</option><option>App delivery</option><option>Buono</option><option>Altro</option></select></div><div class="v45-modal-actions"><button type="button" class="btn ghost" data-v45-close>Annulla</button><button class="btn success" type="submit">Conferma incasso</button></div></form>`);
+ const form=$('#v45-collect-form',root);form.elements.method.value=p.method&&p.method!=='Da pagare'?p.method:'Contanti';$('[data-v45-close]',root).onclick=()=>root.remove();
+ form.onsubmit=e=>{e.preventDefault();const amount=cash(String(form.elements.amount.value).replace(',','.')),payer=form.elements.payer.value.trim(),method=form.elements.method.value;const currentDue=Math.max(0,cash(lineValue(l)-lineReceived(o,i)));if(!validAmount(amount,currentDue)){notify('Importo non valido: non può superare il residuo');return}if(!payer){notify('Indica chi sta pagando');return}
+ const target=o.linePayments[String(i)]||{};target.payer=payer;target.method=method;target.transactions=Array.isArray(target.transactions)?target.transactions:[];target.transactions.push({id:'v45_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),amount,method,payer,status:'captured',at:new Date().toISOString()});o.linePayments[String(i)]=target;const s=summary(o);o.paid=s.paid;o.paymentStatus=s.paid?'paid':s.received>0?'partially_paid':'unpaid';o.paidAt=s.paid?new Date().toISOString():null;addAudit('Incasso quota prodotto',`Ordine #${o.id} · riga ${i+1} · ${fmt(amount)} · ${method} · ${payer}`);persist('incasso quota prodotto V45');root.remove();refresh();notify(`Incassati ${fmt(amount)} · residuo ordine ${fmt(s.due)}`)};
+}
+function reverse(o,i){
+ const tx=txList(o,i),last=[...tx].reverse().find(t=>t.status!=='reversed');if(!last){notify('Nessun incasso da stornare');return}
+ const root=modal(`<h3>Storno quota</h3><p>Importo ${fmt(last.amount)} · ${esc45(last.method||'')} · ${esc45(last.payer||'')}</p><form id="v45-reverse-form"><div class="field"><label>Motivo dello storno</label><input name="reason" maxlength="160" required placeholder="Es. rimborso cliente"></div><p class="v45-help">Lo storno aggiorna lo storico del gestionale. Il rimborso effettivo va eseguito sul POS o sul metodo originale.</p><div class="v45-modal-actions"><button type="button" class="btn ghost" data-v45-close>Annulla</button><button class="btn warn">Conferma storno</button></div></form>`);
+ $('[data-v45-close]',root).onclick=()=>root.remove();$('#v45-reverse-form',root).onsubmit=e=>{e.preventDefault();const reason=e.target.elements.reason.value.trim();if(!reason)return;last.status='reversed';last.reversedAt=new Date().toISOString();last.reversalReason=reason;const s=summary(o);o.paid=s.paid;o.paymentStatus=s.paid?'paid':s.received>0?'partially_paid':'unpaid';o.paidAt=s.paid?(o.paidAt||new Date().toISOString()):null;addAudit('Storno quota prodotto',`Ordine #${o.id} · riga ${i+1} · ${fmt(last.amount)} · ${reason}`);persist('storno quota prodotto V45');root.remove();refresh();notify('Storno registrato. Verifica il rimborso effettivo.')};
+}
+function updateDraft(){
+ const d=state.draft;if(!d)return;d.splitPaymentEnabled=!!$('#v45-split-enabled')?.checked;d.linePayments=d.linePayments&&typeof d.linePayments==='object'?d.linePayments:{};
+ $$('[data-v45-payer]').forEach(el=>{const i=el.dataset.v45Payer;d.linePayments[String(i)]=d.linePayments[String(i)]||{};d.linePayments[String(i)].payer=el.value.trim()});
+ $$('[data-v45-method]').forEach(el=>{const i=el.dataset.v45Method;d.linePayments[String(i)]=d.linePayments[String(i)]||{};d.linePayments[String(i)].method=el.value});
+ const ok=(d.lines||[]).every((l,i)=>d.linePayments[String(i)]?.payer&&d.linePayments[String(i)]?.method&&d.linePayments[String(i)].method!=='Da pagare');const status=$('#v45-pay-check');if(status)status.textContent=ok?'Tutte le righe assegnate':'Da assegnare';const list=$('#v45-pay-lines');if(list)list.style.display=d.splitPaymentEnabled?'':'none';
+}
+function draftPanel(d){if(!d?.lines?.length)return '';d.linePayments=d.linePayments||{};const ok=d.lines.every((l,i)=>d.linePayments[String(i)]?.payer&&d.linePayments[String(i)]?.method&&d.linePayments[String(i)].method!=='Da pagare');return `<section class="v45-payment-panel" id="v45-payment-panel"><h3>Pagamento prodotti singoli / conto di gruppo</h3><p class="v45-help">Nella saletta puoi assegnare ogni prodotto a chi lo paga. L’incasso può essere registrato ora oppure dopo il pasto, dall’ordine.</p><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="v45-split-enabled" ${d.splitPaymentEnabled?'checked':''} style="width:auto"> Dividi il conto per prodotti</label><div id="v45-pay-lines" style="${d.splitPaymentEnabled?'':'display:none'}">${d.lines.map((l,i)=>{const p=d.linePayments[String(i)]||{};return `<div class="v45-pay-row" data-v45-draft-line="${i}"><strong class="v45-product">${esc45(l.qty)} × ${esc45(l.name)}<small>${fmt(lineValue(l))}</small></strong><input class="input" data-v45-payer="${i}" value="${esc45(p.payer||'')}" placeholder="Chi paga?" aria-label="Chi paga ${esc45(l.name)}"><select class="input" data-v45-method="${i}" aria-label="Metodo pagamento ${esc45(l.name)}"><option value="Da pagare" ${(!p.method||p.method==='Da pagare')?'selected':''}>Da pagare</option>${['Contanti','Carta','Satispay','App delivery','Buono','Altro'].map(x=>`<option ${p.method===x?'selected':''}>${x}</option>`).join('')}</select></div>`}).join('')}<div class="v45-pay-summary"><span>Totale prodotti: ${fmt(d.lines.reduce((n,l)=>n+lineValue(l),0))}</span><span id="v45-pay-check">${ok?'Tutte le righe assegnate':'Da assegnare'}</span></div></div></section>`}
+function installFinalize(){
+ if(typeof openFinalize!=='function'||typeof commitFinalOrder!=='function')return false;
+ const priorOpen=openFinalize;openFinalize=function(){const result=priorOpen.apply(this,arguments);try{const d=state.draft,body=$('#orderBody');if(!d||!body)return result;$('#v45-payment-panel',body)?.remove();const panel=draftPanel(d),anchor=$('.total-box',body)||$('#v12FinalizePrintPlan',body);if(anchor)anchor.insertAdjacentHTML('beforebegin',panel);else body.insertAdjacentHTML('beforeend',panel);const check=$('#v45-split-enabled',body);if(check)check.onchange=updateDraft;$$('[data-v45-payer],[data-v45-method]',body).forEach(el=>{el.oninput=updateDraft;el.onchange=updateDraft})}catch(e){console.error('V45 pannello finalizzazione',e)}return result};
+ const priorCommit=commitFinalOrder;commitFinalOrder=async function(e){updateDraft();const d=state.draft;if(d?.splitPaymentEnabled){const missing=(d.lines||[]).some((l,i)=>!d.linePayments?.[String(i)]?.payer||!d.linePayments?.[String(i)]?.method||d.linePayments[String(i)].method==='Da pagare');if(missing){notify('Completa chi paga e il metodo per ogni prodotto, oppure disattiva la divisione.');return}}
+ const snapshot=d?JSON.parse(JSON.stringify(d)):null,editingId=d?.editingOrderId||null,before=new Set((state.orders||[]).map(x=>String(x.id)));const result=await priorCommit.apply(this,arguments);if(snapshot){const order=editingId?(state.orders||[]).find(x=>String(x.id)===String(editingId)):(state.orders||[]).find(x=>!before.has(String(x.id)));if(order){order.splitPaymentEnabled=!!snapshot.splitPaymentEnabled;order.linePayments=snapshot.splitPaymentEnabled?snapshot.linePayments:{};persist('salvataggio configurazione conto separato V45');if(typeof renderAll==='function')renderAll()}}return result};
+ return true;
+}
+function installOrderCards(){
+ if(typeof orderCard==='function'){const old=orderCard;orderCard=function(o){let html=old.apply(this,arguments);if(!o?.lines?.length)return html;const panel=payPanel(o,false);const marker='<div class="order-actions">';const at=html.indexOf(marker);if(at>=0)html=html.slice(0,at)+panel+html.slice(at);return html}}
+ if(typeof renderHistory==='function'){const oldHistory=renderHistory;renderHistory=function(){const result=oldHistory.apply(this,arguments);try{const list=(state.archive||[]).filter(o=>(o.closedAt||o.dateTime||'').slice(0,10)===ui.historyDate);const cards=$$('#view-history .grid .order-card');cards.forEach((card,i)=>{const o=list[i];if(!o||!o.lines?.length||card.querySelector('.v45-payment-panel'))return;const actions=$('.order-actions',card);if(actions)actions.insertAdjacentHTML('beforebegin',payPanel(o,true))})}catch(e){console.error('V45 storico pagamenti',e)}return result}}
+}
+function installSettings(){
+ if(typeof renderSettings!=='function')return;const old=renderSettings;renderSettings=function(){const result=old.apply(this,arguments);try{const root=$('#view-settings');if(!root||$('#v45-payment-diagnostics'))return result;const orders=[...(state.orders||[]),...(state.archive||[])],split=orders.filter(o=>o.splitPaymentEnabled),due=split.reduce((a,o)=>a+summary(o).due,0);const box=document.createElement('section');box.id='v45-payment-diagnostics';box.className='card';box.style.marginTop='12px';box.innerHTML=`<h2>Controllo conti separati</h2><p class="v45-help">Riepilogo integrato nelle impostazioni esistenti. Non modifica stampe o comande.</p><div class="v45-pay-summary"><span>Ordini con conto separato: ${split.length}</span><span>Residui complessivi: ${fmt(due)}</span><span>Righe da verificare: ${split.reduce((a,o)=>a+o.lines.filter((l,i)=>lineValue(l)-lineReceived(o,i)>.009).length,0)}</span></div>`;root.appendChild(box)}catch(e){console.error('V45 diagnostica impostazioni',e)}return result}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-v45-action]');if(!b)return;const o=[...(state.orders||[]),...(state.archive||[])].find(x=>String(x.id)===String(b.dataset.id));if(!o)return;const action=b.dataset.v45Action;if(action==='enable'){e.preventDefault();e.stopImmediatePropagation();if(confirm(`Attivare il conto separato per l’ordine #${o.id}?`))enable(o)}else if(action==='collect'){e.preventDefault();e.stopImmediatePropagation();collect(o,Number(b.dataset.line))}else if(action==='reverse'){e.preventDefault();e.stopImmediatePropagation();reverse(o,Number(b.dataset.line))}},true);
+function selfTest(){
+ const tests=[],add=(name,ok)=>tests.push({name,ok:!!ok});
+ const sample={id:'TEST',lines:[{qty:1,name:'Margherita',unitPrice:8},{qty:2,name:'Diavola',unitPrice:7.5,modifiers:[{price:1}]}],linePayments:{},splitPaymentEnabled:true};
+ add('calcolo totale riga con quantità e modificatore',lineValue(sample.lines[1])===17);
+ sample.linePayments['0']={transactions:[{amount:4,status:'captured'}]};add('incasso parziale',summary(sample).received===4&&summary(sample).due===21);
+ sample.linePayments['0'].transactions.push({amount:4,status:'captured'});add('riga saldata',lineReceived(sample,0)===8);
+ sample.linePayments['0'].transactions[0].status='reversed';add('storno ricalcola residuo',lineReceived(sample,0)===4);
+ add('importo pari al residuo accettato',validAmount(8,8));add('importo superiore al residuo respinto',!validAmount(8.01,8));add('importo nullo o negativo respinto',!validAmount(0,8)&&!validAmount(-1,8));
+ const before=summary(sample).total;sample.linePayments['1']={transactions:[{amount:17,status:'captured'}]};add('più pagamenti su righe diverse',summary(sample).received===21&&summary(sample).total===before);
+ const old={id:'TEST2',paymentStatus:'paid',lines:[{qty:1,name:'Pizza',unitPrice:10}],linePayments:{}};migratePaidLines(old);old.splitPaymentEnabled=true;add('migrazione ordine già pagato',summary(old).paid&&summary(old).received===10&&old.linePayments['0'].transactions[0].legacyMigration===true);const linePaid={id:'TEST3',lines:[{qty:1,name:'Pizza',unitPrice:10}],linePayments:{'0':{paid:true}}};migratePaidLines(linePaid);add('migrazione pagamento già registrato sulla riga',lineReceived(linePaid,0)===10&&linePaid.linePayments['0'].transactions.length===1);
+ add('ordine senza righe non attivabile',enable({lines:[]})===false);
+ return{version:V.version,passed:tests.filter(t=>t.ok).length,total:tests.length,tests};
+}
+installFinalize();installOrderCards();installSettings();
+window.AmalfitanaV45Payments={version:V.version,summary,enableSplitPayment:enable,selfTest,renderPanel:payPanel,validAmount,migratePaidLines};
+console.info('V45 pagamenti separati',selfTest());
+})();
+</script>
+
+<script id="amalfitana-v46-note-modifier-and-print-integrity">
+(function(){
+ 'use strict';
+ if(window.AmalfitanaV46)return;
+ const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('it-IT').trim();
+ const allowed=['normal','bold','highlight'];
+ function migrateNoteCategory(){
+   if(typeof state==='undefined'||!state||!Array.isArray(state.categories)||!Array.isArray(state.modifierGroups))return {ok:false,reason:'state non pronto'};
+   const category=state.categories.find(c=>norm(c.name)==='note' || ['note','note forno','note cucina','istruzioni'].includes(norm(c.name)));
+   let group=state.modifierGroups.find(g=>g.id==='mg_cottura_taglio_v46')||state.modifierGroups.find(g=>norm(g.name)==='cottura e taglio');
+   if(!group){group={id:'mg_cottura_taglio_v46',name:'Cottura e taglio',style:'little',enabled:true,selectionMode:'multiple',items:[]};state.modifierGroups.push(group)}
+   group.enabled=true;group.selectionMode='multiple';group.items=Array.isArray(group.items)?group.items:[];
+   const sourceItems=category?.items||[];
+   const defaults=[{name:'Ben cotta',printStyle:'highlight'},{name:'Tagliata',printStyle:'highlight'}];
+   let added=0,changed=false;
+   [...sourceItems.map(x=>({name:x.name,price:Number(x.price)||0,printStyle:allowed.includes(x.printStyle)?x.printStyle:'highlight',id:x.id})),...defaults].forEach(item=>{
+     const name=String(item.name||'').trim();if(!name)return;
+     let found=group.items.find(x=>norm(x.name)===norm(name));
+     if(!found){found={id:item.id&&!group.items.some(x=>String(x.id)===String(item.id))?item.id:(typeof uid==='function'?uid('m'):`v46_${Date.now()}_${added}`),name,price:item.price||0,soldOut:false,printStyle:item.printStyle||'highlight'};group.items.push(found);added++;changed=true}
+     if(!allowed.includes(String(found.printStyle||''))){found.printStyle=item.printStyle||'highlight';changed=true}
+   });
+   // Keep the old category disabled so historic order lines remain resolvable and printable.
+   // It is not offered in the live product picker anymore.
+   if(category&&category.enabled!==false){category.enabled=false;changed=true}
+   state.settings=state.settings||{};
+   if(!state.settings.v46NoteModifiersMigrated){state.settings.v46NoteModifiersMigrated=true;changed=true}
+   if(changed&&typeof save==='function')save('V46 note convertite in modificatori');
+   return {ok:true,categoryId:category?.id||null,categoryDisabled:!!category,groupId:group.id,groupName:group.name,items:group.items.map(x=>({name:x.name,printStyle:x.printStyle})),added,changed};
  }
- return result;
-};
-document.addEventListener('click',e=>{const pre=e.target.closest('[data-v45-open-draft]');if(pre){showEditor('draft');return}const post=e.target.closest('[data-v45-open-order]');if(post){showEditor('order',post.dataset.v45OpenOrder);return}if(e.target.closest('#v45-split-dialog')){handleDialog(e);return}if(e.target.closest('[data-v45-export]')){const rows=[['Ordine','Cliente','Persona','Quota','Pagato','Residuo','Metodo','Data pagamento']];[...(state.orders||[]),...(state.archive||[])].forEach(o=>{if(!o.splitBill)return;ensureBill(o);o.splitBill.people.forEach(p=>{const share=personShare(o,p.id),payments=o.splitBill.payments.filter(x=>x.personId===p.id);if(!payments.length)rows.push([o.id,o.customer,p.name,share,0,share,'','']);else payments.forEach(x=>rows.push([o.id,o.customer,p.name,share,personPaid(o,p.id),Math.max(0,share-personPaid(o,p.id)),x.method,x.at]))})});const csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');const a=document.createElement('a'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.href=url;a.download=`analisi-conti-saletta-${today()}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1200);if(typeof toast==='function')toast('Analisi conti esportata');return}if(e.target.closest('[data-v45-check]')){const checks=[];[...(state.orders||[]),...(state.archive||[])].filter(o=>o.splitBill).forEach(o=>validate(o).forEach(x=>checks.push(`#${o.id}: ${x}`)));const out=$v('#v45-check-result');if(out)out.textContent=checks.length?`${checks.length} anomalie: ${checks.slice(0,3).join(' · ')}`:'Tutti i conti separati sono coerenti.';if(typeof toast==='function')toast(checks.length?'Rilevate anomalie nei conti':'Controllo conti superato');return}},true);
-document.addEventListener('input',e=>{if(e.target.closest('#v45-split-dialog'))handleInput(e)},true);
-document.addEventListener('change',e=>{if(e.target.matches('[data-v45-person-name]')){const t=getTarget(),p=ensureBill(t).people.find(x=>x.id===e.target.dataset.v45PersonName);if(p)p.name=e.target.value.trim()||'Persona'}} ,true);
-function diagnostics(){const checks=[];const add=(name,ok)=>checks.push({test:name,ok:!!ok});add('V44 base disponibile',typeof baseEntry==='function'&&typeof baseOrders==='function'&&typeof commitFinalOrder==='function');add('Motore stampa non sostituito',typeof printOrder==='function'&&typeof stationOrderHtml==='function');add('Salvataggio originale disponibile',typeof save==='function');const fake={lines:[{_splitLineId:'a',qty:1,unitPrice:10}],splitBill:{people:[{id:'x',name:'A'},{id:'y',name:'B'}],allocations:{a:{x:.5,y:.5}},payments:[]}};add('Divisione metà e metà',Math.abs(personShare(fake,'x')-5)<.001&&Math.abs(personShare(fake,'y')-5)<.001);fake.splitBill.payments.push({id:'p',personId:'x',amount:5,method:'POS'});add('Calcolo residuo persona',Math.abs(personShare(fake,'x')-personPaid(fake,'x'))<.001);add('Validazione quantità assegnate',validate(fake).length===0);const fake2={lines:[{_splitLineId:'b',qty:1,unitPrice:10}],splitBill:{people:[{id:'x',name:'A'},{id:'y',name:'B'}],allocations:{b:{x:.25,y:.75}},payments:[]}};add('Ripartizione modificabile senza reset',Math.abs(personShare(fake2,'x')-2.5)<.001&&Math.abs(personShare(fake2,'y')-7.5)<.001&&validate(fake2).length===0);fake2.splitBill.payments.push({id:'over',personId:'x',amount:3,method:'POS'});add('Blocco pagamento superiore alla quota',validate(fake2).some(x=>x.includes('superano')));const multi={lines:[{_splitLineId:'m1',qty:2,unitPrice:7},{_splitLineId:'m2',qty:1,unitPrice:9}],splitBill:{people:[{id:'a',name:'A'},{id:'b',name:'B'}],allocations:{m1:{a:1,b:1},m2:{a:0,b:1}},payments:[]}};add('Più righe e quantità frazionabili',Math.abs(personShare(multi,'a')-7)<.001&&Math.abs(personShare(multi,'b')-16)<.001&&validate(multi).length===0);return{version:V.version,passed:checks.filter(x=>x.ok).length,total:checks.length,checks}}
-window.AmalfitanaV45Split={diagnostics,openDraft:()=>showEditor('draft'),openOrder:id=>showEditor('order',id),share:personShare,paid:personPaid};
-console.info('Collaudo modulo V45',diagnostics());
+ function resolveStyle(m){
+   const own=String(m?.printStyle||'').toLowerCase();
+   if(allowed.includes(own))return own;
+   const id=m?.modifierId||m?.id;
+   for(const g of state.modifierGroups||[]){const item=(g.items||[]).find(x=>String(x.id)===String(id));if(item&&allowed.includes(String(item.printStyle||'').toLowerCase()))return item.printStyle}
+   const raw=String(m?.name||'');const colon=raw.indexOf(':');const itemName=colon>=0?raw.slice(colon+1).trim():raw;
+   for(const g of state.modifierGroups||[]){const item=(g.items||[]).find(x=>norm(x.name)===norm(itemName));if(item&&allowed.includes(String(item.printStyle||'').toLowerCase()))return item.printStyle}
+   return 'normal';
+ }
+ function installPrintStyle(){
+   if(typeof window.printMod!=='function')return false;
+   const base=window.printMod;
+   window.printMod=function(m){const style=resolveStyle(m);let html=base({...m,printStyle:style});html=html.replace(/\bmod-(?:normal|bold|highlight)\b/g,`mod-${style}`).replace(/data-v43-style="[^"]*"/g,`data-v43-style="${style}"`).replace(/data-print-style="[^"]*"/g,`data-print-style="${style}"`);return html};
+   return true;
+ }
+ function test(){
+   const results=[];const add=(name,ok)=>results.push({name,ok:!!ok});
+   const styles=['normal','bold','highlight'];
+   const sample=styles.map((style,i)=>({id:'v46_'+i,modifierId:'v46_'+i,name:['Mozzarella','Ben cotta','Tagliata'][i],printStyle:style}));
+   add('stili individuali risolti separatamente',sample.map(resolveStyle).join(',')===styles.join(','));
+   const html=sample.map(m=>window.printMod(m));
+   add('grassetto presente nel markup',html[1].includes('mod-bold'));
+   add('evidenziato presente nel markup',html[2].includes('mod-highlight'));
+   add('stile normale non ereditato',html[0].includes('mod-normal')&&!html[0].includes('mod-bold')&&!html[0].includes('mod-highlight'));
+   add('escape HTML modificatori',window.printMod({name:'Tagliata <test>',printStyle:'highlight'}).includes('&lt;test&gt;'));
+   add('formattazione per singola riga pizza',typeof amalPrintLine==='function'&&amalPrintLine({qty:1,name:'Diavola',modifiers:[sample[2]]},'kitchen').includes('mod-highlight'));
+   add('formattazione per gusto multigusto',typeof amalPrintLine==='function'&&amalPrintLine({qty:1,name:'Mezzo metro',slots:[{taste:'Diavola',modifiers:[sample[1]]}]},'kitchen').includes('mod-bold'));
+   add('categoria note non attiva nel menu',!state.categories.some(c=>norm(c.name)==='note'&&c.enabled!==false));
+   add('gruppo Cottura e taglio disponibile',!!state.modifierGroups.find(g=>norm(g.name)==='cottura e taglio'&&g.enabled!==false));
+   return {version:'V46',passed:results.filter(x=>x.ok).length,total:results.length,results};
+ }
+ function boot(){try{const style=installPrintStyle();if(typeof renderAll==='function'){const baseRenderAll=renderAll;renderAll=function(){if(typeof state!=='undefined'&&state)migrateNoteCategory();const result=baseRenderAll.apply(this,arguments);if(typeof state!=='undefined'&&state){const again=migrateNoteCategory();if(again.changed)return baseRenderAll.apply(this,arguments)}return result}}window.AmalfitanaV46={version:'46.1',migrateNoteCategory,test,resolveStyle,diagnostics:()=>({migration:typeof state!=='undefined'&&state?{ok:!!state.settings?.v46NoteModifiersMigrated}: {ok:false,reason:'state non pronto'},printStyleInstalled:style,selfTest:test()})};console.info('V46 modulo installato',window.AmalfitanaV46.diagnostics())}catch(e){console.error('V46 avvio',e)}}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>
 
