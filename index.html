@@ -7014,5 +7014,42 @@ window.AmalfitanaV48={selfTest,driverTotals,orderPayText,ensureOrderFinance,diag
 })();
 </script>
 
+
+<!-- V49: filtri ordini, stato incasso esplicito e ricevute -->
+<style id="v49-orders-css">
+.v49-filters{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;padding:12px;background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;align-items:center}
+.v49-filters .btn.active{background:var(--primary,#1769aa);color:#fff;border-color:var(--primary,#1769aa)}
+.order-card.v49-paid{border:2px solid #168a52;background:color-mix(in srgb,#168a52 7%,var(--surface,#fff))}
+.order-card.v49-unpaid{border:2px solid #d97706;background:color-mix(in srgb,#d97706 5%,var(--surface,#fff))}
+.order-card.v49-overdue{border:2px solid #dc2626;background:color-mix(in srgb,#dc2626 9%,var(--surface,#fff));box-shadow:0 0 0 1px #dc2626}
+.v49-pay-state{display:inline-flex;align-items:center;gap:5px;font-weight:800;border-radius:8px;padding:5px 9px;margin-top:6px;font-size:.82rem}
+.v49-pay-state.paid{background:#dcfce7;color:#166534}.v49-pay-state.unpaid{background:#ffedd5;color:#9a3412}.v49-pay-state.overdue{background:#fee2e2;color:#991b1b}
+.v49-card-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.v49-line-payments{margin:9px 0;padding:9px;background:var(--bg);border-radius:9px}.v49-line-pay{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+@media(max-width:650px){.v49-filters .btn{flex:1 1 42%}}
+</style>
+<script id="v49-orders-system">
+(function(){
+'use strict';
+const V49={version:'49.0'};let modeFilter='all';
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const money49=n=>typeof money==='function'?money(n):'€ '+(Number(n)||0).toFixed(2);
+function modeKey(o){const x=String(o?.mode||'').toLowerCase();if(/delivery|domicilio|consegna/.test(x))return'delivery';if(/counter|banco|tavolo/.test(x))return'counter';if(/takeaway|asporto|ritiro/.test(x))return'takeaway';return'other'}
+function isPaid(o){if(o?.paymentStatus==='paid'||o?.paid===true||o?.paymentReceived===true)return true;if(o?.paymentStatus==='unpaid'||o?.paid===false)return false;if(o?.splitPaymentEnabled){const lines=o.lines||[];return lines.length>0&&lines.every((l,i)=>o.linePayments?.[i]?.paid===true||o.linePayments?.[i]?.received===true)}return false}
+function dueDate(o){const d=new Date(o?.dateTime||o?.createdAt||0);return Number.isFinite(d.getTime())?d:null}
+function overdue(o){const d=dueDate(o);return !isPaid(o)&&!!d&&d.getTime()<=Date.now()&&o.status!=='ready'&&o.deliveryStatus!=='delivered'}
+function paymentStateHtml(o){const paid=isPaid(o),late=!paid&&overdue(o);return `<span class="v49-pay-state ${paid?'paid':late?'overdue':'unpaid'}">${paid?'✓ PAGATO':late?'⚠ NON PAGATO · ORARIO SUPERATO':'NON PAGATO'}</span>`}
+const oldCard=orderCard;
+orderCard=function(o){let html=oldCard(o);const paid=isPaid(o),late=!paid&&overdue(o);html=html.replace('class="order-card ',`class="order-card ${paid?'v49-paid':late?'v49-overdue':'v49-unpaid'} `);const actions=html.indexOf('<div class="order-actions">');if(actions>=0){const btn=paid?`<button class="btn warn small" data-v49-action="unpay" data-id="${esc(o.id)}">Annulla saldo</button>`:`<button class="btn success small" data-v49-action="pay" data-id="${esc(o.id)}">Segna incassato</button>`;html=html.slice(0,actions)+`<div>${paymentStateHtml(o)}</div><div class="v49-card-actions">${btn}</div>`+html.slice(actions);html=html.replace('data-action=\"print-receipt\"','data-action=\"print-receipt\"').replace('</div></article>',`<button class=\"btn ghost small\" disabled title=\"Richiede collegamento a registratore telematico compatibile\">Scontrino fiscale (da collegare)</button></div></article>`)}return html};
+function filterMarkup(){const items=[['all','Tutti'],['takeaway','Asporto'],['counter','Banco'],['delivery','Consegna']];return `<div class="v49-filters" id="v49-order-filters"><b>Filtra ordini:</b>${items.map(([k,n])=>`<button class="btn ghost small ${modeFilter===k?'active':''}" data-v49-filter="${k}">${n}</button>`).join('')}<span style="flex:1"></span><small>Verde = pagato · Arancione = da pagare · Rosso = orario superato</small></div>`}
+const oldRender=renderOrders;
+renderOrders=function(){const result=oldRender.apply(this,arguments);const root=$('#view-orders');if(!root)return result;let f=$('#v49-order-filters',root);if(!f){const anchor=$('.search',root);if(anchor)anchor.insertAdjacentHTML('afterend',filterMarkup());else root.insertAdjacentHTML('afterbegin',filterMarkup())}else{const fresh=document.createElement('div');fresh.innerHTML=filterMarkup();f.replaceWith(fresh.firstElementChild)}$$('.order-card[data-order]',root).forEach(card=>{const o=(state.orders||[]).find(x=>String(x.id)===String(card.dataset.order));if(!o)return;card.hidden=modeFilter!=='all'&&modeKey(o)!==modeFilter});return result};
+document.addEventListener('click',e=>{const f=e.target.closest('[data-v49-filter]');if(f){modeFilter=f.dataset.v49Filter;renderOrders();return}const b=e.target.closest('[data-v49-action]');if(!b)return;const o=(state.orders||[]).find(x=>String(x.id)===String(b.dataset.id));if(!o)return;if(b.dataset.v49Action==='line-pay'){const i=Number(b.dataset.line);o.linePayments=o.linePayments||{};o.linePayments[i]=o.linePayments[i]||{};const was=o.linePayments[i].paid===true||o.linePayments[i].received===true;if(!confirm(`${was?'Riaprire':'Confermare incasso'} della riga ${o.lines?.[i]?.name||''}?`))return;o.linePayments[i].paid=!was;o.linePayments[i].received=!was;o.linePayments[i].paidAt=!was?new Date().toISOString():null;o.paid=(o.lines||[]).length>0&&o.lines.every((l,j)=>o.linePayments?.[j]?.paid===true||o.linePayments?.[j]?.received===true);o.paymentStatus=o.paid?'paid':'unpaid';audit(was?'Riga pagamento riaperta':'Riga prodotto incassata',`Ordine #${o.id} · riga ${i+1}`)}else if(b.dataset.v49Action==='pay'){if(!confirm(`Confermi di aver effettivamente incassato ${money49(o.total)} per l'ordine #${o.id}?`))return;o.paid=true;o.paymentStatus='paid';o.paidAt=new Date().toISOString();audit('Ordine incassato',`#${o.id} · ${money49(o.total)}`)}else{if(!confirm(`Annullare la registrazione di pagamento dell'ordine #${o.id}?`))return;o.paid=false;o.paymentStatus='unpaid';o.paidAt=null;audit('Pagamento riaperto',`#${o.id}`)}save('stato pagamento V49');renderAll();toast('Stato pagamento aggiornato')},true);
+// Rende esplicito che il pulsante ricevuta produce una stampa di cortesia/non fiscale.
+// L'emissione fiscale viene lasciata al registratore telematico/cassa fiscale collegata.
+const oldReceiptHandler=window.printReceipt;
+window.AmalfitanaV49={version:V49.version,isPaid,modeKey,overdue,diagnostics:()=>({version:V49.version,modeFilter,receiptHandler:typeof oldReceiptHandler})};
+console.info('V49 filtri e pagamenti caricati',window.AmalfitanaV49.diagnostics());
+})();
+</script>
 </body>
 </html>
