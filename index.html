@@ -7140,5 +7140,102 @@ console.info('V45 pagamenti separati',selfTest());
 })();
 </script>
 
+
+<script id="amalfitana-v47-cooking-notes-section">
+(function(){
+  'use strict';
+  if(window.AmalfitanaV47)return;
+  const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('it-IT').trim();
+  function cookingGroup(){
+    return (state?.modifierGroups||[]).find(g=>String(g.id)==='mg_cottura_taglio_v46'||norm(g.name)==='cottura e taglio')||null;
+  }
+  function cookingModifier(m){
+    const group=cookingGroup();
+    if(!group)return false;
+    const items=group.items||[];
+    const id=String(m?.modifierId||m?.id||'');
+    if(id && items.some(x=>String(x.id)===id))return true;
+    const raw=String(m?.name||'');
+    const name=raw.includes(':')?raw.slice(raw.indexOf(':')+1).trim():raw.trim();
+    return items.some(x=>norm(x.name)===norm(name));
+  }
+  function selectedCooking(line){
+    const out=[];
+    (line?.modifiers||[]).forEach(m=>{if(cookingModifier(m))out.push(m)});
+    (line?.slots||[]).forEach(slot=>(slot?.modifiers||[]).forEach(m=>{if(cookingModifier(m))out.push(m)}));
+    return out;
+  }
+  function printCookingLine(line,type,options){
+    const qty=Math.max(1,Number(line?.qty)||1);
+    const name=esc(line?.name||'Prodotto');
+    const selected=selectedCooking(line);
+    const slots=(line?.slots||[]).map((slot,i)=>{
+      const mods=(slot?.modifiers||[]).filter(cookingModifier);
+      if(!mods.length)return '';
+      return `<div class="print-taste"><b>GUSTO ${i+1}: ${esc(slot.taste||'')}</b>${mods.map(printMod).join('')}</div>`;
+    }).join('');
+    const direct=(line?.modifiers||[]).filter(cookingModifier).map(printMod).join('');
+    if(!selected.length)return '';
+    return `<div class="print-line amal-note-item amal-note-pizza"><span><b>${qty}× ${name}</b>${slots}${direct}</span></div>`;
+  }
+  const previous=amalPrintSections;
+  function sectionsWithCookingNotes(lines,type='kitchen',options={}){
+    const grouped=amalGroupLines(lines);
+    const cooking=grouped.food.filter(x=>selectedCooking(x.line).length);
+    const ordinary=grouped.food.map(x=>x.line);
+    const legacy=grouped.notes.map(x=>x.line);
+    const out=[];
+    if(ordinary.length)out.push(ordinary.map(line=>amalPrintLine(line,type,options)).join(''));
+    if(legacy.length||cooking.length){
+      const legacyHtml=legacy.map(line=>amalPrintLine(line,type,{...options,note:true})).join('');
+      const cookingHtml=cooking.map(x=>printCookingLine(x.line,type,options)).join('');
+      out.push(`<section class="amal-print-section amal-print-notes"><div class="amal-print-section-title">NOTE PER FORNO / PREPARAZIONE</div>${legacyHtml}${cookingHtml}</section>`);
+    }
+    if(grouped.drinks.length)out.push(`<section class="amal-print-section amal-print-drinks"><div class="amal-print-section-title">BIBITE</div>${grouped.drinks.map(x=>amalPrintLine(x.line,type,options)).join('')}</section>`);
+    return out.join('');
+  }
+  amalPrintSections=sectionsWithCookingNotes;
+  const style=document.createElement('style');
+  style.id='amalfitana-v47-note-print-style';
+  style.textContent=`
+    #print-area .amal-print-notes .amal-note-pizza{margin:2px 0;padding:2px 0;border-bottom:1px dotted #777;break-inside:avoid;page-break-inside:avoid}
+    #print-area .amal-print-notes .amal-note-pizza:last-child{border-bottom:0}
+    #print-area .amal-print-notes .print-mod{margin-left:7px}
+    @media print{#print-area .amal-print-notes .amal-note-pizza{break-inside:avoid;page-break-inside:avoid}}
+  `;
+  document.head.appendChild(style);
+  function selfTest(){
+    const tests=[];
+    const add=(name,ok)=>tests.push({name,ok:!!ok});
+    const group=cookingGroup();
+    const tagliata=group?.items?.find(x=>norm(x.name)==='tagliata')||{id:'v47-test-tagliata',name:'Tagliata',printStyle:'highlight'};
+    const benCotta=group?.items?.find(x=>norm(x.name)==='ben cotta')||{id:'v47-test-bencotta',name:'Ben cotta',printStyle:'bold'};
+    const p1={categoryId:'cat_pizze',name:'Diavola',qty:1,modifiers:[{id:tagliata.id,modifierId:tagliata.id,name:`${group?.name||'Cottura e taglio'}: ${tagliata.name}`,printStyle:tagliata.printStyle||'highlight'}]};
+    const p2={categoryId:'cat_pizze',name:'Margherita',qty:1,modifiers:[]};
+    const p3={categoryId:'cat_pizze',name:'Capricciosa',qty:1,modifiers:[{id:benCotta.id,modifierId:benCotta.id,name:`${group?.name||'Cottura e taglio'}: ${benCotta.name}`,printStyle:benCotta.printStyle||'highlight'}]};
+    const out=sectionsWithCookingNotes([p1,p2,p3],'kitchen');
+    add('sezione forno presente con note selezionate',out.includes('NOTE PER FORNO / PREPARAZIONE'));
+    add('pizza con nota riportata nel riquadro',out.includes('1× Diavola'));
+    add('pizza senza nota esclusa dal riquadro',!out.slice(out.indexOf('NOTE PER FORNO / PREPARAZIONE')).includes('1× Margherita'));
+    add('seconda pizza con nota riportata',out.includes('1× Capricciosa'));
+    add('stile individuale conservato nella sezione',out.includes('mod-'+(tagliata.printStyle||'highlight')));
+    add('stile seconda nota conservato',out.includes('mod-'+(benCotta.printStyle||'highlight')));
+    const slotLine={categoryId:'cat_pizze',name:'Mezzo metro',qty:1,slots:[{taste:'Diavola',modifiers:[{id:tagliata.id,modifierId:tagliata.id,name:`${group?.name||'Cottura e taglio'}: ${tagliata.name}`,printStyle:tagliata.printStyle||'highlight'}]},{taste:'Margherita',modifiers:[]}]};
+    const slotOut=sectionsWithCookingNotes([slotLine],'kitchen');
+    const noteSection=slotOut.slice(slotOut.indexOf('NOTE PER FORNO / PREPARAZIONE'),slotOut.indexOf('</section>')+10);
+    add('nota multigusto legata al singolo gusto',noteSection.includes('GUSTO 1: Diavola')&&!noteSection.includes('GUSTO 2: Margherita'));
+    const oldNote={categoryId:'cat_note_operativi',name:'Tagliata',qty:1};
+    const legacyOut=sectionsWithCookingNotes([p2,oldNote],'kitchen');
+    add('compatibilità vecchia categoria note',legacyOut.includes('NOTE PER FORNO / PREPARAZIONE')&&legacyOut.includes('Tagliata'));
+    const huge=Array.from({length:10000},(_,i)=>({categoryId:'cat_pizze',name:'Pizza '+i,qty:1,modifiers:i%10===0?[{id:tagliata.id,modifierId:tagliata.id,name:`Cottura e taglio: ${tagliata.name}`,printStyle:tagliata.printStyle||'highlight'}]:[]}));
+    const t=performance.now(),stress=sectionsWithCookingNotes(huge,'kitchen'),elapsed=performance.now()-t;
+    add('stress 10.000 pizze: nessuna perdita righe o sezione',stress.includes('NOTE PER FORNO / PREPARAZIONE')&&stress.includes('Pizza 9999')&&Number.isFinite(elapsed));
+    return {version:'V47',passed:tests.filter(x=>x.ok).length,total:tests.length,tests,stressRows:huge.length,stressMilliseconds:+elapsed.toFixed(2)};
+  }
+  window.AmalfitanaV47={version:'47.1',sections:sectionsWithCookingNotes,selectedCooking,selfTest};
+  console.info('V47 note forno e preparazione',selfTest());
+})();
+</script>
+
 </body>
 </html>
