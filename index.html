@@ -7237,5 +7237,101 @@ console.info('V45 pagamenti separati',selfTest());
 })();
 </script>
 
+
+<script id="amalfitana-v48-global-cooking-instructions">
+(function(){
+  'use strict';
+  if(window.AmalfitanaV48)return;
+  const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('it-IT').trim();
+  function group(){
+    return (state?.modifierGroups||[]).find(g=>String(g.id)==='mg_cottura_taglio_v46'||norm(g.name)==='cottura e taglio')||null;
+  }
+  function isCooking(m){
+    const g=group();if(!g)return false;
+    const items=g.items||[],id=String(m?.modifierId||m?.id||'');
+    if(id&&items.some(x=>String(x.id)===id))return true;
+    const raw=String(m?.name||''),hasPrefix=raw.includes(':'),prefix=hasPrefix?norm(raw.slice(0,raw.indexOf(':'))):'',label=hasPrefix?raw.slice(raw.indexOf(':')+1).trim():raw.trim();
+    if(prefix==='cottura e taglio')return true;
+    return items.some(x=>norm(x.name)===norm(label));
+  }
+  function labelOf(m){
+    const raw=String(m?.name||'');
+    return raw.includes(':')?raw.slice(raw.indexOf(':')+1).trim():raw.trim();
+  }
+  function isGlobal(m){
+    // "Tutte tagliate", "Tutti ben cotti" e "Tutto ..." sono istruzioni collettive.
+    return isCooking(m)&&/^(tutte|tutti|tutto)\b/i.test(labelOf(m));
+  }
+  function selected(line){
+    return [...(line?.modifiers||[]),...(line?.slots||[]).flatMap(x=>x?.modifiers||[])].filter(isCooking);
+  }
+  function lineHtml(line,type,options){
+    const qty=Math.max(1,Number(line?.qty)||1),name=esc(line?.name||'Prodotto');
+    const slots=(line?.slots||[]).map((slot,i)=>{
+      const mods=(slot?.modifiers||[]).filter(m=>isCooking(m)&&!isGlobal(m));
+      return mods.length?`<div class="print-taste"><b>GUSTO ${i+1}: ${esc(slot.taste||'')}</b>${mods.map(printMod).join('')}</div>`:'';
+    }).join('');
+    const direct=(line?.modifiers||[]).filter(m=>isCooking(m)&&!isGlobal(m)).map(printMod).join('');
+    return `<div class="print-line amal-note-item amal-note-pizza"><span><b>${qty}× ${name}</b>${slots}${direct}</span></div>`;
+  }
+  function sections(lines,type='kitchen',options={}){
+    const grouped=amalGroupLines(lines),out=[];
+    const global=[];
+    grouped.food.forEach(x=>selected(x.line).filter(isGlobal).forEach(m=>global.push(m)));
+    const cooking=grouped.food.filter(x=>selected(x.line).some(m=>!isGlobal(m)));
+    const ordinary=grouped.food.map(x=>x.line);
+    const legacy=grouped.notes.map(x=>x.line);
+    if(ordinary.length)out.push(ordinary.map(line=>amalPrintLine(line,type,options)).join(''));
+    if(legacy.length||cooking.length||global.length){
+      const legacyHtml=legacy.map(line=>amalPrintLine(line,type,{...options,note:true})).join('');
+      const globalHtml=global.length?'<div class="amal-note-global"><b>TUTTE</b></div>':'';
+      const cookingHtml=cooking.map(x=>lineHtml(x.line,type,options)).join('');
+      out.push(`<section class="amal-print-section amal-print-notes"><div class="amal-print-section-title">NOTE PER FORNO / PREPARAZIONE</div>${globalHtml}${legacyHtml}${cookingHtml}</section>`);
+    }
+    if(grouped.drinks.length)out.push(`<section class="amal-print-section amal-print-drinks"><div class="amal-print-section-title">BIBITE</div>${grouped.drinks.map(x=>amalPrintLine(x.line,type,options)).join('')}</section>`);
+    return out.join('');
+  }
+  amalPrintSections=sections;
+  const style=document.createElement('style');style.id='amalfitana-v48-global-note-style';
+  style.textContent=`
+    #print-area .amal-note-global{margin:2px 0 4px;padding:3px 6px;border:1px solid #000;border-bottom:2px double #000;font-size:11px;font-weight:900;letter-spacing:.04em;text-align:center;break-inside:avoid;page-break-inside:avoid}
+    #print-area .amal-print-notes .amal-note-pizza{break-inside:avoid;page-break-inside:avoid}
+  `;
+  document.head.appendChild(style);
+  function selfTest(){
+    const results=[],add=(name,ok)=>results.push({name,ok:!!ok});
+    const g=group(),ids=(g?.items||[]);
+    const make=(name,idx)=>{const x=ids.find(v=>norm(v.name)===norm(name))||{id:'test-'+idx,name};return {id:x.id,modifierId:x.id,name:`${g?.name||'Cottura e taglio'}: ${x.name}`,printStyle:x.printStyle||'highlight'}};
+    const tag=make('Tagliata',1),well=make('Ben cotta',2);
+    const mk=(name,mods=[],slots=[])=>({categoryId:'pizza',name,qty:1,modifiers:mods,slots});
+    const singular=sections([mk('Diavola',[tag]),mk('Margherita'),mk('Capricciosa',[well])]);
+    const singSection=singular.slice(singular.indexOf('NOTE PER FORNO / PREPARAZIONE'),singular.indexOf('</section>'));
+    add('singolare mantiene nome pizza e descrizione',singSection.includes('1× Diavola')&&singSection.includes('Tagliata')&&singSection.includes('1× Capricciosa')&&singSection.includes('Ben cotta'));
+    add('pizza senza nota non entra nel riquadro',!singSection.includes('1× Margherita'));
+    const globalTag=make('Tutte tagliate',3),globalWell=make('Tutte ben cotte',4);
+    const globalOut=sections([mk('Diavola',[globalTag]),mk('Margherita',[globalWell]),mk('Capricciosa')]);
+    const globalSection=globalOut.slice(globalOut.indexOf('NOTE PER FORNO / PREPARAZIONE'),globalOut.indexOf('</section>'));
+    add('prefisso Tutte genera istruzione collettiva',globalSection.includes('<b>TUTTE</b>'));
+    add('istruzione collettiva non ripete i nomi singolari',!globalSection.includes('Tagliate')&&!globalSection.includes('Ben cotte')&&!globalSection.includes('1× Diavola')&&!globalSection.includes('1× Margherita'));
+    add('istruzione collettiva stampata una sola volta',(globalSection.match(/<b>TUTTE<\/b>/g)||[]).length===1);
+    const mixed=sections([mk('Diavola',[tag]),mk('Margherita',[globalTag])]);
+    const mixedSection=mixed.slice(mixed.indexOf('NOTE PER FORNO / PREPARAZIONE'),mixed.indexOf('</section>'));
+    add('singolare e collettivo coesistono senza confondersi',mixedSection.includes('TUTTE')&&mixedSection.includes('1× Diavola')&&!mixedSection.includes('1× Margherita'));
+    const multi=sections([mk('Mezzo metro',[],[{taste:'Diavola',modifiers:[tag]},{taste:'Margherita',modifiers:[] }])]);
+    const multiSection=multi.slice(multi.indexOf('NOTE PER FORNO / PREPARAZIONE'),multi.indexOf('</section>'));
+    add('multigusto associa la nota al gusto corretto',multiSection.includes('GUSTO 1: Diavola')&&!multiSection.includes('GUSTO 2: Margherita'));
+    const old=sections([mk('Margherita'),{categoryId:'cat_note_operativi',name:'Nota vecchia',qty:1}]);
+    add('note storiche ancora stampate',old.includes('NOTE PER FORNO / PREPARAZIONE')&&old.includes('Nota vecchia'));
+    const many=Array.from({length:10000},(_,i)=>mk('Pizza '+i,i%100===0?[i%200===0?globalTag:tag]:[]));
+    const t=performance.now(),out=sections(many),ms=performance.now()-t;
+    add('stress 10.000 righe senza perdita ultima riga',out.includes('Pizza 9999')&&out.includes('NOTE PER FORNO / PREPARAZIONE'));
+    add('nessuna sezione vuota se nessuna nota',!sections([mk('Margherita')]).includes('NOTE PER FORNO / PREPARAZIONE'));
+    return {version:'V48',passed:results.filter(x=>x.ok).length,total:results.length,results,stressRows:many.length,stressMilliseconds:+ms.toFixed(2)};
+  }
+  window.AmalfitanaV48={version:'48.1',sections,isGlobal,selfTest};
+  console.info('V48 istruzioni collettive cottura',selfTest());
+})();
+</script>
+
 </body>
 </html>
